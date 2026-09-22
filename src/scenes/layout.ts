@@ -9,7 +9,7 @@ export const CENTER_Y = HEIGHT / 2;
 export const HAND_ANCHOR: Record<Seat, { x: number; y: number; axis: "h" | "v" }> = {
   0: { x: CENTER_X, y: 650, axis: "h" }, // you, bottom
   1: { x: 110, y: CENTER_Y, axis: "v" }, // opponent, left
-  2: { x: CENTER_X, y: 75, axis: "h" }, // partner, top
+  2: { x: CENTER_X, y: 100, axis: "h" }, // partner, top
   3: { x: WIDTH - 110, y: CENTER_Y, axis: "v" }, // opponent, right
 };
 

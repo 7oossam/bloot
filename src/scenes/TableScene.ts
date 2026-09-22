@@ -32,6 +32,7 @@ export class TableScene extends Phaser.Scene {
   private seatLabels: Record<Seat, Phaser.GameObjects.Text> = {} as Record<Seat, Phaser.GameObjects.Text>;
 
   private showingHandSummary = false;
+  private handSummaryPanel?: Phaser.GameObjects.Container;
   private pendingDeal: { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card } | null = null;
   private matchOver = false;
 
@@ -54,28 +55,34 @@ export class TableScene extends Phaser.Scene {
   // ---------------------------------------------------------------- setup
 
   private buildStaticUI(): void {
+    // Seat labels sit clear of every hand's card area (never behind a stack) and above
+    // static HUD text (setDepth) so a redraw can never bury them again.
+    const seatLabelPos: Record<Seat, { x: number; y: number }> = {
+      0: { x: HAND_ANCHOR[0].x, y: HAND_ANCHOR[0].y - CARD_H / 2 - 22 }, // above your hand
+      2: { x: HAND_ANCHOR[2].x, y: HAND_ANCHOR[2].y + CARD_H / 2 + 18 }, // below partner's hand
+      1: { x: HAND_ANCHOR[1].x, y: HAND_ANCHOR[1].y - 190 }, // above the left stack
+      3: { x: HAND_ANCHOR[3].x, y: HAND_ANCHOR[3].y - 190 }, // above the right stack
+    };
     for (const seat of [0, 1, 2, 3] as Seat[]) {
-      const a = HAND_ANCHOR[seat];
-      const labelY = seat === 0 ? a.y + 70 : seat === 2 ? a.y - 45 : a.y - 90;
-      const labelX = seat === 1 ? a.x + 5 : seat === 3 ? a.x - 5 : a.x;
-      this.seatLabels[seat] = arabicText(this, labelX, labelY, SEAT_LABEL_AR[seat], {
+      const pos = seatLabelPos[seat];
+      this.seatLabels[seat] = arabicText(this, pos.x, pos.y, SEAT_LABEL_AR[seat], {
         fontSize: "16px",
         color: "#e8e8e8",
-      });
+      }).setDepth(5);
     }
 
-    this.hudScoreText = arabicText(this, this.scale.width / 2, 24, "", { fontSize: "18px" });
-    this.hudModeText = arabicText(this, this.scale.width / 2, 48, "", {
+    this.hudScoreText = arabicText(this, this.scale.width / 2, 20, "", { fontSize: "18px" }).setDepth(5);
+    this.hudModeText = arabicText(this, this.scale.width / 2, 44, "", {
       fontSize: "15px",
       color: "#ffd54a",
-    });
-    this.logText = arabicText(this, this.scale.width - 170, 120, "", {
+    }).setDepth(5);
+    this.logText = arabicText(this, 20, this.scale.height - 20, "", {
       fontSize: "13px",
       color: "#cfe8d8",
-      align: "right",
+      align: "left",
     })
-      .setOrigin(1, 0)
-      .setPosition(this.scale.width - 20, 100);
+      .setOrigin(0, 1)
+      .setDepth(5);
   }
 
   private wireControllerEvents(): void {
@@ -224,10 +231,15 @@ export class TableScene extends Phaser.Scene {
     if (e.seat !== HUMAN_SEAT) return;
     const legalIds = new Set(e.legal.map(cardId));
     for (const view of this.handViews[HUMAN_SEAT]) {
+      // A card can stay in hand, legal-but-unclicked, across more than one of our turns
+      // (a different card gets played each time) — clear any stale listener before
+      // re-arming, or a later click would fire every handler ever registered on it.
+      view.off("pointerdown");
+      view.disableInteractive();
+
       const isLegal = legalIds.has(cardId(view.card));
       view.setDimmed(!isLegal);
       view.setHighlighted(false);
-      view.disableInteractive();
       if (isLegal) {
         view.setInteractive(
           new Phaser.Geom.Rectangle(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H),
@@ -240,7 +252,9 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onHumanCardClick(view: CardView): void {
+    if (this.controller.getRound().turnSeat !== HUMAN_SEAT) return; // stale click, ignore
     for (const v of this.handViews[HUMAN_SEAT]) {
+      v.off("pointerdown");
       v.disableInteractive();
       v.setDimmed(false);
     }
@@ -313,6 +327,7 @@ export class TableScene extends Phaser.Scene {
     ];
 
     const panel = this.add.container(this.scale.width / 2, this.scale.height / 2);
+    this.handSummaryPanel = panel;
     const bg = this.add.graphics();
     bg.fillStyle(0x0a2318, 0.95);
     bg.fillRoundedRect(-260, -110, 520, 220, 14);
@@ -326,6 +341,7 @@ export class TableScene extends Phaser.Scene {
 
     const btn = makeButton(this, 0, 75, "التالي", () => {
       panel.destroy();
+      this.handSummaryPanel = undefined;
       this.showingHandSummary = false;
       if (this.pendingDeal) {
         const deal = this.pendingDeal;
@@ -338,6 +354,11 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onMatchComplete(e: { winner: Team; matchScore: Record<Team, number> }): void {
+    // The match can end on the same synchronous step that just completed a hand — the
+    // "التالي" summary panel above may still be up (never clicked), so clear it first.
+    this.handSummaryPanel?.destroy();
+    this.handSummaryPanel = undefined;
+    this.showingHandSummary = false;
     this.matchOver = true;
     const won = e.winner === teamOf(HUMAN_SEAT);
     const title = won ? "فزتم! 🎉" : "خسرتم الرن";
