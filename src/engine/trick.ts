@@ -40,6 +40,15 @@ export function resolveTrick(trick: Trick, mode: Mode, trumpSuit?: Suit): Seat {
   return currentWinner(trick, mode, trumpSuit);
 }
 
+/** Would `card` currently be winning the trick if played right now (before it's actually played)? */
+export function wouldWinAgainstCurrent(card: Card, trick: Trick, mode: Mode, trumpSuit?: Suit): boolean {
+  if (trick.order.length === 0) return true; // leading always "wins" so far
+  const ledSuit = trick.cards[trick.order[0]]!.suit;
+  const winnerSeat = currentWinner(trick, mode, trumpSuit);
+  const currentBest = trick.cards[winnerSeat]!;
+  return isBetter(card, currentBest, ledSuit, mode, trumpSuit);
+}
+
 /**
  * Which cards `seat` may legally play right now.
  *
