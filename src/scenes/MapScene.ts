@@ -3,7 +3,7 @@ import { matchOptionsFromJokers, getJokerDef } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
@@ -119,11 +119,7 @@ export class MapScene extends Phaser.Scene {
     const container = this.add.container(x, y, parts);
 
     if (state.isAvailable) {
-      container.setSize(radius * 2, radius * 2);
-      container.setInteractive(
-        new Phaser.Geom.Rectangle(-radius, -radius, radius * 2, radius * 2),
-        Phaser.Geom.Rectangle.Contains,
-      );
+      setBoxHitArea(container, radius * 2, radius * 2);
       container.input!.cursor = "pointer";
       container.on("pointerover", () => circle.setScale(1.08));
       container.on("pointerout", () => circle.setScale(1));

@@ -47,11 +47,7 @@ export function makeButton(
   });
 
   const container = scene.add.container(x, y, [bg, text]);
-  container.setSize(width, height);
-  container.setInteractive(
-    new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-    Phaser.Geom.Rectangle.Contains,
-  );
+  setBoxHitArea(container, width, height);
   container.input!.cursor = "pointer";
   container.on("pointerover", () => bg.setAlpha(0.85));
   container.on("pointerout", () => bg.setAlpha(1));
@@ -67,4 +63,19 @@ export function makeButton(
   scene.tweens.add({ targets: container, scale: 1, alpha: 1, duration: 160, ease: "Back.Out" });
 
   return { container, destroy: () => container.destroy() };
+}
+
+/**
+ * Give a Container a hit area matching the box it draws around its own origin.
+ *
+ * Phaser normalises the hit test by the object's display origin
+ * (`pointWithinHitArea` does `x += gameObject.displayOriginX`), and `setSize(w, h)` on a
+ * Container sets that origin to (w/2, h/2). So the rectangle has to be expressed from the
+ * TOP-LEFT as (0, 0, w, h) — passing (-w/2, -h/2, w, h), which is what the drawing code
+ * uses, shifts the whole tappable area half a box up and to the left. That is why taps on
+ * the lower-right of a button did nothing and why tapping a card played its left neighbour.
+ */
+export function setBoxHitArea(container: Phaser.GameObjects.Container, width: number, height: number): void {
+  container.setSize(width, height);
+  container.setInteractive(new Phaser.Geom.Rectangle(0, 0, width, height), Phaser.Geom.Rectangle.Contains);
 }

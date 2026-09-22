@@ -15,6 +15,14 @@ function config(type: number): Phaser.Types.Core.GameConfig {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    // Phaser allocates one touch pointer by default, so a finger left resting on the screen
+    // occupies it and every other tap is ignored until it lifts. A couple of spare pointers
+    // costs nothing and keeps the game responsive when a hand is holding the phone.
+    input: {
+      activePointers: 3,
+      touch: true,
+      mouse: true,
+    },
     scene: [MapScene, TableScene, ShopScene],
   };
 }
@@ -40,4 +48,8 @@ if (vv) {
 }
 
 // Tells the boot diagnostics in index.html that the bundle loaded and the game started.
-(window as unknown as { __blootBooted?: boolean }).__blootBooted = true;
+// The game instance is exposed alongside it so an automated input test can ask the running
+// scene where a card actually is, instead of re-deriving the layout maths and testing its
+// own assumptions.
+(window as unknown as { __blootBooted?: boolean; __blootGame?: Phaser.Game }).__blootBooted = true;
+(window as unknown as { __blootGame?: Phaser.Game }).__blootGame = game;

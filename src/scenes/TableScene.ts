@@ -24,7 +24,7 @@ import {
   handPositions,
   sortHandForDisplay,
 } from "./layout";
-import { arabicText, makeButton, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
 // and attributed to a seat before the next one lands.
@@ -399,10 +399,7 @@ export class TableScene extends Phaser.Scene {
       view.setDimmed(!isLegal);
       view.setHighlighted(false);
       if (isLegal) {
-        view.setInteractive(
-          new Phaser.Geom.Rectangle(-view.displayW / 2, -view.displayH / 2, view.displayW, view.displayH),
-          Phaser.Geom.Rectangle.Contains,
-        );
+        setBoxHitArea(view, view.displayW, view.displayH);
         view.input!.cursor = "pointer";
         view.once("pointerdown", () => this.onHumanCardClick(view));
       }
