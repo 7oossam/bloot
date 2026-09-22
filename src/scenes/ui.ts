@@ -27,7 +27,7 @@ export function makeButton(
   y: number,
   label: string,
   onClick: () => void,
-  opts: { width?: number; height?: number; color?: number; textColor?: string } = {},
+  opts: { width?: number; height?: number; color?: number; textColor?: string; fontSize?: string } = {},
 ): ButtonHandle {
   const width = opts.width ?? 140;
   const height = opts.height ?? 44;
@@ -39,7 +39,10 @@ export function makeButton(
   bg.lineStyle(2, 0xffffff, 0.4);
   bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 10);
 
-  const text = arabicText(scene, 0, 0, label, { fontSize: "18px", color: opts.textColor ?? "#ffffff" });
+  const text = arabicText(scene, 0, 0, label, {
+    fontSize: opts.fontSize ?? "18px",
+    color: opts.textColor ?? "#ffffff",
+  });
 
   const container = scene.add.container(x, y, [bg, text]);
   container.setSize(width, height);
