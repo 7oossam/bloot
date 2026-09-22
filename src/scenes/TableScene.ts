@@ -9,7 +9,7 @@ import { runController } from "../roguelike/RunController";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_H, CARD_W } from "./CardView";
 import { SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
-import { CENTER_X, CENTER_Y, HAND_ANCHOR, HEIGHT, SEAT_LABEL_AR, TRICK_ANCHOR, WIDTH, handPositions, sortHandForDisplay } from "./layout";
+import { CENTER_X, CENTER_Y, HAND_ANCHOR, HEIGHT, SEAT_LABEL_AR, TABLE_RECT, TRICK_ANCHOR, WIDTH, handPositions, sortHandForDisplay } from "./layout";
 import { arabicText, makeButton, type ButtonHandle } from "./ui";
 
 const AI_STEP_DELAY_MS = 650;
@@ -76,9 +76,7 @@ export class TableScene extends Phaser.Scene {
 
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
-    this.add
-      .ellipse(CENTER_X, CENTER_Y + 60, WIDTH - 30, HEIGHT - 340, 0x0f5132)
-      .setStrokeStyle(5, 0x0a3524);
+    this.drawTable();
     this.buildStaticUI();
     this.controller = new GameController(mulberry32(Date.now() % 2147483647), {
       matchTarget: this.nodeData.matchTarget,
@@ -86,6 +84,20 @@ export class TableScene extends Phaser.Scene {
     });
     this.wireControllerEvents();
     this.controller.startMatch();
+  }
+
+  /** A square-ish felt table (not a landscape-style oval) with the 4 real seats around its edges. */
+  private drawTable(): void {
+    const { left, top, right, bottom } = TABLE_RECT;
+    const w = right - left;
+    const h = bottom - top;
+    const gfx = this.add.graphics();
+    gfx.fillStyle(0x0f5132, 1);
+    gfx.fillRoundedRect(left, top, w, h, 26);
+    gfx.lineStyle(5, 0x0a3524, 1);
+    gfx.strokeRoundedRect(left, top, w, h, 26);
+    gfx.lineStyle(2, 0x1c6b45, 0.6);
+    gfx.strokeRoundedRect(left + 10, top + 10, w - 20, h - 20, 18);
   }
 
   // ---------------------------------------------------------------- setup
@@ -196,8 +208,8 @@ export class TableScene extends Phaser.Scene {
 
     for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, e.hands[seat].length);
 
-    this.groundCardView = this.dealCardTo(CENTER_X, 235, e.groundCard, true, dealIndex * 30, GROUND_SCALE);
-    this.groundLabel = arabicText(this, CENTER_X, 195, "ورقة الأرض", {
+    this.groundCardView = this.dealCardTo(CENTER_X, 280, e.groundCard, true, dealIndex * 30, GROUND_SCALE);
+    this.groundLabel = arabicText(this, CENTER_X, 245, "ورقة الأرض", {
       fontSize: "12px",
       color: "#ffe08a",
     });
