@@ -16,3 +16,6 @@ new Phaser.Game({
   },
   scene: [MapScene, TableScene, ShopScene],
 });
+
+// Tells the boot-recovery guard in index.html that the bundle actually loaded.
+(window as unknown as { __blootBooted?: boolean }).__blootBooted = true;

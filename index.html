@@ -27,6 +27,32 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // GitHub Pages can serve a cached index.html that still points at the previous
+      // build's hashed bundle. That file is gone after a redeploy, so the script 404s and
+      // the page sits there blank. Detect a failed boot and re-fetch the HTML once,
+      // cache-busted. sessionStorage guards against a reload loop if it's a real failure.
+      (function () {
+        var KEY = "bloot:recovered";
+        function recover() {
+          if (sessionStorage.getItem(KEY)) return;
+          sessionStorage.setItem(KEY, "1");
+          location.replace(location.pathname + "?v=" + Date.now());
+        }
+        window.addEventListener(
+          "error",
+          function (e) {
+            if (e.target && e.target.tagName === "SCRIPT") recover();
+          },
+          true,
+        );
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            if (!window.__blootBooted) recover();
+          }, 5000);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
