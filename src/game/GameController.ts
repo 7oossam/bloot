@@ -9,6 +9,15 @@ import { Emitter } from "./emitter";
 export const HUMAN_SEAT: Seat = 0;
 export const MATCH_TARGET = 152;
 
+export interface MatchOptions {
+  /** Score needed to win the match. Defaults to the standard 152 — a roguelike node can shorten this. */
+  matchTarget?: number;
+  /** Extra points credited to each team before the first hand (a "head start" joker). */
+  headStart?: Partial<Record<Team, number>>;
+  /** Overrides the last-trick bonus (normally 10) for every hand in this match. */
+  lastTrickBonus?: number;
+}
+
 interface EventMap {
   [key: string]: unknown;
   "hand:dealt": { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card; round: number };
@@ -37,10 +46,16 @@ export class GameController extends Emitter<EventMap> {
   private matchScore: Record<Team, number> = { 0: 0, 1: 0 };
   private matchOver = false;
   private readonly rand: () => number;
+  private readonly matchTarget: number;
+  private readonly headStart: Partial<Record<Team, number>>;
+  private readonly lastTrickBonus: number | undefined;
 
-  constructor(rand: () => number = Math.random) {
+  constructor(rand: () => number = Math.random, options: MatchOptions = {}) {
     super();
     this.rand = rand;
+    this.matchTarget = options.matchTarget ?? MATCH_TARGET;
+    this.headStart = options.headStart ?? {};
+    this.lastTrickBonus = options.lastTrickBonus;
   }
 
   getRound(): Round {
@@ -51,15 +66,19 @@ export class GameController extends Emitter<EventMap> {
     return this.matchScore;
   }
 
+  getMatchTarget(): number {
+    return this.matchTarget;
+  }
+
   startMatch(): void {
-    this.matchScore = { 0: 0, 1: 0 };
+    this.matchScore = { 0: this.headStart[0] ?? 0, 1: this.headStart[1] ?? 0 };
     this.matchOver = false;
     this.dealer = 0;
     this.dealHand();
   }
 
   private dealHand(): void {
-    this.round = new Round(this.dealer, this.rand);
+    this.round = new Round(this.dealer, this.rand, this.lastTrickBonus);
     this.emit("hand:dealt", {
       dealer: this.dealer,
       hands: this.round.hands,
@@ -150,7 +169,7 @@ export class GameController extends Emitter<EventMap> {
       };
       this.emit("hand:complete", { result, matchScore: this.matchScore });
 
-      if (this.matchScore[0] >= MATCH_TARGET || this.matchScore[1] >= MATCH_TARGET) {
+      if (this.matchScore[0] >= this.matchTarget || this.matchScore[1] >= this.matchTarget) {
         if (this.matchScore[0] !== this.matchScore[1]) {
           this.matchOver = true;
           const winner: Team = this.matchScore[0] > this.matchScore[1] ? 0 : 1;

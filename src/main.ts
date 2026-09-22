@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { MapScene } from "./scenes/MapScene";
+import { ShopScene } from "./scenes/ShopScene";
 import { TableScene } from "./scenes/TableScene";
 import { HEIGHT, WIDTH } from "./scenes/layout";
 
@@ -12,5 +14,5 @@ new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [TableScene],
+  scene: [MapScene, TableScene, ShopScene],
 });

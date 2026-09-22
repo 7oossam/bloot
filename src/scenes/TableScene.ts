@@ -3,8 +3,10 @@ import { cardId } from "../engine/cards";
 import type { LegalCall } from "../engine/bidding";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { teamOf } from "../engine/types";
-import { GameController, HUMAN_SEAT, MATCH_TARGET } from "../game/GameController";
+import { GameController, HUMAN_SEAT, type MatchOptions } from "../game/GameController";
 import { mulberry32 } from "../engine/rng";
+import { runController } from "../roguelike/RunController";
+import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_H, CARD_W } from "./CardView";
 import { SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
 import { CENTER_X, CENTER_Y, HAND_ANCHOR, SEAT_LABEL_AR, TRICK_ANCHOR, handPositions, sortHandForDisplay } from "./layout";
@@ -16,8 +18,22 @@ const TRICK_COLLECT_TWEEN_MS = 350;
 const CARD_MOVE_TWEEN_MS = 260;
 const LOG_LINES = 5;
 
+const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
+  match: "مباراة",
+  elite: "مباراة نخبة",
+  shop: "متجر",
+  boss: "الزعيم",
+};
+
+export interface TableSceneData {
+  nodeType: NodeType;
+  matchTarget: number;
+  modifiers: MatchOptions;
+}
+
 export class TableScene extends Phaser.Scene {
   private controller!: GameController;
+  private nodeData!: TableSceneData;
 
   private handViews: Record<Seat, CardView[]> = { 0: [], 1: [], 2: [], 3: [] };
   private trickViews: Partial<Record<Seat, CardView>> = {};
@@ -40,14 +56,20 @@ export class TableScene extends Phaser.Scene {
     super("table");
   }
 
+  init(data: TableSceneData): void {
+    this.nodeData = data;
+  }
+
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
     this.add
       .ellipse(this.scale.width / 2, this.scale.height / 2, 900, 480, 0x0f5132)
       .setStrokeStyle(6, 0x0a3524);
-
     this.buildStaticUI();
-    this.controller = new GameController(mulberry32(Date.now() % 2147483647));
+    this.controller = new GameController(mulberry32(Date.now() % 2147483647), {
+      matchTarget: this.nodeData.matchTarget,
+      ...this.nodeData.modifiers,
+    });
     this.wireControllerEvents();
     this.controller.startMatch();
   }
@@ -162,7 +184,7 @@ export class TableScene extends Phaser.Scene {
       color: "#ffe08a",
     });
 
-    this.hudModeText.setText(`المزايدة — ورقة الأرض: ${SUIT_NAME_AR[e.groundCard.suit]} ${SUIT_SYMBOL[e.groundCard.suit]}`);
+    this.hudModeText.setText(`${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — المزايدة — ورقة الأرض: ${SUIT_NAME_AR[e.groundCard.suit]} ${SUIT_SYMBOL[e.groundCard.suit]}`);
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.updateScoreHud();
   }
@@ -241,7 +263,7 @@ export class TableScene extends Phaser.Scene {
       e.mode === "hokum"
         ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]} ${SUIT_NAME_AR[e.trumpSuit!]}`
         : "صن (بدون حكم)";
-    this.hudModeText.setText(`${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`);
+    this.hudModeText.setText(`${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`);
     this.log(`تم! ${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
   }
 
@@ -362,7 +384,7 @@ export class TableScene extends Phaser.Scene {
     const lines = [
       `انتهت اليد (${modeLabel})`,
       `نقاط الفريقين: أنتم ${r.scoredPoints[0]} — الخصم ${r.scoredPoints[1]}`,
-      `المجموع: أنتم ${e.matchScore[0]} — الخصم ${e.matchScore[1]} (الهدف ${MATCH_TARGET})`,
+      `المجموع: أنتم ${e.matchScore[0]} — الخصم ${e.matchScore[1]} (الهدف ${this.controller.getMatchTarget()})`,
     ];
 
     const panel = this.add.container(this.scale.width / 2, this.scale.height / 2);
@@ -399,34 +421,43 @@ export class TableScene extends Phaser.Scene {
     this.handSummaryPanel = undefined;
     this.showingHandSummary = false;
     this.matchOver = true;
+
     const won = e.winner === teamOf(HUMAN_SEAT);
-    const title = won ? "فزتم! 🎉" : "خسرتم الرن";
+    runController.resolveMatchNode(won);
+    const runState = runController.getState();
+
+    const title = won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة";
+    const rewardLine = won
+      ? `+${runState.nodes[runState.currentIndex].reward} ذهب`
+      : `-1 حياة (متبقي ${runState.lives})`;
 
     const panel = this.add.container(this.scale.width / 2, this.scale.height / 2);
     const bg = this.add.graphics();
     bg.fillStyle(0x0a2318, 0.97);
-    bg.fillRoundedRect(-260, -110, 520, 220, 14);
+    bg.fillRoundedRect(-260, -120, 520, 240, 14);
     bg.lineStyle(3, won ? 0x5ad469 : 0xd45a5a, 0.9);
-    bg.strokeRoundedRect(-260, -110, 520, 220, 14);
+    bg.strokeRoundedRect(-260, -120, 520, 240, 14);
     panel.add(bg);
-    panel.add(arabicText(this, 0, -55, title, { fontSize: "24px" }));
+    panel.add(arabicText(this, 0, -70, title, { fontSize: "24px" }));
     panel.add(
-      arabicText(this, 0, -10, `النتيجة النهائية: أنتم ${e.matchScore[0]} — الخصم ${e.matchScore[1]}`, {
-        fontSize: "16px",
-      }),
+      arabicText(this, 0, -25, `النتيجة: أنتم ${e.matchScore[0]} — الخصم ${e.matchScore[1]}`, { fontSize: "16px" }),
     );
-    const btn = makeButton(this, 0, 65, "لعبة جديدة", () => {
+    panel.add(arabicText(this, 0, 5, rewardLine, { fontSize: "15px", color: "#ffd54a" }));
+
+    if (runState.over) {
+      const runTitle = runState.won ? "أكملتم الرن! 🏆" : "انتهى الرن — نفدت أرواحكم";
+      panel.add(arabicText(this, 0, 35, runTitle, { fontSize: "17px", color: runState.won ? "#5ad469" : "#d45a5a" }));
+    }
+
+    const btn = makeButton(this, 0, 85, "المتابعة للخريطة", () => {
       panel.destroy();
-      this.matchOver = false;
-      this.controller = new GameController(mulberry32(Date.now() % 2147483647));
-      this.wireControllerEvents();
-      this.controller.startMatch();
+      this.scene.start("map");
     });
     panel.add(btn.container);
   }
 
   private updateScoreHud(matchScore?: Record<Team, number>): void {
     const score = matchScore ?? this.controller.getMatchScore();
-    this.hudScoreText.setText(`أنتم ${score[0]}   —   الخصم ${score[1]}   (الهدف ${MATCH_TARGET})`);
+    this.hudScoreText.setText(`أنتم ${score[0]}   —   الخصم ${score[1]}   (الهدف ${this.controller.getMatchTarget()})`);
   }
 }

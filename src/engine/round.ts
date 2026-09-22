@@ -23,7 +23,11 @@ export class Round {
   currentTrick?: Trick;
   result?: HandResult;
 
-  constructor(dealer: Seat, rand: () => number = Math.random) {
+  constructor(
+    dealer: Seat,
+    rand: () => number = Math.random,
+    private readonly lastTrickBonus?: number,
+  ) {
     this.dealer = dealer;
     this.initial = dealInitial(rand);
     this.bidding = startBidding(dealer, this.initial.stock[0]);
@@ -97,7 +101,13 @@ export class Round {
       this.tricks.push(this.currentTrick);
 
       if (this.tricks.length === 8) {
-        this.result = scoreHand(this.tricks, mode, trumpSuit, this.bidding.result.declarerTeam);
+        this.result = scoreHand(
+          this.tricks,
+          mode,
+          trumpSuit,
+          this.bidding.result.declarerTeam,
+          this.lastTrickBonus,
+        );
         this.phase = "complete";
         this.currentTrick = undefined;
       } else {

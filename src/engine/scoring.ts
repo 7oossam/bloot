@@ -6,6 +6,10 @@ import { teamOf } from "./types";
  * Tallies a completed hand (8 resolved tricks) into raw and mode-scored
  * points per team. Assumes every trick has a `winner` set.
  *
+ * `lastTrickBonus` defaults to the standard 10 but is overridable so a
+ * roguelike joker (e.g. "double kaboot") can change it without forking
+ * this function.
+ *
  * NOTE (simplification): this does not yet apply the "declarer must out-score
  * the defense or the whole hand's points go to the defense" rule some tables
  * play. Flag if you want that added.
@@ -15,6 +19,7 @@ export function scoreHand(
   mode: Mode,
   trumpSuit: Suit | undefined,
   declarerTeam: Team,
+  lastTrickBonus: number = LAST_TRICK_BONUS,
 ): HandResult {
   const rawPoints: Record<Team, number> = { 0: 0, 1: 0 };
   const tricksWon: Record<Team, number> = { 0: 0, 1: 0 };
@@ -27,7 +32,7 @@ export function scoreHand(
       rawPoints[winningTeam] += cardPoints(trick.cards[seat]!, mode, trumpSuit);
     }
     if (index === tricks.length - 1) {
-      rawPoints[winningTeam] += LAST_TRICK_BONUS;
+      rawPoints[winningTeam] += lastTrickBonus;
     }
   });
 
