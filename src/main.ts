@@ -1,0 +1,16 @@
+import Phaser from "phaser";
+import { TableScene } from "./scenes/TableScene";
+import { HEIGHT, WIDTH } from "./scenes/layout";
+
+new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: "app",
+  width: WIDTH,
+  height: HEIGHT,
+  backgroundColor: "#0b3d2e",
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  scene: [TableScene],
+});
