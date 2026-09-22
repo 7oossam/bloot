@@ -27,29 +27,73 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="diag"></div>
     <script>
-      // GitHub Pages can serve a cached index.html that still points at the previous
-      // build's hashed bundle. That file is gone after a redeploy, so the script 404s and
-      // the page sits there blank. Detect a failed boot and re-fetch the HTML once,
-      // cache-busted. sessionStorage guards against a reload loop if it's a real failure.
+      // The app is a canvas, so any boot failure otherwise renders as a blank page with no
+      // clue what went wrong — and a phone has no console to check. Surface it on screen.
       (function () {
-        var KEY = "bloot:recovered";
-        function recover() {
-          if (sessionStorage.getItem(KEY)) return;
-          sessionStorage.setItem(KEY, "1");
-          location.replace(location.pathname + "?v=" + Date.now());
+        var RELOADED = "bloot:recovered";
+
+        function show(title, detail) {
+          var el = document.getElementById("diag");
+          if (!el) return;
+          el.style.cssText =
+            "position:fixed;inset:0;padding:16px;overflow:auto;background:#0b3d2e;color:#fff;" +
+            "font:13px/1.6 Tahoma,sans-serif;direction:rtl;text-align:right;z-index:9999";
+          el.innerHTML =
+            '<div style="font-size:17px;font-weight:bold;margin-bottom:10px">تعذّر تشغيل اللعبة</div>' +
+            '<div style="color:#ffd54a;margin-bottom:12px">' +
+            title +
+            "</div>" +
+            '<pre style="white-space:pre-wrap;word-break:break-all;background:#06251b;padding:10px;' +
+            'border-radius:8px;font-size:11px;direction:ltr;text-align:left">' +
+            detail +
+            "</pre>" +
+            '<div style="margin-top:12px;color:#9fc2ab">صوّر هذي الشاشة وأرسلها.</div>';
         }
+
+        function diagnostics(extra) {
+          var s = document.querySelector('script[type="module"]');
+          return [
+            "url: " + location.href,
+            "script: " + (s ? s.src : "(none)"),
+            "ua: " + navigator.userAgent,
+            "screen: " + screen.width + "x" + screen.height + " dpr=" + window.devicePixelRatio,
+            "viewport: " + innerWidth + "x" + innerHeight,
+            extra || "",
+          ].join("\n");
+        }
+
+        // A stale cached index.html points at a hashed bundle removed by the last deploy,
+        // so the script 404s. That one is safely fixed by re-fetching cache-busted, once.
         window.addEventListener(
           "error",
           function (e) {
-            if (e.target && e.target.tagName === "SCRIPT") recover();
+            var t = e.target;
+            if (t && t.tagName === "SCRIPT") {
+              if (!sessionStorage.getItem(RELOADED)) {
+                sessionStorage.setItem(RELOADED, "1");
+                location.replace(location.pathname + "?v=" + Date.now());
+                return;
+              }
+              show("ملف اللعبة ما تحمّل (404).", diagnostics("script failed to load"));
+            }
           },
           true,
         );
+
+        // Anything else (the bundle loaded but threw) must be reported, never silently
+        // reloaded away — a reload would just hide the real error behind a green screen.
+        window.addEventListener("error", function (e) {
+          if (e.message) show("خطأ أثناء التشغيل.", diagnostics(e.message + "\n" + (e.error && e.error.stack ? e.error.stack : "")));
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          show("خطأ أثناء التشغيل.", diagnostics("unhandledrejection: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason))));
+        });
         window.addEventListener("load", function () {
           setTimeout(function () {
-            if (!window.__blootBooted) recover();
-          }, 5000);
+            if (!window.__blootBooted) show("اللعبة ما اشتغلت خلال 8 ثواني.", diagnostics("boot timeout"));
+          }, 8000);
         });
       })();
     </script>
