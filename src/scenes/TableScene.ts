@@ -26,11 +26,15 @@ import {
 } from "./layout";
 import { arabicText, makeButton, type ButtonHandle } from "./ui";
 
-const AI_STEP_DELAY_MS = 650;
-const TRICK_COLLECT_DELAY_MS = 700;
+// Bidding gets a slower beat than card play: each call is a single word that has to be read
+// and attributed to a seat before the next one lands.
+const AI_BID_DELAY_MS = 1250;
+const AI_PLAY_DELAY_MS = 750;
+const TRICK_COLLECT_DELAY_MS = 850;
 const TRICK_COLLECT_TWEEN_MS = 350;
-const CARD_MOVE_TWEEN_MS = 260;
-const LOG_LINES = 3;
+const CARD_MOVE_TWEEN_MS = 300;
+const BUBBLE_HOLD_MS = 1100;
+const LOG_LINES = 4;
 
 /** Card draw sizes per on-screen role (see CardView: these size the art, not a shrink transform). */
 const HAND_CARD_SIZE = 1;
@@ -64,6 +68,7 @@ export class TableScene extends Phaser.Scene {
   private playerHandViews: CardView[] = [];
   private opponentWidget: Partial<Record<Seat, OpponentWidget>> = {};
   private trickViews: Partial<Record<Seat, CardView>> = {};
+  private seatBubble: Partial<Record<Seat, Phaser.GameObjects.Container>> = {};
   private groundCardView?: CardView;
   private groundLabel?: Phaser.GameObjects.Text;
   private bidPrompt?: Phaser.GameObjects.Text;
@@ -139,8 +144,8 @@ export class TableScene extends Phaser.Scene {
     }
 
     this.logText = arabicText(this, 22, HEIGHT - 12, "", {
-      fontSize: "20px",
-      color: "#9fc2ab",
+      fontSize: "24px",
+      color: "#b9d7c5",
       align: "left",
     })
       .setOrigin(0, 1)
@@ -182,7 +187,50 @@ export class TableScene extends Phaser.Scene {
     const status = this.controller.step();
     if (this.showingHandSummary || this.matchOver) return;
     if (status === "advanced") {
-      this.time.delayedCall(AI_STEP_DELAY_MS, () => this.driveAI());
+      const delay = this.controller.getRound().phase === "bidding" ? AI_BID_DELAY_MS : AI_PLAY_DELAY_MS;
+      this.time.delayedCall(delay, () => this.driveAI());
+    }
+  }
+
+  /** Pops a short label beside a seat ("جلي", "حكم ♠") so a call is attributable at a glance. */
+  private showSeatBubble(seat: Seat, text: string, color: number): void {
+    this.seatBubble[seat]?.destroy();
+
+    const anchor = HAND_ANCHOR[seat];
+    const offset = 165;
+    const x = seat === 1 ? anchor.x - offset : seat === 3 ? anchor.x + offset : anchor.x;
+    const y = seat === 0 ? anchor.y - 210 : seat === 2 ? anchor.y + 150 : anchor.y;
+
+    const label = arabicText(this, 0, 0, text, { fontSize: "27px" });
+    const w = Math.max(120, label.width + 44);
+    const h = 66;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x08201a, 0.94);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
+    bg.lineStyle(4, color, 1);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
+
+    const bubble = this.add.container(x, y, [bg, label]).setDepth(15);
+    bubble.setScale(0.7).setAlpha(0);
+    this.seatBubble[seat] = bubble;
+
+    this.tweens.add({ targets: bubble, scale: 1, alpha: 1, duration: 160, ease: "Back.Out" });
+    this.tweens.add({
+      targets: bubble,
+      alpha: 0,
+      delay: BUBBLE_HOLD_MS,
+      duration: 220,
+      onComplete: () => {
+        bubble.destroy();
+        if (this.seatBubble[seat] === bubble) this.seatBubble[seat] = undefined;
+      },
+    });
+  }
+
+  private clearSeatBubbles(): void {
+    for (const seat of [0, 1, 2, 3] as Seat[]) {
+      this.seatBubble[seat]?.destroy();
+      this.seatBubble[seat] = undefined;
     }
   }
 
@@ -199,6 +247,7 @@ export class TableScene extends Phaser.Scene {
 
   private rebuildTable(e: { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card }): void {
     this.clearBidButtons();
+    this.clearSeatBubbles();
     for (const view of this.playerHandViews) view.destroy();
     this.playerHandViews = [];
     for (const trick of Object.values(this.trickViews)) trick?.destroy();
@@ -291,10 +340,13 @@ export class TableScene extends Phaser.Scene {
     const who = SEAT_LABEL_AR[e.bid.seat];
     if (e.bid.call === "pass") {
       this.log(`${who}: جلي`);
+      this.showSeatBubble(e.bid.seat, "جلي", 0x8aa79a);
     } else if (e.bid.call === "sun") {
       this.log(`${who}: صن`);
+      this.showSeatBubble(e.bid.seat, "صن", 0xffd54a);
     } else {
       this.log(`${who}: حكم ${SUIT_SYMBOL[e.bid.suit!]}`);
+      this.showSeatBubble(e.bid.seat, `حكم ${SUIT_SYMBOL[e.bid.suit!]}`, 0xffd54a);
     }
     if (this.controller.getRound().bidding.redeal) {
       this.log("محد اشترى — يعاد التوزيع");

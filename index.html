@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>بلوت روغلايك</title>
+    <!-- Inline so there is no separate request to 404 on. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b3d2e'/%3E%3Ctext x='16' y='24' font-size='22' text-anchor='middle' fill='%23ffd54a'%3E%E2%99%A0%3C/text%3E%3C/svg%3E"
+    />
     <style>
       html, body {
         margin: 0;
@@ -11,14 +16,20 @@
         background: #0b3d2e;
         overflow: hidden;
         height: 100%;
+        overscroll-behavior: none;
         font-family: "Tahoma", "Segoe UI", sans-serif;
       }
+      /* 100vh on mobile is the viewport with the URL bar HIDDEN, so it runs taller than
+         what's actually on screen — the bottom of the table (your hand) ends up cut off and
+         pointer coordinates drift. 100dvh tracks the real visible viewport; 100vh is the
+         fallback for browsers without dvh. */
       #app {
         display: flex;
         align-items: center;
         justify-content: center;
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
       }
       canvas {
         touch-action: none;

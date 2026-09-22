@@ -15,18 +15,26 @@ export const TABLE_RECT = { left: 40, top: 300, right: WIDTH - 40, bottom: 1320 
 
 // A real 4-seat table: partner across the top edge, opponents on the left and right edges,
 // you at the bottom. Seats 1-3 show a compact card-back + live count rather than a full fan.
+//
+// Turn order in the engine is always 0 -> 1 -> 2 -> 3. Baloot deals and plays
+// counter-clockwise, so seat 1 (who follows you) sits on your RIGHT and seat 3 on your
+// LEFT: bottom -> right -> top -> left reads counter-clockwise on screen. Seating them the
+// other way round made play run clockwise. This is a seating/label change only — the engine
+// keeps its plain 0,1,2,3 rotation.
 export const HAND_ANCHOR: Record<Seat, { x: number; y: number; axis: "h" | "v" }> = {
-  0: { x: CENTER_X, y: 1600, axis: "h" },
-  1: { x: TABLE_RECT.left + 90, y: CENTER_Y, axis: "v" },
+  // Sits clear of the activity log pinned to the bottom-left corner: the log grows upward
+  // from y=1788 over 4 lines (~1652), so the hand's lowest edge has to stay above that.
+  0: { x: CENTER_X, y: 1545, axis: "h" },
+  1: { x: TABLE_RECT.right - 90, y: CENTER_Y, axis: "v" },
   2: { x: CENTER_X, y: TABLE_RECT.top + 80, axis: "h" },
-  3: { x: TABLE_RECT.right - 90, y: CENTER_Y, axis: "v" },
+  3: { x: TABLE_RECT.left + 90, y: CENTER_Y, axis: "v" },
 };
 
 export const TRICK_ANCHOR: Record<Seat, { x: number; y: number }> = {
   0: { x: CENTER_X, y: CENTER_Y + 230 },
-  1: { x: CENTER_X - 165, y: CENTER_Y },
+  1: { x: CENTER_X + 165, y: CENTER_Y },
   2: { x: CENTER_X, y: CENTER_Y - 230 },
-  3: { x: CENTER_X + 165, y: CENTER_Y },
+  3: { x: CENTER_X - 165, y: CENTER_Y },
 };
 
 export const GROUND_CARD_POS = { x: CENTER_X, y: 640, labelY: 515 };
@@ -36,9 +44,9 @@ export const BID_BUTTON_ROW_GAP = 96;
 
 export const SEAT_LABEL_AR: Record<Seat, string> = {
   0: "أنت",
-  1: "يسار",
+  1: "يمين",
   2: "شريكك",
-  3: "يمين",
+  3: "يسار",
 };
 
 const RANK_DISPLAY_ORDER: readonly Card["rank"][] = ["7", "8", "9", "10", "J", "Q", "K", "A"];
