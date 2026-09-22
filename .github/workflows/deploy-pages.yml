@@ -60,9 +60,42 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      actions: read
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # While the Pages source is still a branch, GitHub also runs its legacy Jekyll build on
+      # this same commit and publishes the repo root — the Vite source index.html, which is a
+      # dead page. Both publish to the same site and the LAST one to finish wins, so the
+      # player got the game or a 404 depending on which race we won that push. Let the legacy
+      # build go first and land on top of it. Once the source is switched to GitHub Actions no
+      # such run exists and this returns on the first poll.
+      - name: Let the legacy branch build finish first
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 40); do
+            body=$(curl -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&per_page=100") || body=""
+            pending=$(printf '%s' "$body" | jq '[.workflow_runs[]? | select(.name == "pages build and deployment" and .status != "completed")] | length' 2>/dev/null)
+            case "$pending" in
+              ''|*[!0-9]*)
+                echo "::warning::Could not read workflow runs; deploying without waiting."
+                exit 0
+                ;;
+            esac
+            echo "poll $i: legacy pages builds still running on this commit: $pending"
+            if [ "$pending" -eq 0 ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::warning::Legacy Pages build still running after ~7 minutes; deploying anyway."
+
       - id: deployment
         uses: actions/deploy-pages@v4
