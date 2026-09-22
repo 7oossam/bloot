@@ -2,24 +2,34 @@ import Phaser from "phaser";
 import type { Card } from "../engine/types";
 import { SUIT_COLOR_HEX, SUIT_SYMBOL } from "./cardArt";
 
-export const CARD_W = 64;
-export const CARD_H = 92;
+/** Base card size, in the 860x1800 authoring space. */
+export const CARD_W = 132;
+export const CARD_H = 190;
 
-/** One playing card as a Phaser container: a rounded rect face plus rank/suit text, or a card-back pattern. */
+/**
+ * One playing card. Everything is drawn at the card's real on-screen size (via `sizeScale`)
+ * rather than drawn big and shrunk with setScale — scaling a rendered text texture down is
+ * what made the ranks blurry. The container's own scale is left at 1 for animation only.
+ */
 export class CardView extends Phaser.GameObjects.Container {
   readonly card: Card;
+  readonly displayW: number;
+  readonly displayH: number;
   private faceUp: boolean;
+  private readonly sizeScale: number;
   private readonly bg: Phaser.GameObjects.Graphics;
-  private rankText?: Phaser.GameObjects.Text;
-  private suitText?: Phaser.GameObjects.Text;
+  private texts: Phaser.GameObjects.Text[] = [];
 
-  constructor(scene: Phaser.Scene, x: number, y: number, card: Card, faceUp: boolean) {
+  constructor(scene: Phaser.Scene, x: number, y: number, card: Card, faceUp: boolean, sizeScale = 1) {
     super(scene, x, y);
     this.card = card;
     this.faceUp = faceUp;
+    this.sizeScale = sizeScale;
+    this.displayW = CARD_W * sizeScale;
+    this.displayH = CARD_H * sizeScale;
     this.bg = scene.add.graphics();
     this.add(this.bg);
-    this.setSize(CARD_W, CARD_H);
+    this.setSize(this.displayW, this.displayH);
     this.redraw();
     scene.add.existing(this);
   }
@@ -34,44 +44,64 @@ export class CardView extends Phaser.GameObjects.Container {
   }
 
   setDimmed(on: boolean): void {
-    this.setAlpha(on ? 0.55 : 1);
+    this.setAlpha(on ? 0.58 : 1);
   }
 
   private redraw(highlighted = false): void {
     this.bg.clear();
-    this.rankText?.destroy();
-    this.suitText?.destroy();
-    this.rankText = undefined;
-    this.suitText = undefined;
+    for (const t of this.texts) t.destroy();
+    this.texts = [];
 
-    const w = CARD_W;
-    const h = CARD_H;
-    const r = 8;
+    const s = this.sizeScale;
+    const w = this.displayW;
+    const h = this.displayH;
+    const r = 16 * s;
 
     if (this.faceUp) {
-      this.bg.fillStyle(0xfaf7f0, 1);
+      // A soft drop shadow gives the card some lift off the felt.
+      this.bg.fillStyle(0x000000, 0.28);
+      this.bg.fillRoundedRect(-w / 2 + 3 * s, -h / 2 + 5 * s, w, h, r);
+
+      this.bg.fillStyle(0xfdfbf6, 1);
       this.bg.fillRoundedRect(-w / 2, -h / 2, w, h, r);
-      this.bg.lineStyle(highlighted ? 3 : 1.5, highlighted ? 0xffd54a : 0x333333, 1);
+      this.bg.lineStyle(highlighted ? 6 * s : 2 * s, highlighted ? 0xffd54a : 0x2a2a2a, 1);
       this.bg.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
 
       const color = SUIT_COLOR_HEX[this.card.suit];
-      this.rankText = this.scene.add.text(-w / 2 + 6, -h / 2 + 2, this.card.rank, {
-        fontFamily: "Arial",
-        fontSize: "14px",
+      const font = "Arial, Helvetica, sans-serif";
+
+      // Corner index (rank over suit) — this is the part that stays visible when cards overlap.
+      const rank = this.scene.add.text(-w / 2 + 11 * s, -h / 2 + 7 * s, this.card.rank, {
+        fontFamily: font,
+        fontSize: `${Math.round(40 * s)}px`,
         color,
         fontStyle: "bold",
       });
-      this.suitText = this.scene.add
-        .text(0, 6, SUIT_SYMBOL[this.card.suit], { fontFamily: "Arial", fontSize: "28px", color })
+      const cornerSuit = this.scene.add.text(-w / 2 + 11 * s, -h / 2 + 48 * s, SUIT_SYMBOL[this.card.suit], {
+        fontFamily: font,
+        fontSize: `${Math.round(32 * s)}px`,
+        color,
+      });
+      const centerSuit = this.scene.add
+        .text(13 * s, 16 * s, SUIT_SYMBOL[this.card.suit], {
+          fontFamily: font,
+          fontSize: `${Math.round(66 * s)}px`,
+          color,
+        })
         .setOrigin(0.5);
-      this.add([this.rankText, this.suitText]);
+
+      this.texts = [rank, cornerSuit, centerSuit];
+      this.add(this.texts);
     } else {
+      this.bg.fillStyle(0x000000, 0.28);
+      this.bg.fillRoundedRect(-w / 2 + 3 * s, -h / 2 + 5 * s, w, h, r);
+
       this.bg.fillStyle(0x1d4f8a, 1);
       this.bg.fillRoundedRect(-w / 2, -h / 2, w, h, r);
-      this.bg.lineStyle(1.5, 0x0b2a52, 1);
+      this.bg.lineStyle(2 * s, 0x0b2a52, 1);
       this.bg.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
-      this.bg.lineStyle(2, 0x3a6fb5, 1);
-      this.bg.strokeRoundedRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12, r - 2);
+      this.bg.lineStyle(4 * s, 0x3a6fb5, 1);
+      this.bg.strokeRoundedRect(-w / 2 + 12 * s, -h / 2 + 12 * s, w - 24 * s, h - 24 * s, r * 0.7);
     }
   }
 }

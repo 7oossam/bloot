@@ -16,13 +16,13 @@ export class ShopScene extends Phaser.Scene {
 
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x1a1230).setOrigin(0);
-    arabicText(this, WIDTH / 2, 40, "المتجر", { fontSize: "24px" });
-    this.goldText = arabicText(this, WIDTH / 2, 74, "", { fontSize: "13px", color: "#ffd54a" });
+    arabicText(this, WIDTH / 2, 84, "المتجر", { fontSize: "46px" });
+    this.goldText = arabicText(this, WIDTH / 2, 150, "", { fontSize: "26px", color: "#ffd54a" });
     this.cardsLayer = this.add.container(0, 0);
 
     this.refresh();
 
-    makeButton(this, WIDTH / 2, HEIGHT - 50, "متابعة الرحلة", () => {
+    makeButton(this, WIDTH / 2, HEIGHT - 110, "متابعة الرحلة", () => {
       runController.leaveShopNode();
       this.scene.start("map");
     });
@@ -34,13 +34,13 @@ export class ShopScene extends Phaser.Scene {
     this.goldText.setText(`ذهبك: ${state.gold}   —   جوكرزك: ${state.jokerIds.length}/${MAX_JOKERS}`);
 
     const offering = runController.shopOffering();
-    const cardWidth = WIDTH - 60;
-    const cardHeight = 130;
-    const spacing = 16;
-    const startY = 110;
+    const cardWidth = WIDTH - 120;
+    const cardHeight = 270;
+    const spacing = 34;
+    const startY = 230;
 
     if (offering.length === 0) {
-      this.cardsLayer.add(arabicText(this, WIDTH / 2, HEIGHT / 2, "اشتريت كل الجوكرز المتاحة!", { fontSize: "15px" }));
+      this.cardsLayer.add(arabicText(this, WIDTH / 2, HEIGHT / 2, "اشتريت كل الجوكرز المتاحة!", { fontSize: "30px" }));
       return;
     }
 
@@ -52,25 +52,25 @@ export class ShopScene extends Phaser.Scene {
 
       const bg = this.add.graphics();
       bg.fillStyle(0x241a3f, 1);
-      bg.fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 12);
-      bg.lineStyle(2, affordable ? 0xffd54a : 0x554a77, 1);
-      bg.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 12);
+      bg.fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 24);
+      bg.lineStyle(4, affordable ? 0xffd54a : 0x554a77, 1);
+      bg.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 24);
 
       const card = this.add.container(x, y, [bg]);
-      card.add(arabicText(this, -cardWidth / 2 + 90, -38, def.name, { fontSize: "16px" }));
+      card.add(arabicText(this, -cardWidth / 2 + 190, -80, def.name, { fontSize: "32px" }));
       card.add(
-        arabicText(this, -cardWidth / 2 + 90, -8, def.description, {
-          fontSize: "12px",
+        arabicText(this, -cardWidth / 2 + 190, -14, def.description, {
+          fontSize: "24px",
           color: "#cfc8e0",
           align: "right",
-          wordWrap: { width: cardWidth - 120 },
+          wordWrap: { width: cardWidth - 260 },
         }),
       );
-      card.add(arabicText(this, -cardWidth / 2 + 90, 28, `${def.cost} ذهب`, { fontSize: "13px", color: "#ffd54a" }));
+      card.add(arabicText(this, -cardWidth / 2 + 190, 66, `${def.cost} ذهب`, { fontSize: "26px", color: "#ffd54a" }));
 
       const btn = makeButton(
         this,
-        cardWidth / 2 - 45,
+        cardWidth / 2 - 95,
         0,
         "شراء",
         () => {
@@ -78,7 +78,7 @@ export class ShopScene extends Phaser.Scene {
           runController.buyJoker(id);
           this.refresh();
         },
-        { color: affordable ? 0x1f6f43 : 0x3a3a3a, width: 76, height: 36, fontSize: "13px" },
+        { color: affordable ? 0x1f6f43 : 0x3a3a3a, width: 150, height: 74, fontSize: "26px" },
       );
       card.add(btn.container);
 

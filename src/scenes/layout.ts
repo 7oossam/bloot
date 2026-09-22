@@ -1,31 +1,38 @@
 import type { Card, Seat, Suit } from "../engine/types";
 import { SUITS } from "../engine/types";
 
-// Portrait, phone-first reference resolution. A real 4-seat table: partner across from you at
-// the top edge, opponents at the left and right edges (like actually sitting at the table),
-// you at the bottom. Seats 1-3 render as a compact widget (card-back + live count) rather than
-// a full fanned stack — there's no width for that on a phone — but they sit where that seat
-// actually is, not squeezed into a top strip.
-export const WIDTH = 430;
-export const HEIGHT = 900;
+// Portrait, phone-first. The canvas is authored at ~2x a phone's CSS width (860 rather than
+// 430) so that on a high-DPI screen the backing store lands near 1:1 with device pixels —
+// authoring at 430 meant the browser stretched every glyph ~2x and everything looked fuzzy.
+// Nothing is drawn shrunk-down either: cards are drawn at their real size (see CardView's
+// sizeScale) instead of being rendered large and scaled down, which resamples text to mush.
+export const WIDTH = 860;
+export const HEIGHT = 1800;
 export const CENTER_X = WIDTH / 2;
 export const CENTER_Y = HEIGHT / 2;
 
-export const TABLE_RECT = { left: 20, top: 150, right: WIDTH - 20, bottom: 660 };
+export const TABLE_RECT = { left: 40, top: 300, right: WIDTH - 40, bottom: 1320 };
 
+// A real 4-seat table: partner across the top edge, opponents on the left and right edges,
+// you at the bottom. Seats 1-3 show a compact card-back + live count rather than a full fan.
 export const HAND_ANCHOR: Record<Seat, { x: number; y: number; axis: "h" | "v" }> = {
-  0: { x: CENTER_X, y: HEIGHT - 90, axis: "h" }, // you, below the table's bottom edge
-  1: { x: TABLE_RECT.left + 50, y: CENTER_Y, axis: "v" }, // left seat, on the table's left edge
-  2: { x: CENTER_X, y: TABLE_RECT.top + 40, axis: "h" }, // partner, on the table's top edge
-  3: { x: TABLE_RECT.right - 50, y: CENTER_Y, axis: "v" }, // right seat, on the table's right edge
+  0: { x: CENTER_X, y: 1600, axis: "h" },
+  1: { x: TABLE_RECT.left + 90, y: CENTER_Y, axis: "v" },
+  2: { x: CENTER_X, y: TABLE_RECT.top + 80, axis: "h" },
+  3: { x: TABLE_RECT.right - 90, y: CENTER_Y, axis: "v" },
 };
 
 export const TRICK_ANCHOR: Record<Seat, { x: number; y: number }> = {
-  0: { x: CENTER_X, y: CENTER_Y + 140 },
-  1: { x: CENTER_X - 85, y: CENTER_Y },
-  2: { x: CENTER_X, y: CENTER_Y - 140 },
-  3: { x: CENTER_X + 85, y: CENTER_Y },
+  0: { x: CENTER_X, y: CENTER_Y + 230 },
+  1: { x: CENTER_X - 165, y: CENTER_Y },
+  2: { x: CENTER_X, y: CENTER_Y - 230 },
+  3: { x: CENTER_X + 165, y: CENTER_Y },
 };
+
+export const GROUND_CARD_POS = { x: CENTER_X, y: 640, labelY: 515 };
+// Sits below the left/right seats' card-count labels so the button row never covers them.
+export const BID_BUTTON_ROW_Y = 1130;
+export const BID_BUTTON_ROW_GAP = 96;
 
 export const SEAT_LABEL_AR: Record<Seat, string> = {
   0: "أنت",
@@ -47,11 +54,16 @@ export function sortHandForDisplay(cards: Card[], trumpSuit?: Suit): Card[] {
   });
 }
 
-/** World positions for `count` cards fanned around the player's (seat 0) hand anchor. */
-export function handPositions(seat: Seat, count: number): Array<{ x: number; y: number }> {
+/**
+ * World positions for `count` cards fanned across the player's hand anchor. Cards overlap
+ * slightly when the hand is full — that's why each card carries a corner rank+suit index,
+ * so a covered card is still identifiable by its exposed left edge.
+ */
+export function handPositions(seat: Seat, count: number, cardWidth: number): Array<{ x: number; y: number }> {
   const anchor = HAND_ANCHOR[seat];
   if (count === 0) return [];
-  const spacing = Math.min(40, (WIDTH - 40) / count);
+  const usable = WIDTH - 40 - cardWidth;
+  const spacing = count > 1 ? Math.min(cardWidth + 10, usable / (count - 1)) : 0;
   const positions: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < count; i++) {
     const offset = (i - (count - 1) / 2) * spacing;

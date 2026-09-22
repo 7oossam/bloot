@@ -20,11 +20,11 @@ const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
   boss: "👑",
 };
 
-const RADIUS = 26;
-const TOP_MARGIN = 150;
-const BOTTOM_MARGIN = 60;
+const RADIUS = 54;
+const TOP_MARGIN = 320;
+const BOTTOM_MARGIN = 130;
 // Slight zigzag so the path isn't a dead-straight line, cycling through these x offsets.
-const X_OFFSETS = [0, -46, 46, -30, 30, -46, 0];
+const X_OFFSETS = [0, -92, 92, -60, 60, -92, 0];
 
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
 export class MapScene extends Phaser.Scene {
@@ -38,8 +38,8 @@ export class MapScene extends Phaser.Scene {
 
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
-    arabicText(this, WIDTH / 2, 34, "بلوت روغلايك", { fontSize: "22px" });
-    this.hudText = arabicText(this, WIDTH / 2, 66, "", { fontSize: "12px", color: "#ffd54a" });
+    arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
+    this.hudText = arabicText(this, WIDTH / 2, 150, "", { fontSize: "25px", color: "#ffd54a" });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
   }
@@ -74,7 +74,7 @@ export class MapScene extends Phaser.Scene {
     const lineGfx = this.add.graphics();
     for (let i = 0; i < n - 1; i++) {
       const cleared = state.cleared[i];
-      lineGfx.lineStyle(4, cleared ? 0x5ad469 : 0x2c6b4a, 1);
+      lineGfx.lineStyle(8, cleared ? 0x5ad469 : 0x2c6b4a, 1);
       lineGfx.lineBetween(xFor(i), yFor(i), xFor(i + 1), yFor(i + 1));
     }
     this.nodeLayer.add(lineGfx);
@@ -99,21 +99,21 @@ export class MapScene extends Phaser.Scene {
     const color = state.isCleared ? 0x1f6f43 : state.isAvailable ? 0x2f8f5b : 0x33443c;
     const strokeColor = state.isAvailable ? 0xffd54a : state.isCleared ? 0x5ad469 : 0x55665c;
 
-    const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 4 : 2, strokeColor);
-    const icon = this.add.text(0, -3, NODE_TYPE_ICON[node.type], { fontSize: "17px" }).setOrigin(0.5);
-    const label = arabicText(this, radius + 46, 0, NODE_TYPE_LABEL_AR[node.type], {
-      fontSize: "12px",
+    const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
+    const icon = this.add.text(0, -6, NODE_TYPE_ICON[node.type], { fontSize: "36px" }).setOrigin(0.5);
+    const label = arabicText(this, radius + 92, -14, NODE_TYPE_LABEL_AR[node.type], {
+      fontSize: "26px",
       color: state.isAvailable ? "#ffd54a" : "#bcd",
     });
     const targetLabel =
       node.matchTarget !== undefined
-        ? arabicText(this, radius + 46, 16, `هدف ${node.matchTarget}`, { fontSize: "10px", color: "#8fae9a" })
+        ? arabicText(this, radius + 92, 22, `هدف ${node.matchTarget}`, { fontSize: "21px", color: "#8fae9a" })
         : null;
 
     const parts = [circle, icon, label];
     if (targetLabel) parts.push(targetLabel);
     if (state.isCleared) {
-      parts.push(this.add.text(radius - 8, -radius + 2, "✓", { fontSize: "15px", color: "#5ad469" }));
+      parts.push(this.add.text(radius - 18, -radius + 4, "✓", { fontSize: "32px", color: "#5ad469" }));
     }
 
     const container = this.add.container(x, y, parts);
@@ -158,25 +158,25 @@ export class MapScene extends Phaser.Scene {
 
   private showRunOverPanel(state: RunState): void {
     const won = state.won;
-    const panelW = WIDTH - 60;
-    const panel = this.add.container(WIDTH / 2, HEIGHT / 2);
+    const panelW = WIDTH - 120;
+    const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
 
     const bg = this.add.graphics();
     bg.fillStyle(0x0a2318, 0.97);
-    bg.fillRoundedRect(-panelW / 2, -110, panelW, 220, 14);
-    bg.lineStyle(3, won ? 0x5ad469 : 0xd45a5a, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -110, panelW, 220, 14);
+    bg.fillRoundedRect(-panelW / 2, -220, panelW, 440, 28);
+    bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -220, panelW, 440, 28);
     panel.add(bg);
 
-    panel.add(arabicText(this, 0, -60, won ? "أكملتم الرن! 🏆" : "انتهى الرن 💀", { fontSize: "22px" }));
+    panel.add(arabicText(this, 0, -120, won ? "أكملتم الرن! 🏆" : "انتهى الرن 💀", { fontSize: "42px" }));
     panel.add(
-      arabicText(this, 0, -15, `جمعت ${state.gold} ذهب وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
-        fontSize: "14px",
+      arabicText(this, 0, -30, `جمعت ${state.gold} ذهب وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
+        fontSize: "27px",
       }),
     );
 
-    const btn: ButtonHandle = makeButton(this, 0, 55, "ابدأ رن جديد", () => {
+    const btn: ButtonHandle = makeButton(this, 0, 110, "ابدأ رن جديد", () => {
       runController.startNewRun();
       this.refresh();
     });

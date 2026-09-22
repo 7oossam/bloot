@@ -2,9 +2,17 @@ import { legalCalls, type BiddingState } from "../engine/bidding";
 import type { Bid, Card, Seat } from "../engine/types";
 import { bestHokumOption, sunStrength } from "./evaluate";
 
-/** Tunable thresholds: below this utility, the AI passes rather than buys. */
-export const HOKUM_BUY_THRESHOLD = 20;
-export const SUN_BUY_THRESHOLD = 16;
+/**
+ * Buy thresholds, calibrated against the actual score distribution over sampled
+ * 5-card bidding hands (hokum median ~36, sun median ~27). Together these buy on
+ * roughly a quarter of hands, so the auction genuinely travels around the table
+ * instead of the first seat sweeping it every time.
+ *
+ * Hokum scores run systematically higher than sun scores, so the two are never
+ * compared raw — `decideBid` compares each one's margin over its own threshold.
+ */
+export const HOKUM_BUY_THRESHOLD = 50;
+export const SUN_BUY_THRESHOLD = 42;
 
 /**
  * Decides one seat's bid from its own 5-card hand only — bidding is
@@ -17,13 +25,13 @@ export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
   const hokum = hokumSuits.length > 0 ? bestHokumOption(hand, hokumSuits) : undefined;
   const sun = sunStrength(hand);
 
-  const hokumGood = hokum && hokum.score >= HOKUM_BUY_THRESHOLD;
-  const sunGood = sun >= SUN_BUY_THRESHOLD;
+  const hokumMargin = hokum ? hokum.score - HOKUM_BUY_THRESHOLD : -Infinity;
+  const sunMargin = sun - SUN_BUY_THRESHOLD;
 
-  if (hokumGood && (!sunGood || hokum!.score >= sun)) {
+  if (hokumMargin >= 0 && hokumMargin >= sunMargin) {
     return { seat, call: "hokum", suit: hokum!.suit };
   }
-  if (sunGood) {
+  if (sunMargin >= 0) {
     return { seat, call: "sun" };
   }
   return { seat, call: "pass" };

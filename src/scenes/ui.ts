@@ -29,18 +29,20 @@ export function makeButton(
   onClick: () => void,
   opts: { width?: number; height?: number; color?: number; textColor?: string; fontSize?: string } = {},
 ): ButtonHandle {
-  const width = opts.width ?? 140;
-  const height = opts.height ?? 44;
+  const width = opts.width ?? 280;
+  const height = opts.height ?? 84;
   const color = opts.color ?? 0x1f6f43;
 
   const bg = scene.add.graphics();
+  bg.fillStyle(0x000000, 0.25);
+  bg.fillRoundedRect(-width / 2 + 3, -height / 2 + 5, width, height, 18);
   bg.fillStyle(color, 1);
-  bg.fillRoundedRect(-width / 2, -height / 2, width, height, 10);
-  bg.lineStyle(2, 0xffffff, 0.4);
-  bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 10);
+  bg.fillRoundedRect(-width / 2, -height / 2, width, height, 18);
+  bg.lineStyle(3, 0xffffff, 0.45);
+  bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 18);
 
   const text = arabicText(scene, 0, 0, label, {
-    fontSize: opts.fontSize ?? "18px",
+    fontSize: opts.fontSize ?? "30px",
     color: opts.textColor ?? "#ffffff",
   });
 

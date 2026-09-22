@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
-import { startBidding } from "../src/engine/bidding";
-import type { Card, Trick } from "../src/engine/types";
+import { startBidding, submitBid } from "../src/engine/bidding";
+import { dealInitial } from "../src/engine/deck";
+import { mulberry32 } from "../src/engine/rng";
+import type { Card, Seat, Trick } from "../src/engine/types";
 
 describe("bidding AI", () => {
   it("buys hokum with a hand loaded with trump control", () => {
@@ -46,6 +48,38 @@ describe("bidding AI", () => {
     // Can't call hokum on spades in round 1 (ground is hearts) — must be sun or pass.
     const bid = decideBid(0, spadeHeavyHand, state);
     expect(bid.call).not.toBe("hokum");
+  });
+});
+
+describe("bidding AI calibration", () => {
+  it("passes often enough that the auction reaches later seats", () => {
+    // Regression guard: thresholds were once so low the AI bought on ~99% of hands, so the
+    // first seat swept every auction and the human player never got a bid turn at all.
+    const rand = mulberry32(2024);
+    const ground: Card = { suit: "S", rank: "7" };
+    let buys = 0;
+    let deals = 0;
+
+    for (let i = 0; i < 400; i++) {
+      const { hands } = dealInitial(rand);
+      for (const seat of [0, 1, 2, 3] as Seat[]) {
+        // Round 2 offers every suit, so this measures the AI at its most permissive.
+        let state = startBidding(1, ground);
+        state = submitBid(state, { seat: 2, call: "pass" });
+        state = submitBid(state, { seat: 3, call: "pass" });
+        state = submitBid(state, { seat: 0, call: "pass" });
+        state = submitBid(state, { seat: 1, call: "pass" });
+        expect(state.round).toBe(2);
+
+        const bid = decideBid(state.turnSeat, hands[seat], state);
+        if (bid.call !== "pass") buys++;
+        deals++;
+      }
+    }
+
+    const buyRate = buys / deals;
+    expect(buyRate).toBeGreaterThan(0.1); // still bids on genuinely strong hands
+    expect(buyRate).toBeLessThan(0.55); // but passes often enough for the auction to travel
   });
 });
 
