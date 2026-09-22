@@ -7,7 +7,7 @@ import { GameController, HUMAN_SEAT, MATCH_TARGET } from "../game/GameController
 import { mulberry32 } from "../engine/rng";
 import { CardView, CARD_H, CARD_W } from "./CardView";
 import { SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
-import { HAND_ANCHOR, SEAT_LABEL_AR, TRICK_ANCHOR, handPositions, sortHandForDisplay } from "./layout";
+import { CENTER_X, CENTER_Y, HAND_ANCHOR, SEAT_LABEL_AR, TRICK_ANCHOR, handPositions, sortHandForDisplay } from "./layout";
 import { arabicText, makeButton, type ButtonHandle } from "./ui";
 
 const AI_STEP_DELAY_MS = 650;
@@ -139,17 +139,24 @@ export class TableScene extends Phaser.Scene {
     this.groundCardView?.destroy();
     this.groundLabel?.destroy();
 
+    let dealIndex = 0;
     for (const seat of [0, 1, 2, 3] as Seat[]) {
       const cards = seat === HUMAN_SEAT ? sortHandForDisplay(e.hands[seat]) : e.hands[seat];
       const positions = handPositions(seat, cards.length);
       this.handViews[seat] = cards.map((card, i) => {
-        const pos = positions[i];
-        const view = new CardView(this, pos.x, pos.y, card, seat === HUMAN_SEAT);
+        const view = this.dealCardTo(positions[i].x, positions[i].y, card, seat === HUMAN_SEAT, dealIndex * 30);
+        dealIndex++;
         return view;
       });
     }
 
-    this.groundCardView = new CardView(this, this.scale.width / 2, this.scale.height / 2 - 50, e.groundCard, true);
+    this.groundCardView = this.dealCardTo(
+      this.scale.width / 2,
+      this.scale.height / 2 - 50,
+      e.groundCard,
+      true,
+      dealIndex * 30,
+    );
     this.groundLabel = arabicText(this, this.scale.width / 2, this.scale.height / 2 - 105, "ورقة الأرض", {
       fontSize: "14px",
       color: "#ffe08a",
@@ -212,11 +219,22 @@ export class TableScene extends Phaser.Scene {
     this.groundCardView = undefined;
     this.groundLabel = undefined;
 
+    let dealIndex = 0;
     for (const seat of [0, 1, 2, 3] as Seat[]) {
+      const alreadyHeld = new Set(this.handViews[seat].map((v) => cardId(v.card)));
       for (const view of this.handViews[seat]) view.destroy();
       const cards = seat === HUMAN_SEAT ? sortHandForDisplay(e.hands[seat], e.trumpSuit) : e.hands[seat];
       const positions = handPositions(seat, cards.length);
-      this.handViews[seat] = cards.map((card, i) => new CardView(this, positions[i].x, positions[i].y, card, seat === HUMAN_SEAT));
+      this.handViews[seat] = cards.map((card, i) => {
+        const pos = positions[i];
+        if (alreadyHeld.has(cardId(card))) {
+          return new CardView(this, pos.x, pos.y, card, seat === HUMAN_SEAT);
+        }
+        // A newly-dealt card (the ground card, or one of the final 3): deal it in from center.
+        const view = this.dealCardTo(pos.x, pos.y, card, seat === HUMAN_SEAT, dealIndex * 60);
+        dealIndex++;
+        return view;
+      });
     }
 
     const modeLabel =
@@ -285,6 +303,15 @@ export class TableScene extends Phaser.Scene {
     }
   }
 
+  /** Creates a card at the table center and tweens it out to its seat position, like a real deal. */
+  private dealCardTo(x: number, y: number, card: Card, faceUp: boolean, delay: number): CardView {
+    const view = new CardView(this, CENTER_X, CENTER_Y, card, faceUp);
+    view.setScale(0.5);
+    view.setAlpha(0.85);
+    this.tweens.add({ targets: view, x, y, scale: 1, alpha: 1, delay, duration: 240, ease: "Cubic.Out" });
+    return view;
+  }
+
   private relayoutHand(seat: Seat): void {
     const positions = handPositions(seat, this.handViews[seat].length);
     this.handViews[seat].forEach((view, i) => {
@@ -297,6 +324,18 @@ export class TableScene extends Phaser.Scene {
     const dest = HAND_ANCHOR[e.winner];
     const views = { ...this.trickViews };
     this.trickViews = {};
+
+    // A quick pop on the winning card sells the moment before everything collects.
+    const winningView = views[e.winner];
+    if (winningView) {
+      this.tweens.add({
+        targets: winningView,
+        scale: 1.18,
+        duration: 140,
+        yoyo: true,
+        ease: "Quad.Out",
+      });
+    }
 
     this.time.delayedCall(TRICK_COLLECT_DELAY_MS, () => {
       for (const view of Object.values(views)) {

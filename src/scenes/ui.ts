@@ -50,7 +50,16 @@ export function makeButton(
   container.input!.cursor = "pointer";
   container.on("pointerover", () => bg.setAlpha(0.85));
   container.on("pointerout", () => bg.setAlpha(1));
-  container.on("pointerdown", onClick);
+  container.on("pointerdown", () => {
+    // A quick press-down squash reads as "this responded to your click" before onClick
+    // possibly tears the button down (e.g. bidding/continue buttons destroy themselves).
+    scene.tweens.add({ targets: container, scale: 0.92, duration: 70, yoyo: true, ease: "Quad.Out" });
+    onClick();
+  });
+
+  container.setScale(0.85);
+  container.setAlpha(0);
+  scene.tweens.add({ targets: container, scale: 1, alpha: 1, duration: 160, ease: "Back.Out" });
 
   return { container, destroy: () => container.destroy() };
 }
