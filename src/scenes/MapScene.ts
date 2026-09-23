@@ -61,8 +61,9 @@ export class MapScene extends Phaser.Scene {
   }
 
   private updateHud(state: RunState): void {
-    const jokerNames = state.jokerIds.map((id) => getJokerDef(id)?.name ?? id).join("، ") || "لا يوجد";
-    this.hudText.setText(`الأرواح ${state.lives}   الذهب ${state.gold}\nالجوكرز: ${jokerNames}`);
+    const jokerNames = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id}`).join("   ") || "لا يوجد";
+    const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
+    this.hudText.setText(`❤️ ${state.lives}   💰 ${state.gold}${shields}\nالجوكرز: ${jokerNames}`);
   }
 
   private drawPath(state: RunState): void {

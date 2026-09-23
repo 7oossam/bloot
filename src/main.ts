@@ -3,6 +3,7 @@ import { MapScene } from "./scenes/MapScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { TableScene } from "./scenes/TableScene";
 import { HEIGHT, WIDTH } from "./scenes/layout";
+import { runController } from "./roguelike/RunController";
 
 function config(type: number): Phaser.Types.Core.GameConfig {
   return {
@@ -53,3 +54,4 @@ if (vv) {
 // own assumptions.
 (window as unknown as { __blootBooted?: boolean; __blootGame?: Phaser.Game }).__blootBooted = true;
 (window as unknown as { __blootGame?: Phaser.Game }).__blootGame = game;
+(window as unknown as { __blootRun?: typeof runController }).__blootRun = runController;

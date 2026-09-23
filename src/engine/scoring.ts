@@ -7,7 +7,7 @@ import { teamOf } from "./types";
  * points per team. Assumes every trick has a `winner` set.
  *
  * `lastTrickBonus` defaults to the standard 10 but is overridable so a
- * roguelike joker (e.g. "double kaboot") can change it without forking
+ * roguelike joker (e.g. "الأرض الذهبية") can change it without forking
  * this function.
  *
  * NOTE (simplification): this does not yet apply the "declarer must out-score

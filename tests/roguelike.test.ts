@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { generateMap } from "../src/roguelike/mapgen";
 import { runController } from "../src/roguelike/RunController";
-import { matchOptionsFromJokers } from "../src/roguelike/jokers";
-import { STARTING_LIVES } from "../src/roguelike/types";
+import { CONSUMABLE_CATALOG, JOKER_CATALOG, matchOptionsFromJokers } from "../src/roguelike/jokers";
+import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_LIVES } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -100,13 +100,103 @@ describe("RunController", () => {
 });
 
 describe("matchOptionsFromJokers", () => {
-  it("applies head-start and the strongest kaboot multiplier owned", () => {
-    const opts = matchOptionsFromJokers(["head-start", "giant-kaboot"]);
-    expect(opts.headStart?.[0]).toBe(15);
-    expect(opts.lastTrickBonus).toBe(30);
+  it("applies head-start and the strongest الأرض joker owned", () => {
+    const opts = matchOptionsFromJokers(["head-start", "ard-gold", "ard-giant"]);
+    expect(opts.headStart?.[0]).toBe(5);
+    expect(opts.lastTrickBonus).toBe(40);
+    expect(matchOptionsFromJokers(["ard-gold"]).lastTrickBonus).toBe(20);
+  });
+
+  it("maps every joker in the catalog to an effect", () => {
+    for (const j of JOKER_CATALOG) {
+      expect(Object.keys(matchOptionsFromJokers([j.id])).length, j.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("names the last trick الأرض, not كوت", () => {
+    for (const j of [...JOKER_CATALOG, ...CONSUMABLE_CATALOG]) {
+      expect(j.name + j.description).not.toMatch(/كوت/);
+    }
   });
 
   it("returns an empty object for no jokers", () => {
     expect(matchOptionsFromJokers([])).toEqual({});
+  });
+});
+
+describe("shop", () => {
+  const enterFirstShop = () => {
+    runController.startNewRun(7);
+    // Walk up to the first shop, winning the matches on the way for gold.
+    for (;;) {
+      const node = runController.getAvailableNode()!;
+      runController.enterNode(node.id);
+      if (node.type === "shop") return;
+      runController.resolveMatchNode(true);
+    }
+  };
+
+  it("offers three unowned jokers and one consumable", () => {
+    enterFirstShop();
+    const stock = runController.shopOffering();
+    expect(stock).toHaveLength(4);
+    const jokers = stock.slice(0, 3);
+    expect(new Set(jokers).size).toBe(3);
+    for (const id of jokers) expect(JOKER_CATALOG.some((j) => j.id === id)).toBe(true);
+    expect(CONSUMABLE_CATALOG.some((c) => c.id === stock[3])).toBe(true);
+  });
+
+  it("rerolling costs gold and gets pricier each time", () => {
+    enterFirstShop();
+    const s0 = runController.getState();
+    expect(s0.rerollCost).toBe(REROLL_BASE_COST);
+    const gold = s0.gold;
+    runController.reroll();
+    expect(runController.getState().gold).toBe(gold - REROLL_BASE_COST);
+    expect(runController.getState().rerollCost).toBe(REROLL_BASE_COST + REROLL_STEP);
+    expect(runController.shopOffering()).toHaveLength(4);
+  });
+
+  it("a bought joker leaves the shelf and never shows up again", () => {
+    enterFirstShop();
+    runController.addGold(500);
+    const id = runController.shopOffering()[0];
+    runController.buyJoker(id);
+    expect(runController.getState().jokerIds).toContain(id);
+    expect(runController.shopOffering()).not.toContain(id);
+    for (let i = 0; i < 10; i++) {
+      runController.reroll();
+      expect(runController.shopOffering()).not.toContain(id);
+    }
+  });
+
+  it("joker slots are capped", () => {
+    enterFirstShop();
+    runController.addGold(10_000);
+    let bought = 0;
+    for (let i = 0; i < 20 && bought < MAX_JOKERS; i++) {
+      for (const id of runController.shopOffering().slice(0, 3)) {
+        if (runController.canAfford(id)) { runController.buyJoker(id); bought++; }
+      }
+      runController.reroll();
+    }
+    expect(runController.getState().jokerIds).toHaveLength(MAX_JOKERS);
+    const more = JOKER_CATALOG.find((j) => !runController.getState().jokerIds.includes(j.id))!;
+    expect(runController.whyNot(more.id)).toBeDefined();
+  });
+
+  it("a shield absorbs one lost match; an extra life adds a life", () => {
+    runController.startNewRun(9);
+    runController.addGold(500);
+    const livesBefore = runController.getState().lives;
+    // Consumables can be bought directly by id regardless of the current shelf.
+    runController.buyJoker("shield");
+    runController.buyJoker("extra-life");
+    expect(runController.getState().lives).toBe(livesBefore + 1);
+    const node = runController.getAvailableNode()!;
+    runController.enterNode(node.id);
+    expect(runController.resolveMatchNode(false).shieldUsed).toBe(true);
+    expect(runController.getState().lives).toBe(livesBefore + 1);
+    expect(runController.getState().shields).toBe(0);
   });
 });

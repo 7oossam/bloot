@@ -8,6 +8,36 @@ import { nextSeat } from "./types";
 
 export type RoundPhase = "bidding" | "redeal" | "playing" | "complete";
 
+export interface RoundOptions {
+  /** Overrides the last-trick ("الأرض") bonus, normally 10. */
+  lastTrickBonus?: number;
+  /** Makes sure this seat's first five cards include a Jack (a joker effect). */
+  guaranteeJackFor?: Seat;
+}
+
+/**
+ * If `seat` was dealt no Jack, swaps one of its cards for a Jack from somewhere else in the
+ * deal. The face-up ground card is never touched, so the auction the table sees is unchanged.
+ */
+function giveAJack(initial: InitialDeal, seat: Seat, rand: () => number): void {
+  const hand = initial.hands[seat];
+  if (hand.some((c) => c.rank === "J")) return;
+
+  const sources: Array<{ list: Card[]; index: number }> = [];
+  for (const other of [0, 1, 2, 3] as Seat[]) {
+    if (other === seat) continue;
+    initial.hands[other].forEach((c, index) => c.rank === "J" && sources.push({ list: initial.hands[other], index }));
+  }
+  initial.stock.forEach((c, index) => index > 0 && c.rank === "J" && sources.push({ list: initial.stock, index }));
+  if (sources.length === 0) return; // only possible if the ground card is the last Jack left
+
+  const from = sources[Math.floor(rand() * sources.length)];
+  const giveIndex = Math.floor(rand() * hand.length);
+  const jack = from.list[from.index];
+  from.list[from.index] = hand[giveIndex];
+  hand[giveIndex] = jack;
+}
+
 /**
  * Drives one full hand of Baloot: deal → two-round bidding → 8 tricks → score.
  * Framework-agnostic; the caller (AI loop or UI) drives it by calling `bid`
@@ -23,13 +53,13 @@ export class Round {
   currentTrick?: Trick;
   result?: HandResult;
 
-  constructor(
-    dealer: Seat,
-    rand: () => number = Math.random,
-    private readonly lastTrickBonus?: number,
-  ) {
+  private readonly lastTrickBonus?: number;
+
+  constructor(dealer: Seat, rand: () => number = Math.random, options: RoundOptions = {}) {
     this.dealer = dealer;
+    this.lastTrickBonus = options.lastTrickBonus;
     this.initial = dealInitial(rand);
+    if (options.guaranteeJackFor !== undefined) giveAJack(this.initial, options.guaranteeJackFor, rand);
     this.bidding = startBidding(dealer, this.initial.stock[0]);
     this.hands = {
       0: [...this.initial.hands[0]],

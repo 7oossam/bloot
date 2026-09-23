@@ -42,13 +42,15 @@ describe("deck", () => {
     for (const seat of [0, 1, 2, 3] as Seat[]) expect(claimed[seat]).toHaveLength(8);
     expect(claimed[1].some((c) => cardId(c) === cardId(initial.stock[0]))).toBe(true);
 
-    const notClaimed = finalizeDeal(initial, {
+    // Sun (or a round-2 hokum in another suit): the buyer still takes the ground card.
+    const sunBuy = finalizeDeal(initial, {
       mode: "sun",
-      declarer: 1,
+      declarer: 3,
       declarerTeam: 1,
       history: [],
     });
-    for (const seat of [0, 1, 2, 3] as Seat[]) expect(notClaimed[seat]).toHaveLength(8);
+    for (const seat of [0, 1, 2, 3] as Seat[]) expect(sunBuy[seat]).toHaveLength(8);
+    expect(sunBuy[3].some((c) => cardId(c) === cardId(initial.stock[0]))).toBe(true);
   });
 });
 
@@ -84,13 +86,55 @@ describe("bidding: two-round ground-card auction", () => {
     expect(state.redeal).toBe(true);
   });
 
-  it("resolves immediately when a seat buys", () => {
+  it("resolves immediately when a seat buys sun", () => {
     const ground: Card = { suit: "H", rank: "9" };
     let state = startBidding(0, ground);
     state = submitBid(state, { seat: 1, call: "sun" });
     expect(state.result?.mode).toBe("sun");
     expect(state.result?.declarer).toBe(1);
     expect(state.result?.declarerTeam).toBe(1);
+  });
+
+  it("a hokum buy asks the other three, in order, whether they want sun", () => {
+    const ground: Card = { suit: "H", rank: "9" };
+    let state = startBidding(0, ground);
+    state = submitBid(state, { seat: 1, call: "pass" });
+    state = submitBid(state, { seat: 2, call: "hokum", suit: "H" });
+    expect(state.result).toBeUndefined();
+    expect(state.pendingHokum).toEqual({ seat: 2, suit: "H" });
+    // Starts after the buyer and goes all the way round — including seat 1, who passed.
+    expect(state.challengers).toEqual([3, 0, 1]);
+    expect(state.turnSeat).toBe(3);
+    expect(legalCalls(state).map((c) => c.call).sort()).toEqual(["pass", "sun"]);
+    expect(() => submitBid(state, { seat: 3, call: "hokum", suit: "H" })).toThrow();
+
+    state = submitBid(state, { seat: 3, call: "pass" });
+    expect(state.turnSeat).toBe(0);
+    state = submitBid(state, { seat: 0, call: "pass" });
+    state = submitBid(state, { seat: 1, call: "pass" });
+    expect(state.result).toMatchObject({ mode: "hokum", trumpSuit: "H", declarer: 2, declarerTeam: 0 });
+    expect(state.pendingHokum).toBeUndefined();
+  });
+
+  it("any challenger calling sun takes the hand from the hokum buyer", () => {
+    const ground: Card = { suit: "H", rank: "9" };
+    let state = startBidding(0, ground);
+    state = submitBid(state, { seat: 1, call: "hokum", suit: "H" });
+    state = submitBid(state, { seat: 2, call: "pass" });
+    state = submitBid(state, { seat: 3, call: "sun" });
+    expect(state.result).toMatchObject({ mode: "sun", declarer: 3, declarerTeam: 1 });
+    expect(state.pendingHokum).toBeUndefined();
+  });
+
+  it("a round-2 hokum can be challenged too", () => {
+    const ground: Card = { suit: "H", rank: "9" };
+    let state = startBidding(0, ground);
+    for (const seat of [1, 2, 3, 0] as Seat[]) state = submitBid(state, { seat, call: "pass" });
+    state = submitBid(state, { seat: 1, call: "pass" });
+    state = submitBid(state, { seat: 2, call: "hokum", suit: "S" });
+    expect(state.challengers).toEqual([3, 0, 1]);
+    for (const seat of [3, 0, 1] as Seat[]) state = submitBid(state, { seat, call: "pass" });
+    expect(state.result).toMatchObject({ mode: "hokum", trumpSuit: "S", declarer: 2 });
   });
 
   it("rejects an out-of-turn or illegal bid", () => {
@@ -231,6 +275,28 @@ describe("scoring", () => {
     const scoredTotal = result.scoredPoints[0] + result.scoredPoints[1];
     expect(rawTotal).toBe(120 + 10);
     expect(scoredTotal).toBe(rawTotal * 2);
+  });
+});
+
+describe("Round: who leads", () => {
+  it("the first trick is always led by the player on the dealer's right, not the buyer", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const dealer = (seed % 4) as Seat;
+      const round = new Round(dealer, mulberry32(seed));
+      while (round.phase === "bidding") {
+        const seat = round.bidding.turnSeat;
+        const calls = round.legalBids();
+        // Let whoever sits across from the dealer buy, so the buyer is rarely the leader.
+        const buy = seat === ((dealer + 2) % 4) ? calls.find((c) => c.call !== "pass") : undefined;
+        round.bid({ seat, ...(buy ?? { call: "pass" }) } as Bid);
+      }
+      if (round.phase !== "playing") continue;
+      expect(round.currentTrick!.leader).toBe(((dealer + 1) % 4) as Seat);
+      expect(round.turnSeat).toBe(((dealer + 1) % 4) as Seat);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 });
 

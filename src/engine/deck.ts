@@ -35,12 +35,9 @@ export function dealInitial(rand: () => number = Math.random): InitialDeal {
 const SEAT_ORDER: readonly Seat[] = [0, 1, 2, 3];
 
 /**
- * Completes each seat's hand to 8 cards from the 12-card stock, following the
- * ground-card rule: if the declarer bought hokum in the ground card's suit
- * (only possible in bidding round 1), they claim the ground card itself plus
- * 2 more from the stock; everyone else gets 3. Otherwise (sun, or a round-2
- * hokum in a different suit) the ground card is just an ordinary stock card
- * and all 12 are dealt out 3 per seat.
+ * Completes each seat's hand to 8 cards from the 12-card stock. Whoever bought — sun or
+ * hokum, first or second round — takes the face-up ground card plus 2 more from the stock;
+ * everyone else gets 3.
  */
 export function finalizeDeal(
   initial: InitialDeal,
@@ -52,22 +49,11 @@ export function finalizeDeal(
     2: [...initial.hands[2]],
     3: [...initial.hands[3]],
   };
-  const groundCard = initial.stock[0];
-  const declarerClaimsGround =
-    result.mode === "hokum" && result.trumpSuit === groundCard.suit;
-
-  if (declarerClaimsGround) {
-    hands[result.declarer].push(groundCard);
-    let i = 1;
-    for (const seat of SEAT_ORDER) {
-      const count = seat === result.declarer ? 2 : 3;
-      for (let n = 0; n < count; n++) hands[seat].push(initial.stock[i++]);
-    }
-  } else {
-    let i = 0;
-    for (let n = 0; n < 3; n++) {
-      for (const seat of SEAT_ORDER) hands[seat].push(initial.stock[i++]);
-    }
+  hands[result.declarer].push(initial.stock[0]);
+  let i = 1;
+  for (const seat of SEAT_ORDER) {
+    const count = seat === result.declarer ? 2 : 3;
+    for (let n = 0; n < count; n++) hands[seat].push(initial.stock[i++]);
   }
   return hands;
 }

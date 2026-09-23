@@ -13,6 +13,13 @@ export interface BiddingState {
   result?: BiddingResult;
   /** Set true if both rounds passed all the way around — the caller should redeal with the next dealer. */
   redeal?: boolean;
+  /**
+   * Set while a hokum buy is open to challenge: every other player, in turn order starting
+   * after the buyer, may take the hand as sun instead. If they all pass, the hokum stands.
+   */
+  pendingHokum?: { seat: Seat; suit: Suit };
+  /** Seats still to answer the pending hokum, in order. `turnSeat` is always the first. */
+  challengers?: Seat[];
 }
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
@@ -34,6 +41,8 @@ export function startBidding(dealer: Seat, groundCard: Card): BiddingState {
 /** Round 1: hokum must match the ground card's suit. Round 2: hokum must NOT match it. Sun is always legal. */
 export function legalCalls(state: BiddingState): LegalCall[] {
   if (state.result || state.redeal) return [];
+  // Answering someone else's hokum: sun takes it over, anything else is a pass.
+  if (state.pendingHokum) return [{ call: "pass" }, { call: "sun" }];
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
   if (state.round === 1) {
     calls.push({ call: "hokum", suit: state.groundCard.suit });
@@ -60,17 +69,42 @@ export function submitBid(state: BiddingState, bid: Bid): BiddingState {
 
   const history = [...state.history, bid];
 
-  if (bid.call === "hokum" || bid.call === "sun") {
+  // Sun is the top call: it ends the auction at once, including over a pending hokum.
+  if (bid.call === "sun") {
     return {
       ...state,
       history,
-      result: {
-        mode: bid.call,
-        trumpSuit: bid.call === "hokum" ? bid.suit : undefined,
-        declarer: bid.seat,
-        declarerTeam: teamOf(bid.seat),
-        history,
-      },
+      pendingHokum: undefined,
+      challengers: undefined,
+      result: { mode: "sun", declarer: bid.seat, declarerTeam: teamOf(bid.seat), history },
+    };
+  }
+
+  // A hokum buy doesn't close the auction yet — the other three get a chance at sun.
+  if (bid.call === "hokum") {
+    const challengers: Seat[] = [];
+    for (let s = nextSeat(bid.seat); s !== bid.seat; s = nextSeat(s)) challengers.push(s);
+    return {
+      ...state,
+      history,
+      pendingHokum: { seat: bid.seat, suit: bid.suit! },
+      challengers,
+      turnSeat: challengers[0],
+    };
+  }
+
+  // A pass while a hokum is pending just hands the question to the next challenger.
+  if (state.pendingHokum) {
+    const rest = state.challengers!.slice(1);
+    if (rest.length > 0) return { ...state, history, challengers: rest, turnSeat: rest[0] };
+    const { seat, suit } = state.pendingHokum;
+    return {
+      ...state,
+      history,
+      pendingHokum: undefined,
+      challengers: undefined,
+      turnSeat: seat,
+      result: { mode: "hokum", trumpSuit: suit, declarer: seat, declarerTeam: teamOf(seat), history },
     };
   }
 

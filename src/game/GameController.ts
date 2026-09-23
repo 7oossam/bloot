@@ -3,7 +3,7 @@ import { decideCard } from "../ai/play-ai";
 import type { LegalCall } from "../engine/bidding";
 import { Round } from "../engine/round";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
-import { nextSeat } from "../engine/types";
+import { nextSeat, teamOf } from "../engine/types";
 import { Emitter } from "./emitter";
 
 export const HUMAN_SEAT: Seat = 0;
@@ -14,20 +14,51 @@ export interface MatchOptions {
   matchTarget?: number;
   /** Extra points credited to each team before the first hand (a "head start" joker). */
   headStart?: Partial<Record<Team, number>>;
-  /** Overrides the last-trick bonus (normally 10) for every hand in this match. */
+  /** Overrides the last-trick ("الأرض") bonus, normally 10, for every hand in this match. */
   lastTrickBonus?: number;
+  /** Extra game points for your team when it bought hokum and out-scored the other side. */
+  hokumMadeBonus?: number;
+  /** Multiplies your team's game points on a hand it bought as sun. */
+  sunMultiplier?: number;
+  /** While the opponents lead by at least `deficit`, every hand your team scores in gets +`bonus`. */
+  comeback?: { deficit: number; bonus: number };
+  /** Gold for every trick your team takes that has an Ace in it. */
+  goldPerAceTrick?: number;
+  /** Your first five cards always include a Jack. */
+  guaranteeJack?: boolean;
+  /** Taking all eight tricks in a hand wins the match on the spot. */
+  kabootWinsMatch?: boolean;
+  /** UI-only effects, read by the table scene. */
+  spy?: boolean;
+  revealPartner?: boolean;
+}
+
+/** One line in the hand summary for each joker that paid out. */
+export interface HandBonus {
+  label: string;
+  points: number;
 }
 
 interface EventMap {
   [key: string]: unknown;
   "hand:dealt": { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card; round: number };
-  "bidding:turn": { seat: Seat; calls: LegalCall[]; round: 1 | 2 };
+  /** `challenge` is set when the question is "take this hokum as sun?" rather than an open bid. */
+  "bidding:turn": { seat: Seat; calls: LegalCall[]; round: 1 | 2; challenge?: { seat: Seat; suit: Suit } };
   "bidding:bid": { bid: Bid };
   "bidding:resolved": { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> };
   "play:turn": { seat: Seat; legal: Card[] };
   "play:card": { seat: Seat; card: Card };
   "trick:complete": { trick: Trick; winner: Seat };
-  "hand:complete": { result: HandResult; matchScore: Record<Team, number> };
+  "hand:complete": {
+    result: HandResult;
+    matchScore: Record<Team, number>;
+    /** Game points each team actually banked this hand, joker bonuses included. */
+    gained: Record<Team, number>;
+    bonuses: HandBonus[];
+    /** True when your team took all eight tricks. */
+    kaboot: boolean;
+  };
+  "gold:earned": { amount: number; reason: string };
   "match:complete": { winner: Team; matchScore: Record<Team, number> };
 }
 
@@ -49,10 +80,12 @@ export class GameController extends Emitter<EventMap> {
   private readonly matchTarget: number;
   private readonly headStart: Partial<Record<Team, number>>;
   private readonly lastTrickBonus: number | undefined;
+  private readonly options: MatchOptions;
 
   constructor(rand: () => number = Math.random, options: MatchOptions = {}) {
     super();
     this.rand = rand;
+    this.options = options;
     this.matchTarget = options.matchTarget ?? MATCH_TARGET;
     this.headStart = options.headStart ?? {};
     this.lastTrickBonus = options.lastTrickBonus;
@@ -78,7 +111,10 @@ export class GameController extends Emitter<EventMap> {
   }
 
   private dealHand(): void {
-    this.round = new Round(this.dealer, this.rand, this.lastTrickBonus);
+    this.round = new Round(this.dealer, this.rand, {
+      lastTrickBonus: this.lastTrickBonus,
+      guaranteeJackFor: this.options.guaranteeJack ? HUMAN_SEAT : undefined,
+    });
     this.emit("hand:dealt", {
       dealer: this.dealer,
       hands: this.round.hands,
@@ -94,7 +130,12 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "bidding") {
       const seat = this.round.bidding.turnSeat;
       if (seat === HUMAN_SEAT) {
-        this.emit("bidding:turn", { seat, calls: this.round.legalBids(), round: this.round.bidding.round });
+        this.emit("bidding:turn", {
+          seat,
+          calls: this.round.legalBids(),
+          round: this.round.bidding.round,
+          challenge: this.round.bidding.pendingHokum,
+        });
         return "waiting-human";
       }
       const bid = decideBid(seat, this.round.hands[seat], this.round.bidding);
@@ -151,6 +192,33 @@ export class GameController extends Emitter<EventMap> {
     }
   }
 
+  /** Turns a hand's base game points into what each team banks, after the run's jokers. */
+  private applyJokers(result: HandResult): { gained: Record<Team, number>; bonuses: HandBonus[] } {
+    const us = teamOf(HUMAN_SEAT);
+    const them: Team = us === 0 ? 1 : 0;
+    const gained: Record<Team, number> = { ...result.gamePoints };
+    const bonuses: HandBonus[] = [];
+    const weBought = result.declarerTeam === us;
+    const o = this.options;
+
+    if (o.sunMultiplier && result.mode === "sun" && weBought && gained[us] > 0) {
+      const extra = Math.round(gained[us] * (o.sunMultiplier - 1));
+      if (extra > 0) {
+        gained[us] += extra;
+        bonuses.push({ label: "الصن الملكي", points: extra });
+      }
+    }
+    if (o.hokumMadeBonus && result.mode === "hokum" && weBought && result.scoredPoints[us] > result.scoredPoints[them]) {
+      gained[us] += o.hokumMadeBonus;
+      bonuses.push({ label: "سيد الحكم", points: o.hokumMadeBonus });
+    }
+    if (o.comeback && gained[us] > 0 && this.matchScore[them] - this.matchScore[us] >= o.comeback.deficit) {
+      gained[us] += o.comeback.bonus;
+      bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
+    }
+    return { gained, bonuses };
+  }
+
   private applyCard(seat: Seat, card: Card): void {
     const tricksBefore = this.round.tricks.length;
     this.round.playCard(seat, card);
@@ -159,17 +227,31 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.tricks.length > tricksBefore) {
       const finishedTrick = this.round.tricks[this.round.tricks.length - 1];
       this.emit("trick:complete", { trick: finishedTrick, winner: finishedTrick.winner! });
+      const perAce = this.options.goldPerAceTrick;
+      if (perAce && teamOf(finishedTrick.winner!) === teamOf(HUMAN_SEAT)) {
+        const aces = Object.values(finishedTrick.cards).filter((c) => c?.rank === "A").length;
+        if (aces > 0) this.emit("gold:earned", { amount: perAce * aces, reason: "اللمسة الذهبية" });
+      }
     }
 
     if (this.round.phase === "complete") {
       const result = this.round.result!;
+      const { gained, bonuses } = this.applyJokers(result);
       // Match targets are in game points (abnat), not card points — adding raw card points
       // (162 a hokum hand) against a target of 41 ended every match on its first hand.
       this.matchScore = {
-        0: this.matchScore[0] + result.gamePoints[0],
-        1: this.matchScore[1] + result.gamePoints[1],
+        0: this.matchScore[0] + gained[0],
+        1: this.matchScore[1] + gained[1],
       };
-      this.emit("hand:complete", { result, matchScore: this.matchScore });
+      const us = teamOf(HUMAN_SEAT);
+      const kaboot = result.tricksWon[us] === 8;
+      this.emit("hand:complete", { result, matchScore: this.matchScore, gained, bonuses, kaboot });
+
+      if (kaboot && this.options.kabootWinsMatch) {
+        this.matchOver = true;
+        this.emit("match:complete", { winner: us, matchScore: this.matchScore });
+        return;
+      }
 
       if (this.matchScore[0] >= this.matchTarget || this.matchScore[1] >= this.matchTarget) {
         if (this.matchScore[0] !== this.matchScore[1]) {
