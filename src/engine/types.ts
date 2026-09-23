@@ -46,11 +46,20 @@ export interface BiddingResult {
   ashkal?: { caller: Seat; groundTo: Seat; signalSuits: Suit[] };
 }
 
+/** Joker rules that bend who wins a trick. */
+export interface TrickRules {
+  /** This seat's cards of `suit` act as trumps — above the led suit, below a real trump (ملك السبيت). */
+  personalTrump?: { seat: Seat; suit: Suit };
+  /** This seat's card counts as the top card of its suit (الورقة الأخيرة). */
+  topCard?: Seat;
+}
+
 export interface Trick {
   leader: Seat;
   cards: Partial<Record<Seat, Card>>;
   order: Seat[]; // seats in the order they played, for resolving ties/precedence
   winner?: Seat;
+  rules?: TrickRules;
 }
 
 export interface HandResult {

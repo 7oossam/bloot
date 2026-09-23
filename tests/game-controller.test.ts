@@ -387,3 +387,104 @@ describe("build-maker effects in play", () => {
     expect(labels["المقامر"]).toBeGreaterThan(0);
   });
 });
+
+describe("play-changing jokers in a match", () => {
+  it("سيد الأرض: whoever of us takes الأرض takes the hand — the other side keeps only its بلوت", () => {
+    let checked = 0;
+    const c = new GameController(mulberry32(5), { matchTarget: 999, groundWins: true });
+    c.on("hand:complete", (e) => {
+      const last = c.getRound().tricks[7];
+      if (teamOf(last.winner!) !== 0) return;
+      checked++;
+      expect(e.gained[1]).toBeLessThanOrEqual(2);
+      expect(e.gained[0]).toBeGreaterThanOrEqual(e.result.gamePoints[0]);
+    });
+    c.startMatch();
+    autoplay(c, () => checked >= 3, 6000);
+    expect(checked).toBeGreaterThanOrEqual(3);
+  });
+
+  it("المخلّي pays per trick you could have taken from them and didn't", () => {
+    let paid = 0;
+    const c = new GameController(mulberry32(8), { matchTarget: 999, duckBonus: 3 });
+    c.on("hand:complete", (e) => {
+      const b = e.bonuses.find((x) => x.label === "المخلّي");
+      if (b) {
+        expect(b.points % 3).toBe(0);
+        paid++;
+      }
+    });
+    c.startMatch();
+    // Play your seat as a ducker: always the weakest legal card.
+    for (let i = 0; i < 8000 && paid < 2; i++) {
+      const status = c.step();
+      if (status !== "waiting-human") continue;
+      const r = c.getRound();
+      if (r.phase === "playing" && !c.getPendingAction()) {
+        const legal = r.legalMovesFor(HUMAN_SEAT);
+        const res = r.bidding.result!;
+        c.submitPlayerCard(legal.reduce((a, b) => (rankStrength(b, res.mode, res.trumpSuit) < rankStrength(a, res.mode, res.trumpSuit) ? b : a)));
+      } else answerHuman(c);
+    }
+    expect(paid).toBeGreaterThanOrEqual(2);
+  });
+
+  it("سارق السبيت trades your chosen card for an opponent's spade (their best at level 2)", () => {
+    let swaps = 0;
+    const c = new GameController(mulberry32(12), { matchTarget: 999, spadeThief: { best: true, twice: false } });
+    c.on("hand:changed", (e) => {
+      if (e.kind !== "swap") return;
+      swaps++;
+      if (e.got.suit === "S") {
+        // Nothing they held beats what we took (the card we handed them aside).
+        const theirs = c.getRound().hands[e.otherSeat].filter((x) => !(x.suit === e.gave.suit && x.rank === e.gave.rank));
+        for (const x of theirs.filter((x) => x.suit === "S")) {
+          expect(rankStrength(x, c.getRound().bidding.result!.mode, c.getRound().bidding.result!.trumpSuit)).toBeLessThanOrEqual(
+            rankStrength(e.got, c.getRound().bidding.result!.mode, c.getRound().bidding.result!.trumpSuit),
+          );
+        }
+      }
+    });
+    c.startMatch();
+    autoplay(c, () => swaps >= 3, 6000);
+    expect(swaps).toBeGreaterThanOrEqual(3);
+  });
+
+  it("صاحب الحلة: you lead the first trick of every hand", () => {
+    let hands = 0;
+    const c = new GameController(mulberry32(3), { matchTarget: 999, alwaysLead: true });
+    c.on("bidding:resolved", () => {
+      hands++;
+      expect(c.getRound().currentTrick!.leader).toBe(HUMAN_SEAT);
+    });
+    c.startMatch();
+    autoplay(c, () => hands >= 4, 6000);
+    expect(hands).toBeGreaterThanOrEqual(4);
+  });
+
+  it("الحكم الأعزل pays only on a hokum you bought without the trump J and 9", () => {
+    let paid = 0;
+    for (let seed = 1; seed <= 60 && paid === 0; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, bareHokumMultiplier: 2 });
+      c.on("hand:complete", (e) => {
+        if (!e.bonuses.some((b) => b.label === "الحكم الأعزل")) return;
+        paid++;
+        expect(e.result.mode).toBe("hokum");
+        expect(c.getRound().bidding.result!.declarer).toBe(HUMAN_SEAT);
+      });
+      c.startMatch();
+      // Buy hokum whenever it's offered, strong hand or not.
+      for (let i = 0; i < 3000 && paid === 0; i++) {
+        const status = c.step();
+        if (status === "match-complete") break;
+        if (status !== "waiting-human") continue;
+        const r = c.getRound();
+        const hokum = r.phase === "bidding" ? r.legalBids().find((x) => x.call === "hokum") : undefined;
+        if (hokum) c.submitPlayerBid({ seat: HUMAN_SEAT, ...hokum } as Bid);
+        else if (r.phase === "playing" && c.getPendingAction()) c.submitPlayerAction(r.hands[HUMAN_SEAT][0]);
+        else answerHuman(c);
+      }
+    }
+    expect(paid).toBeGreaterThan(0);
+  });
+});

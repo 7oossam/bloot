@@ -9,7 +9,6 @@ import {
   matchOptionsFromJokers,
   maxLevel,
   sellPrice,
-  shopDiscount,
   UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
 import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
@@ -112,10 +111,8 @@ describe("RunController", () => {
 });
 
 describe("matchOptionsFromJokers", () => {
-  it("applies head-start and الأرض by level", () => {
-    const opts = matchOptionsFromJokers(["head-start", "ard-gold"], { "ard-gold": 3 });
-    expect(opts.headStart?.[0]).toBe(5);
-    expect(opts.lastTrickBonus).toBe(40);
+  it("applies الأرض by level", () => {
+    expect(matchOptionsFromJokers(["ard-gold"], { "ard-gold": 3 }).lastTrickBonus).toBe(40);
     expect(matchOptionsFromJokers(["ard-gold"]).lastTrickBonus).toBe(20);
   });
 
@@ -228,36 +225,40 @@ describe("shop", () => {
 
 describe("joker levels and synergies", () => {
   it("levels scale a joker's effect", () => {
-    expect(matchOptionsFromJokers(["hokum-master"], { "hokum-master": 1 }).hokumMadeBonus).toBe(5);
-    expect(matchOptionsFromJokers(["hokum-master"], { "hokum-master": 2 }).hokumMadeBonus).toBe(10);
-    expect(matchOptionsFromJokers(["hokum-master"], { "hokum-master": 3 }).hokumMadeBonus).toBe(15);
+    expect(matchOptionsFromJokers(["cutter"], { cutter: 1 }).ruffBonus).toBe(2);
+    expect(matchOptionsFromJokers(["cutter"], { cutter: 3 }).ruffBonus).toBe(5);
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 1 }).jackHunt).toEqual({ preferTrump: false, nineToo: false, partnerToo: false });
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 2 }).jackHunt?.preferTrump).toBe(true);
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 3 }).jackHunt?.nineToo).toBe(true);
     expect(matchOptionsFromJokers(["forged-jack"], { "forged-jack": 3 }).forgedJack).toEqual({ nine: true, partnerToo: true });
   });
 
-  it("counts tags and switches on synergy tiers", () => {
-    const two = activeSynergies(["hokum-master", "forged-jack"]).find((s) => s.tag === "حكم")!;
-    expect(two.count).toBe(2);
-    expect(two.tier?.count).toBe(2);
-    expect(two.next?.count).toBe(3);
-    // حكم 2: +3 on a made hokum, on top of سيد الحكم's own +5.
-    const pair = matchOptionsFromJokers(["hokum-master", "forged-jack"]);
-    expect(pair.hokumMadeBonus).toBe(5);
-    expect(pair.hokumSynergyBonus).toBe(3);
-    expect(pair.lockedHokum).toBeUndefined();
-    // حكم 3: hokum is locked and the synergy pays +6.
-    const three = matchOptionsFromJokers(["hokum-master", "forged-jack", "burn"]);
-    expect(three.lockedHokum).toBe(true);
-    expect(three.hokumSynergyBonus).toBe(6);
-    // The synergy works without سيد الحكم itself.
-    expect(matchOptionsFromJokers(["forged-jack", "burn"]).hokumMadeBonus).toBeUndefined();
+  it("every family's third tier hands you its rule-breaker", () => {
+    // حكم 3: buy hokum in any suit, either round.
+    expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).extraHokumSuits).toBeUndefined();
+    expect(matchOptionsFromJokers(["bare-hokum", "cutter", "locked-hokum"]).extraHokumSuits).toEqual(["S", "H", "D", "C"]);
+    // الأرض 3: your last card is the top of its suit.
+    expect(matchOptionsFromJokers(["ducker", "ard-gold", "ground-lord"]).lastCardTop).toBe(true);
+    // مشروع 3: سرا with two cards.
+    expect(matchOptionsFromJokers(["sira-maker", "low-fours", "project-engineer"]).shortSira).toBe(true);
+    // الحلة 3: you always lead.
+    expect(matchOptionsFromJokers(["first-strike", "akka-king", "oracle"]).alwaysLead).toBe(true);
+    // السبيت 3: your spades are trumps.
+    expect(matchOptionsFromJokers(["spade-always", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
+    // الدفاع 3: nobody doubles you.
+    expect(matchOptionsFromJokers(["trap", "qahwaji", "loud-voice"]).noDoubleAgainst).toBe(true);
+  });
+
+  it("second tiers boost the family's style", () => {
+    expect(matchOptionsFromJokers(["ducker", "last-card"]).lastTrickBonus).toBe(20); // الأرض +10
+    expect(matchOptionsFromJokers(["first-strike", "akka-king"]).firstTrickBonus).toBe(4 + 3);
+    expect(matchOptionsFromJokers(["spade-treasure", "spade-always"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
+    expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).hokumSynergyBonus).toBe(4);
   });
 
   it("the ولد combo stacks: collector + synergy, and a guaranteed Jack at 3", () => {
     const o = matchOptionsFromJokers(["jack-collector", "lucky-jack", "jack-hunt"], { "jack-collector": 2 });
-    expect(o.jackTrickBonus).toBe(2 + 2); // collector Lv2 + ولد tier 2
+    expect(o.jackTrickBonus).toBe(3 + 2); // collector Lv2 + ولد tier 2
     expect(o.guaranteedJacks).toBe(1);
   });
 
@@ -268,15 +269,9 @@ describe("joker levels and synergies", () => {
     expect(matchOptionsFromJokers(["jack-hunt"]).jackHunt?.partnerToo).toBe(false);
   });
 
-  it("the ذهب synergy discounts the shop", () => {
-    expect(shopDiscount(["golden-touch"])).toBe(1);
-    expect(shopDiscount(["golden-touch", "treasury"])).toBe(0.8);
-  });
-
-  it("every joker has a match effect at every level (the treasury pays at the shop instead)", () => {
+  it("every joker does something at every level (bar the ones that need a row or pay at the shop)", () => {
     for (const j of JOKER_CATALOG) {
-      // The treasury pays at the shop; الوايلد, النسخة and الحصالة need the rest of a row / a run to do anything.
-      if (["treasury", "wild", "copycat", "piggy", "chief", "maestro"].includes(j.id)) continue;
+      if (["treasury", "wild", "copycat", "chief", "maestro"].includes(j.id)) continue;
       for (let lvl = 1; lvl <= maxLevel(j); lvl++) {
         expect(Object.keys(matchOptionsFromJokers([j.id], { [j.id]: lvl })).length, `${j.id} Lv${lvl}`).toBeGreaterThan(0);
       }
@@ -335,17 +330,17 @@ describe("run upgrades, selling and the new consumables", () => {
 
   it("selling a joker frees its slot and pays half its worth", () => {
     runController.addGold(1000);
-    runController.buyJoker("hokum-master");
-    runController.buyJoker("hokum-master"); // Lv2
-    const def = getJokerDef("hokum-master")!;
-    const value = runController.sellValue("hokum-master");
+    runController.buyJoker("cutter");
+    runController.buyJoker("cutter"); // Lv2
+    const def = getJokerDef("cutter")!;
+    const value = runController.sellValue("cutter");
     expect(value).toBe(sellPrice(def, 2));
-    expect(value).toBe(Math.floor((14 + 11) / 2));
+    expect(value).toBe(Math.floor((12 + 9) / 2));
     const gold = runController.getState().gold;
-    runController.sellJoker("hokum-master");
+    runController.sellJoker("cutter");
     expect(runController.getState().gold).toBe(gold + value);
-    expect(runController.getState().jokerIds).not.toContain("hokum-master");
-    expect(runController.levelOf("hokum-master")).toBe(0);
+    expect(runController.getState().jokerIds).not.toContain("cutter");
+    expect(runController.levelOf("cutter")).toBe(0);
   });
 
   it("دفعة starts the next match ahead once; the ticket levels up a joker for free", () => {
@@ -360,88 +355,59 @@ describe("run upgrades, selling and the new consumables", () => {
   });
 });
 
-describe("the new jokers", () => {
-  it("each one turns into its match option, scaling with level", () => {
-    expect(matchOptionsFromJokers(["project-engineer"], { "project-engineer": 3 }).projectMultiplier).toBe(3);
-    expect(matchOptionsFromJokers(["royal-baloot"]).balootBonus).toEqual({ points: 4, gold: 4 });
-    expect(matchOptionsFromJokers(["ground-keeper"], { "ground-keeper": 2 }).groundGold).toBe(6);
-    expect(matchOptionsFromJokers(["trap"]).rivalLossBonus).toBe(5);
-    expect(matchOptionsFromJokers(["qahwaji"], { qahwaji: 2 }).doubleWinBonus).toBe(1);
-    expect(matchOptionsFromJokers(["akka-gold"]).akkaGold).toBe(3);
-    expect(matchOptionsFromJokers(["patience"]).lossGold).toBe(3);
-    expect(matchOptionsFromJokers(["golden-kaboot"]).kabootBonus).toEqual({ points: 15, gold: 15 });
-  });
-
-  it("the new synergies: مشروع pays per hand with projects, دفاع stacks on الفخ and الصبر", () => {
-    expect(matchOptionsFromJokers(["project-engineer", "royal-baloot"]).projectSynergyBonus).toBe(3);
-    const two = matchOptionsFromJokers(["trap", "comeback"]);
-    expect(two.rivalLossBonus).toBe(5 + 4);
-    const three = matchOptionsFromJokers(["trap", "comeback", "patience"]);
-    expect(three.rivalLossBonus).toBe(5 + 8);
-    expect(three.lossGold).toBe(3 + 2);
+describe("play-changing jokers turn into their rules", () => {
+  it("each one maps to its option, scaling with level", () => {
+    expect(matchOptionsFromJokers(["ground-lord"]).groundWins).toBe(true);
+    expect(matchOptionsFromJokers(["ducker"], { ducker: 3 }).duckBonus).toBe(5);
+    expect(matchOptionsFromJokers(["last-card"]).lastCardTop).toBe(true);
+    expect(matchOptionsFromJokers(["bare-hokum"], { "bare-hokum": 2 }).bareHokumMultiplier).toBe(2.5);
+    expect(matchOptionsFromJokers(["free-hokum"]).extraHokumSuits).toHaveLength(4);
+    expect(matchOptionsFromJokers(["locked-hokum"])).toMatchObject({ lockedHokum: true, noDoubleAgainst: true });
+    expect(matchOptionsFromJokers(["short-sira"]).shortSira).toBe(true);
+    expect(matchOptionsFromJokers(["sira-maker"]).siraBonus).toEqual({ points: 4, gold: 2 });
+    expect(matchOptionsFromJokers(["low-fours"]).lowFours).toBe(true);
+    expect(matchOptionsFromJokers(["loud-voice"]).projectsAlwaysCount).toBe(true);
+    expect(matchOptionsFromJokers(["first-lead"]).alwaysLead).toBe(true);
+    expect(matchOptionsFromJokers(["first-strike"]).firstTrickBonus).toBe(4);
+    expect(matchOptionsFromJokers(["oracle"]).oracle).toBe(true);
+    expect(matchOptionsFromJokers(["akka-king"]).akkaTrickBonus).toBe(3);
+    expect(matchOptionsFromJokers(["spade-king"]).personalTrump).toBe("S");
+    expect(matchOptionsFromJokers(["spade-thief"], { "spade-thief": 3 }).spadeThief).toEqual({ best: true, twice: true });
+    expect(matchOptionsFromJokers(["spade-always"]).extraHokumSuits).toEqual(["S"]);
+    expect(matchOptionsFromJokers(["spade-treasure"]).suitTrickBonus).toEqual({ suit: "S", points: 2 });
   });
 });
 
 describe("build-makers: jokers that depend on your row", () => {
   it("الوايلد joins every family you've started", () => {
-    const hokum = activeSynergies(["hokum-master", "wild"]).find((x) => x.tag === "حكم")!;
+    const hokum = activeSynergies(["cutter", "wild"]).find((x) => x.tag === "حكم")!;
     expect(hokum.count).toBe(2);
     expect(hokum.tier?.count).toBe(2);
     expect(activeSynergies(["wild"])).toEqual([]);
-    expect(matchOptionsFromJokers(["hokum-master", "wild"]).hokumSynergyBonus).toBe(3);
+    expect(matchOptionsFromJokers(["cutter", "wild"]).hokumSynergyBonus).toBe(4);
   });
 
   it("شيخ القبيلة pays for one big family; المايسترو for many active synergies", () => {
-    const mono = matchOptionsFromJokers(["chief", "hokum-master", "forged-jack", "burn"]);
+    const mono = matchOptionsFromJokers(["chief", "cutter", "bare-hokum", "free-hokum"]);
     expect(mono.winBonuses).toContainEqual({ label: "شيخ القبيلة", points: 3 });
-    const wide = matchOptionsFromJokers(["maestro", "hokum-master", "royal-baloot", "trap", "comeback"], {}, {});
-    // حكم 2 (tier 1), دفاع 2 (tier 1), مشروع 1 (none) → 2 tiers × 2.
+    // حكم 2 and الأرض 2 are both on: 2 tiers × 2.
+    const wide = matchOptionsFromJokers(["maestro", "cutter", "bare-hokum", "ducker", "last-card"]);
     expect(wide.winBonuses).toContainEqual({ label: "المايسترو", points: 4 });
   });
 
   it("النسخة copies the joker on its right — the one before it in the row", () => {
-    const o = matchOptionsFromJokers(["hokum-master", "copycat"], { "hokum-master": 2 });
-    expect(o.hokumMadeBonus).toBe(20);
-    const sun = matchOptionsFromJokers(["royal-sun", "copycat"]);
-    expect(sun.sunMultiplier).toBeCloseTo(2); // 1.5 + its 0.5 again
+    const o = matchOptionsFromJokers(["cutter", "copycat"], { cutter: 2 });
+    expect(o.ruffBonus).toBe(6);
+    const eng = matchOptionsFromJokers(["project-engineer", "copycat"]);
+    expect(eng.projectMultiplier).toBeCloseTo(3); // 2 + its 1 again
     // On the far right it has nothing to copy; order matters.
-    expect(matchOptionsFromJokers(["copycat", "hokum-master"]).hokumMadeBonus).toBe(5);
+    expect(matchOptionsFromJokers(["copycat", "cutter"]).ruffBonus).toBe(2);
     runController.startNewRun(1);
     runController.addGold(500);
-    runController.buyJoker("hokum-master");
+    runController.buyJoker("cutter");
     runController.buyJoker("copycat");
     runController.moveJoker("copycat", -1);
-    expect(runController.getState().jokerIds).toEqual(["copycat", "hokum-master"]);
-  });
-
-  it("الحصالة grows with every match won and pays on every hand won", () => {
-    runController.startNewRun(2);
-    runController.addGold(100);
-    runController.buyJoker("piggy");
-    for (let i = 0; i < 2; i++) {
-      const node = runController.getAvailableNode()!;
-      runController.enterNode(node.id);
-      runController.resolveMatchNode(true);
-      runController.skipReward();
-    }
-    const s = runController.getState();
-    expect(s.jokerCounters["piggy"]).toBe(2);
-    expect(matchOptionsFromJokers(s.jokerIds, s.jokerLevels, { counters: s.jokerCounters }).winBonuses).toContainEqual({
-      label: "الحصالة",
-      points: 2,
-    });
-  });
-
-  it("الصراف, المقامر and دفتر المشاريع turn into their options", () => {
-    expect(matchOptionsFromJokers(["money-changer"], {}, { gold: 57 }).goldToPoints).toEqual({ per: 10, cap: 4, startingGold: 57 });
-    const g = matchOptionsFromJokers(["gambler"], { gambler: 2 });
-    expect(g.gamblerMultiplier).toBe(1.5);
-    expect(g.lossGoldCost).toBe(4);
-    expect(matchOptionsFromJokers(["ledger"]).projectGold).toBe(1);
-    expect(matchOptionsFromJokers(["cutter"], { cutter: 3 }).ruffBonus).toBe(3);
-    // ذهب at 4 pays gold per hand won; مشروع at 3 makes your projects always count.
-    expect(matchOptionsFromJokers(["golden-touch", "treasury", "ledger", "gambler"]).winGold).toBe(2);
-    expect(matchOptionsFromJokers(["project-engineer", "royal-baloot", "ledger"]).projectsAlwaysCount).toBe(true);
+    expect(runController.getState().jokerIds).toEqual(["copycat", "cutter"]);
   });
 });
 
@@ -481,16 +447,16 @@ describe("غنائم الصكة — rewards after every match won", () => {
     for (let seed = 1; seed <= 60; seed++) {
       runController.startNewRun(seed);
       runController.addGold(200);
-      runController.buyJoker("hokum-master");
+      runController.buyJoker("bare-hokum");
       runController.buyJoker("cutter");
       winNext();
       for (const id of runController.getState().pendingRewards!.items) {
         const def = getJokerDef(id)!;
         total++;
-        if (def.kind === "joker" && (def.tags.includes("حكم") || ["hokum-master", "cutter"].includes(id))) aligned++;
+        if (def.kind === "joker" && def.tags.includes("حكم")) aligned++;
       }
     }
-    // حكم jokers are ~7 of 33 jokers; weighted, they fill well over a quarter of the offers.
+    // حكم jokers are 6 of 36; weighted, they fill well over a quarter of the offers.
     expect(aligned / total).toBeGreaterThan(0.3);
   });
 

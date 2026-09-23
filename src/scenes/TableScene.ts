@@ -129,6 +129,8 @@ export class TableScene extends Phaser.Scene {
   private dealerChip?: Phaser.GameObjects.Container;
   /** The contract ("حكم ♠" / "صن" / "أشكل") shown beside the buyer's name. */
   private contractChip?: Phaser.GameObjects.Container;
+  /** العرّاف's preview during bidding. */
+  private oraclePanel?: Phaser.GameObjects.Container;
   /** This hand's المشاريع, said in the first trick and laid down in the second. */
   private projects?: ProjectsOutcome;
   private highlightedSeat: Seat | null = null;
@@ -169,6 +171,7 @@ export class TableScene extends Phaser.Scene {
     this.seatLabels = {};
     this.contractChip = undefined;
     this.projects = undefined;
+    this.oraclePanel = undefined;
     this.dealerChip = undefined;
     this.highlightedSeat = null;
     this.revealViews = [];
@@ -483,6 +486,27 @@ export class TableScene extends Phaser.Scene {
         },
       })),
     );
+    // After the buttons: showing them clears the bidding widgets, this one included.
+    this.showOracle();
+  }
+
+  /** العرّاف: the two hidden cards you'd be dealt if you bought now. */
+  private showOracle(): void {
+    if (!this.nodeData.modifiers.oracle) return;
+    const ground = this.controller.getRound().groundCard;
+    const cards = this.controller.previewIfBuy().filter((c) => cardId(c) !== cardId(ground));
+    if (cards.length === 0) return;
+    const panel = this.add.container(CENTER_X, BID_BUTTON_ROW_Y - 250).setDepth(7);
+    const w = 330;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1d1433, 0.92);
+    bg.fillRoundedRect(-w / 2, -95, w, 190, 18);
+    bg.lineStyle(3, 0xb58cff, 1);
+    bg.strokeRoundedRect(-w / 2, -95, w, 190, 18);
+    panel.add(bg);
+    panel.add(arabicText(this, 0, -72, "🔮 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
+    cards.forEach((c, i) => panel.add(new CardView(this, (i - (cards.length - 1) / 2) * 96, 18, c, true, WIDGET_CARD_SIZE)));
+    this.oraclePanel = panel;
   }
 
   /** A prompt line plus a row (or two) of buttons for the human's decision. */
@@ -585,6 +609,8 @@ export class TableScene extends Phaser.Scene {
   }
 
   private clearBidButtons(): void {
+    this.oraclePanel?.destroy();
+    this.oraclePanel = undefined;
     for (const b of this.bidButtons) b.destroy();
     this.bidButtons = [];
     this.bidPrompt?.destroy();
@@ -750,7 +776,9 @@ export class TableScene extends Phaser.Scene {
     const text =
       a.kind === "transform"
         ? `🎭 اختر ورقة تتحول إلى ${RANK_NAME_AR[a.to.rank]} ${SUIT_SYMBOL[a.to.suit]}`
-        : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
+        : a.suit
+          ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
+          : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
     this.actionPrompt?.destroy();
     this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 190, text, {
       fontSize: "27px",

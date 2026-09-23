@@ -1,6 +1,6 @@
 import { isTrumpCard, rankStrength } from "./cards";
-import type { Card, Mode, Seat, Suit, Trick } from "./types";
-import { teamOf } from "./types";
+import type { Card, Mode, Seat, Suit, Trick, TrickRules } from "./types";
+import { nextSeat, teamOf } from "./types";
 
 interface Played {
   seat: Seat;
@@ -17,22 +17,34 @@ export function currentWinner(trick: Trick, mode: Mode, trumpSuit?: Suit): Seat 
   const ledSuit = played[0].card.suit;
   let best = played[0];
   for (const p of played.slice(1)) {
-    if (isBetter(p.card, best.card, ledSuit, mode, trumpSuit)) best = p;
+    if (isBetter(p, best, ledSuit, mode, trumpSuit, trick.rules)) best = p;
   }
   return best.seat;
 }
 
-function isBetter(candidate: Card, current: Card, ledSuit: Suit, mode: Mode, trumpSuit?: Suit): boolean {
-  const candidateTrump = isTrumpCard(candidate, mode, trumpSuit);
-  const currentTrump = isTrumpCard(current, mode, trumpSuit);
-  if (candidateTrump !== currentTrump) return candidateTrump; // trump always beats non-trump
-  if (candidateTrump && currentTrump) {
-    return rankStrength(candidate, mode, trumpSuit) > rankStrength(current, mode, trumpSuit);
-  }
-  // neither is trump: only the led suit can win
-  if (candidate.suit !== ledSuit) return false;
-  if (current.suit !== ledSuit) return true;
-  return rankStrength(candidate, mode, trumpSuit) > rankStrength(current, mode, trumpSuit);
+/**
+ * How strong a played card is in this trick: a real trump beats a joker's "personal trump"
+ * (ملك السبيت), which beats the led suit; anything else can't win.
+ */
+function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
+  if (isTrumpCard(p.card, mode, trumpSuit)) return 3;
+  const pt = rules?.personalTrump;
+  if (pt && pt.seat === p.seat && pt.suit === p.card.suit) return 2;
+  return p.card.suit === ledSuit ? 1 : 0;
+}
+
+function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
+  // الورقة الأخيرة: that seat's card counts as the top of its suit.
+  return rankStrength(p.card, mode, trumpSuit) + (rules?.topCard === p.seat ? 100 : 0);
+}
+
+function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules): boolean {
+  const a = tier(candidate, ledSuit, mode, trumpSuit, rules);
+  const b = tier(current, ledSuit, mode, trumpSuit, rules);
+  if (a !== b) return a > b;
+  if (a === 0) return false;
+  // Equal cards (a duplicated Jack): the one played first keeps it.
+  return strength(candidate, mode, trumpSuit, rules) > strength(current, mode, trumpSuit, rules);
 }
 
 /** Resolves the winner of a completed (4-card) trick. */
@@ -45,8 +57,8 @@ export function wouldWinAgainstCurrent(card: Card, trick: Trick, mode: Mode, tru
   if (trick.order.length === 0) return true; // leading always "wins" so far
   const ledSuit = trick.cards[trick.order[0]]!.suit;
   const winnerSeat = currentWinner(trick, mode, trumpSuit);
-  const currentBest = trick.cards[winnerSeat]!;
-  return isBetter(card, currentBest, ledSuit, mode, trumpSuit);
+  const seat = nextSeat(trick.order[trick.order.length - 1]);
+  return isBetter({ seat, card }, { seat: winnerSeat, card: trick.cards[winnerSeat]! }, ledSuit, mode, trumpSuit, trick.rules);
 }
 
 /**

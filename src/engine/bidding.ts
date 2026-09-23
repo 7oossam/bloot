@@ -22,6 +22,11 @@ export interface BiddingState {
   challengers?: Seat[];
   /** Teams whose hokum can't be taken over as sun (a joker synergy). */
   lockedHokumTeams?: Team[];
+  /**
+   * Joker rules: this seat may also buy hokum in these suits — in the first round too, and in
+   * the second even in the ground card's suit (الحكم الحر، سبيت دايم).
+   */
+  extraHokum?: { seat: Seat; suits: Suit[] };
 }
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
@@ -59,7 +64,12 @@ function partnerOf(seat: Seat): Seat {
   return nextSeat(nextSeat(seat));
 }
 
-export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: Team[] = []): BiddingState {
+export function startBidding(
+  dealer: Seat,
+  groundCard: Card,
+  lockedHokumTeams: Team[] = [],
+  extraHokum?: BiddingState["extraHokum"],
+): BiddingState {
   return {
     dealer,
     groundCard,
@@ -67,6 +77,7 @@ export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: T
     turnSeat: nextSeat(dealer),
     history: [],
     lockedHokumTeams,
+    extraHokum,
   };
 }
 
@@ -103,6 +114,11 @@ export function legalCalls(state: BiddingState): LegalCall[] {
       (s) => s !== state.groundCard.suit,
     );
     for (const suit of otherSuits) calls.push({ call: "hokum", suit });
+  }
+  if (state.extraHokum?.seat === seat) {
+    for (const suit of state.extraHokum.suits) {
+      if (!calls.some((c) => c.call === "hokum" && c.suit === suit)) calls.push({ call: "hokum", suit });
+    }
   }
   return calls;
 }

@@ -46,7 +46,7 @@ export function buildBeliefs(tricks: Trick[], current: Trick | undefined, mode: 
       beliefs.voids[seat][led] = true;
       if (mode === "hokum" && card.suit === trumpSuit) return; // a ruff, not a signal
       if (card.rank === "A" && !isTrumpCard(card, mode, trumpSuit)) {
-        const before: Trick = { leader: trick.leader, order: trick.order.slice(0, i), cards: trick.cards };
+        const before: Trick = { leader: trick.leader, order: trick.order.slice(0, i), cards: trick.cards, rules: trick.rules };
         const winner = currentWinner(before, mode, trumpSuit);
         if (winner !== seat && teamOf(winner) === teamOf(seat)) {
           if (!beliefs.barqiya[seat].includes(card.suit)) beliefs.barqiya[seat].push(card.suit);

@@ -6,7 +6,6 @@ import {
   JOKER_CATALOG,
   maxLevel,
   sellPrice,
-  shopDiscount,
   UPGRADE_CATALOG,
   upgradeCost,
   activeSynergies,
@@ -108,9 +107,6 @@ class RunController {
     if (won) {
       goldEarned = node.reward + this.state.salary;
       this.state.gold += goldEarned;
-      // الحصالة grows with every match won.
-      const piggy = this.state.jokerLevels["piggy"];
-      if (piggy) this.state.jokerCounters["piggy"] = (this.state.jokerCounters["piggy"] ?? 0) + piggy;
       if (node.type === "boss") {
         this.state.over = true;
         this.state.won = true;
@@ -141,7 +137,7 @@ class RunController {
   }
 
   private discount(): number {
-    return shopDiscount(this.state.jokerIds) * (this.state.upgrades["vip"] ? VIP_DISCOUNT : 1);
+    return this.state.upgrades["vip"] ? VIP_DISCOUNT : 1;
   }
 
   /** What an item costs right now: a new joker, a level of one you own, a consumable, or an upgrade. */

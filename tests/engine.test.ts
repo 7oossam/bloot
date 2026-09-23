@@ -3,7 +3,7 @@ import { buildDeck } from "../src/engine/deck";
 import { dealInitial, finalizeDeal } from "../src/engine/deck";
 import { ashkalSignal, legalCalls, startBidding, submitBid } from "../src/engine/bidding";
 import { compareProjects, findProjects, resolveProjects } from "../src/engine/projects";
-import { isAkka, legalMoves, resolveTrick } from "../src/engine/trick";
+import { isAkka, legalMoves, resolveTrick, wouldWinAgainstCurrent } from "../src/engine/trick";
 import { rankStrength, cardId, cardPoints } from "../src/engine/cards";
 import { roundNonBuyer, scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
@@ -862,5 +862,70 @@ describe("الدبل — البند 7", () => {
     const doubled = scoreHand(tie, "sun", undefined, 0, 10, { double: { level: 2, raiserTeam: 1, closed: false } });
     expect(doubled.sheet!).toMatchObject({ judgedTeam: 1, outcome: "won", winner: 1 });
     expect(doubled.gamePoints).toEqual({ 0: 0, 1: 52 });
+  });
+});
+
+describe("joker rules that bend the game", () => {
+  it("ملك السبيت: your spades act as trumps — above the led suit, below a real trump", () => {
+    const rules = { personalTrump: { seat: 0 as Seat, suit: "S" as const } };
+    const sun: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: C("AH"), 2: C("10H"), 3: C("KH"), 0: C("7S") }, rules };
+    expect(resolveTrick(sun, "sun")).toBe(0);
+    // Someone else's spade is just a spade.
+    const theirs: Trick = { leader: 0, order: [0, 1], cards: { 0: C("7S"), 1: C("AS") }, rules };
+    expect(resolveTrick(theirs, "sun")).toBe(0);
+    // In hokum ♥ a real trump still beats it.
+    const hokum: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: C("AD"), 2: C("7H"), 3: C("KD"), 0: C("AS") }, rules };
+    expect(resolveTrick(hokum, "hokum", "H")).toBe(2);
+  });
+
+  it("الورقة الأخيرة: your card counts as the top of its suit", () => {
+    const t: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: C("AH"), 2: C("10H"), 3: C("KH"), 0: C("7H") }, rules: { topCard: 0 } };
+    expect(resolveTrick(t, "sun")).toBe(0);
+    // Off-suit it still can't win.
+    t.cards[0] = C("7S");
+    expect(resolveTrick(t, "sun")).toBe(1);
+  });
+
+  it("the AI sees the bent rules too: it won't waste a card on a trick your spade already has", () => {
+    const rules = { personalTrump: { seat: 0 as Seat, suit: "S" as const } };
+    const t: Trick = { leader: 3, order: [3, 0], cards: { 3: C("KH"), 0: C("7S") }, rules };
+    expect(wouldWinAgainstCurrent(C("AH"), t, "sun")).toBe(false);
+  });
+
+  it("الحكم الحر / سبيت دايم: extra hokum suits for one seat, in either round", () => {
+    const g: Card = { suit: "H", rank: "9" };
+    let st = startBidding(3, g, [], { seat: 0, suits: ["S"] });
+    const suits = () => legalCalls(st).filter((c) => c.call === "hokum").map((c) => c.suit).sort();
+    expect(suits()).toEqual(["H", "S"]); // seat 0 leads the bidding (dealer 3)
+    st = submitBid(st, { seat: 0, call: "pass" });
+    expect(suits()).toEqual(["H"]); // seat 1 is normal
+  });
+
+  it("صاحب الحلة: the first trick is led by that seat whoever dealt", () => {
+    const round = new Round(1, mulberry32(4), { firstLeader: 0 });
+    while (round.phase === "bidding") {
+      const calls = round.legalBids();
+      round.bid({ seat: round.bidding.turnSeat, ...(calls.find((c) => c.call === "sun") ?? calls[0]) } as Bid);
+    }
+    expect(round.turnSeat).toBe(0);
+  });
+
+  it("نص سرا and الأربع الصغار count for that seat only", () => {
+    const h = hand("9H", "10H", "7S", "7H", "7D", "7C", "KD", "AC");
+    expect(findProjects(h, "sun", 0).map((p) => p.kind)).toEqual([]);
+    expect(findProjects(h, "sun", 0, { shortSira: true }).map((p) => p.kind)).toContain("sira");
+    expect(findProjects(h, "sun", 0, { lowFours: true }).map((p) => p.kind)).toContain("miya");
+  });
+
+  it("الحكم المقفول: no دبل round against that team", () => {
+    for (let seed = 1; seed < 100; seed++) {
+      const round = new Round(3, mulberry32(seed), { doubling: { matchScore: { 0: 0, 1: 0 }, sunLimit: 100 }, noDoubleAgainst: [0] });
+      round.bid({ seat: 0, ...round.legalBids().find((c) => c.call === "hokum")! } as Bid);
+      while (round.phase === "bidding") round.bid({ seat: round.bidding.turnSeat, call: "pass" });
+      if (round.bidding.result?.declarerTeam !== 0) continue;
+      expect(round.phase).toBe("playing");
+      return;
+    }
+    throw new Error("no team-0 hokum found");
   });
 });

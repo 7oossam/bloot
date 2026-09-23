@@ -3,12 +3,14 @@ import { decideCard } from "../ai/play-ai";
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
 import type { LegalCall } from "../engine/bidding";
-import { Round } from "../engine/round";
-import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
+import { Round, type RoundOptions } from "../engine/round";
+import { finalizeDeal } from "../engine/deck";
+import type { Bid, BiddingResult, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { nextSeat, teamOf } from "../engine/types";
 import { rankStrength } from "../engine/cards";
-import { PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
-import { isAkka } from "../engine/trick";
+import { BALOOT_VALUE, PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
+import { currentWinner, isAkka, wouldWinAgainstCurrent } from "../engine/trick";
+import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
 
 export const HUMAN_SEAT: Seat = 0;
@@ -83,6 +85,39 @@ export interface MatchOptions {
   winGold?: number;
   /** Your team's projects count even when the other side's are bigger (the مشروع synergy at 3). */
   projectsAlwaysCount?: boolean;
+  // ---- play-changing jokers
+  /** سيد الأرض: taking الأرض (the last trick) takes the whole hand. */
+  groundWins?: boolean;
+  /** المخلّي: points every time you could have taken a trick from the opponents and didn't. */
+  duckBonus?: number;
+  /** الورقة الأخيرة: your card in the last trick counts as the top of its suit. */
+  lastCardTop?: boolean;
+  /** الحكم الأعزل: a hokum you buy without the trump Jack and 9 and make pays this multiple. */
+  bareHokumMultiplier?: number;
+  /** الحكم الحر / سبيت دايم: you may buy hokum in these suits in either round. */
+  extraHokumSuits?: Suit[];
+  /** الحكم المقفول: nobody may double your team's contract. */
+  noDoubleAgainst?: boolean;
+  /** نص سرا: two cards in sequence make a سرا for you. */
+  shortSira?: boolean;
+  /** الأربع الصغار: four 7s/8s/9s are a مئة for you. */
+  lowFours?: boolean;
+  /** صانع السرا: every سرا your team scores pays points and gold. */
+  siraBonus?: { points: number; gold: number };
+  /** صاحب الحلة: you always lead the first trick. */
+  alwaysLead?: boolean;
+  /** الضربة الأولى: your team takes the first trick. */
+  firstTrickBonus?: number;
+  /** العرّاف: see the cards you'd get if you buy (UI). */
+  oracle?: boolean;
+  /** ملك الآكه: every trick your team takes with a card it called آكه on. */
+  akkaTrickBonus?: number;
+  /** ملك السبيت: your cards of this suit act as trumps (below a real trump). */
+  personalTrump?: Suit;
+  /** سارق السبيت: at the start of play, trade a card for an opponent's spade (their best at `best`). */
+  spadeThief?: { best: boolean; twice: boolean };
+  /** كنز السبيت: every trick your team takes with a card of this suit. */
+  suitTrickBonus?: { suit: Suit; points: number };
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
@@ -91,7 +126,7 @@ export interface MatchOptions {
 /** Something the human has to decide mid-hand because a joker fired: which card to use. */
 export type PendingAction =
   | { kind: "transform"; to: Card }
-  | { kind: "swap"; preferTrump: boolean };
+  | { kind: "swap"; preferTrump: boolean; suit?: Suit; best?: boolean };
 
 /** What a joker just did to someone's hand, for the scene to show. */
 export type HandChange =
@@ -162,6 +197,14 @@ export class GameController extends Emitter<EventMap> {
   private jackTricks = 0;
   private sunAceTricks = 0;
   private ruffTricks = 0;
+  private ducks = 0;
+  private akkaWins = 0;
+  private suitTricks = 0;
+  private firstTrickOurs = false;
+  private lastTrickOurs = false;
+  /** undefined until your first card of the hand: did you hold neither the trump J nor 9? */
+  private bareHokum?: boolean;
+  private akkaCards = new Set<string>();
   /** Gold this match has paid out so far (for الصراف). */
   private goldEarned = 0;
 
@@ -205,6 +248,13 @@ export class GameController extends Emitter<EventMap> {
     this.jackTricks = 0;
     this.sunAceTricks = 0;
     this.ruffTricks = 0;
+    this.ducks = 0;
+    this.akkaWins = 0;
+    this.suitTricks = 0;
+    this.firstTrickOurs = false;
+    this.lastTrickOurs = false;
+    this.bareHokum = undefined;
+    this.akkaCards = new Set();
     this.round = new Round(this.dealer, this.rand, {
       lastTrickBonus: this.lastTrickBonus,
       guaranteeJackFor: this.options.guaranteedJacks ? HUMAN_SEAT : undefined,
@@ -212,6 +262,7 @@ export class GameController extends Emitter<EventMap> {
       lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
       // 7-2's "100 of 152" scaled to this match's target.
       doubling: { matchScore: { ...this.matchScore }, sunLimit: Math.round((this.matchTarget * 100) / 152) },
+      ...this.jokerRoundRules(),
     });
     this.emit("hand:dealt", {
       dealer: this.dealer,
@@ -219,6 +270,27 @@ export class GameController extends Emitter<EventMap> {
       groundCard: this.round.groundCard,
       round: this.round.bidding.round,
     });
+  }
+
+  /** The Round-level rules the run's jokers bend. */
+  private jokerRoundRules(): Partial<RoundOptions> {
+    const o = this.options;
+    const us = teamOf(HUMAN_SEAT);
+    const rules: Partial<RoundOptions> = {};
+    if (o.extraHokumSuits?.length) rules.extraHokum = { seat: HUMAN_SEAT, suits: o.extraHokumSuits };
+    if (o.alwaysLead) rules.firstLeader = HUMAN_SEAT;
+    if (o.shortSira || o.lowFours) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours } };
+    if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
+    if (o.personalTrump) rules.trickRules = { personalTrump: { seat: HUMAN_SEAT, suit: o.personalTrump } };
+    if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
+    return rules;
+  }
+
+  /** العرّاف: the cards you'd be dealt on top of your five if you bought now. */
+  previewIfBuy(): Card[] {
+    if (this.round.phase !== "bidding") return [];
+    const fake = { mode: "sun", declarer: HUMAN_SEAT, declarerTeam: teamOf(HUMAN_SEAT), history: [] } as BiddingResult;
+    return finalizeDeal(this.round.initial, fake)[HUMAN_SEAT].slice(5);
   }
 
   /** Advances the game by exactly one action. The scene calls this in a loop, pacing with its own delays. */
@@ -314,13 +386,20 @@ export class GameController extends Emitter<EventMap> {
       this.emit("hand:changed", { kind: "transform", seat: HUMAN_SEAT, from: card, to: action.to });
       return;
     }
-    const opponents = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].length > 0);
+    const trump = this.round.bidding.result?.trumpSuit;
+    const wanted = action.suit ?? (action.preferTrump ? trump : undefined);
+    let opponents = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].length > 0);
+    // A suit-seeking swap goes to whoever holds that suit.
+    const holders = wanted ? opponents.filter((s) => this.round.hands[s].some((c) => c.suit === wanted)) : [];
+    if (holders.length) opponents = holders;
     const other = opponents[Math.floor(this.rand() * opponents.length)];
     const theirHand = this.round.hands[other];
-    const trump = this.round.bidding.result?.trumpSuit;
-    const trumps = action.preferTrump && trump ? theirHand.filter((c) => c.suit === trump) : [];
-    const pool = trumps.length > 0 ? trumps : theirHand;
-    const got = pool[Math.floor(this.rand() * pool.length)];
+    const ofSuit = wanted ? theirHand.filter((c) => c.suit === wanted) : [];
+    const pool = ofSuit.length > 0 ? ofSuit : theirHand;
+    const mode = this.round.bidding.result?.mode ?? "sun";
+    const got = action.best
+      ? pool.reduce((a, b) => (rankStrength(b, mode, trump) > rankStrength(a, mode, trump) ? b : a))
+      : pool[Math.floor(this.rand() * pool.length)];
     this.round.swapCards(HUMAN_SEAT, card, other, got);
     this.emit("hand:changed", { kind: "swap", seat: HUMAN_SEAT, gave: card, got, otherSeat: other });
   }
@@ -343,6 +422,11 @@ export class GameController extends Emitter<EventMap> {
     const o = this.options;
 
     if (ours && card.rank === "J") this.jackTricks++;
+    const index = this.round.tricks.length - 1;
+    if (index === 0 && ours) this.firstTrickOurs = true;
+    if (handOver && ours) this.lastTrickOurs = true;
+    if (ours && this.akkaCards.has(cardId(card))) this.akkaWins++;
+    if (ours && o.suitTrickBonus && card.suit === o.suitTrickBonus.suit) this.suitTricks++;
     const led = trick.cards[trick.order[0]]!;
     if (ours && trump && card.suit === trump && led.suit !== trump) this.ruffTricks++;
     if (ours && result.mode === "sun" && Object.values(trick.cards).some((c) => c?.rank === "A")) this.sunAceTricks++;
@@ -389,10 +473,33 @@ export class GameController extends Emitter<EventMap> {
 
       const forged = this.options.forgedJack;
       const ourBuy = declarer === HUMAN_SEAT || (!!forged?.partnerToo && teamOf(declarer) === teamOf(HUMAN_SEAT));
+      const thief = this.options.spadeThief;
+      if (thief) {
+        this.pendingActions.push({ kind: "swap", preferTrump: false, suit: "S", best: thief.best });
+        if (thief.twice) this.pendingActions.push({ kind: "swap", preferTrump: false, suit: "S", best: thief.best });
+      }
       if (forged && mode === "hokum" && ourBuy) {
         this.pendingActions.push({ kind: "transform", to: { suit: trumpSuit!, rank: "J" } });
         if (forged.nine) this.pendingActions.push({ kind: "transform", to: { suit: trumpSuit!, rank: "9" } });
       }
+    }
+  }
+
+  /** Tallies for the play-changing jokers, read off the human's card before it's played. */
+  private noteHumanPlay(card: Card): void {
+    const trick = this.round.currentTrick!;
+    const { mode, trumpSuit, declarer } = this.round.bidding.result!;
+    if (this.bareHokum === undefined) {
+      const hand = this.round.hands[HUMAN_SEAT];
+      this.bareHokum =
+        mode === "hokum" &&
+        declarer === HUMAN_SEAT &&
+        !hand.some((c) => c.suit === trumpSuit && (c.rank === "J" || c.rank === "9"));
+    }
+    // المخلّي: the opponents have the trick, you could take it, and you don't.
+    if (trick.order.length > 0 && teamOf(currentWinner(trick, mode, trumpSuit)) !== teamOf(HUMAN_SEAT)) {
+      const couldWin = this.round.legalMovesFor(HUMAN_SEAT).some((c) => wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
+      if (couldWin && !wouldWinAgainstCurrent(card, trick, mode, trumpSuit)) this.ducks++;
     }
   }
 
@@ -405,6 +512,22 @@ export class GameController extends Emitter<EventMap> {
     const weBought = result.declarerTeam === us;
     const o = this.options;
 
+    // سيد الأرض: الأرض takes the whole hand — everything but the other side's own بلوت.
+    if (o.groundWins && this.lastTrickOurs) {
+      const theirBaloot = result.baloot !== undefined && teamOf(result.baloot) === them ? BALOOT_VALUE : 0;
+      const total = result.gamePoints[us] + result.gamePoints[them];
+      const extra = total - theirBaloot - gained[us];
+      if (extra > 0) {
+        gained[us] += extra;
+        gained[them] = theirBaloot;
+        bonuses.push({ label: "سيد الأرض", points: extra });
+      }
+    }
+    if (o.bareHokumMultiplier && this.bareHokum && buyerWonEarly(result) && gained[us] > 0) {
+      const extra = Math.round(gained[us] * (o.bareHokumMultiplier - 1));
+      gained[us] += extra;
+      bonuses.push({ label: "الحكم الأعزل", points: extra });
+    }
     if (o.gamblerMultiplier && gained[us] > 0) {
       const extra = Math.round(gained[us] * (o.gamblerMultiplier - 1));
       if (extra > 0) {
@@ -474,6 +597,32 @@ export class GameController extends Emitter<EventMap> {
       bonuses.push({ label: "الكبوت الذهبي", points: o.kabootBonus.points });
       this.emit("gold:earned", { amount: o.kabootBonus.gold, reason: "الكبوت الذهبي" });
     }
+    if (o.duckBonus && this.ducks > 0) {
+      gained[us] += o.duckBonus * this.ducks;
+      bonuses.push({ label: "المخلّي", points: o.duckBonus * this.ducks });
+    }
+    if (o.firstTrickBonus && this.firstTrickOurs) {
+      gained[us] += o.firstTrickBonus;
+      bonuses.push({ label: "الضربة الأولى", points: o.firstTrickBonus });
+    }
+    if (o.akkaTrickBonus && this.akkaWins > 0) {
+      gained[us] += o.akkaTrickBonus * this.akkaWins;
+      bonuses.push({ label: "ملك الآكه", points: o.akkaTrickBonus * this.akkaWins });
+    }
+    if (o.suitTrickBonus && this.suitTricks > 0) {
+      gained[us] += o.suitTrickBonus.points * this.suitTricks;
+      bonuses.push({ label: "كنز السبيت", points: o.suitTrickBonus.points * this.suitTricks });
+    }
+    if (o.siraBonus && this.round.projects) {
+      const p = this.round.projects;
+      const counts = p.winner === us || !!o.projectsAlwaysCount;
+      const siras = counts ? p.declared.filter((d) => teamOf(d.seat) === us && d.kind === "sira").length : 0;
+      if (siras > 0) {
+        gained[us] += o.siraBonus.points * siras;
+        bonuses.push({ label: "صانع السرا", points: o.siraBonus.points * siras });
+        this.emit("gold:earned", { amount: o.siraBonus.gold * siras, reason: "صانع السرا" });
+      }
+    }
     if (o.ruffBonus && this.ruffTricks > 0) {
       const pts = o.ruffBonus * this.ruffTricks;
       gained[us] += pts;
@@ -519,6 +668,8 @@ export class GameController extends Emitter<EventMap> {
     const { mode, trumpSuit } = this.round.bidding.result!;
     const leading = this.round.currentTrick!.order.length === 0;
     const akka = leading && isAkka(card, this.round.tricks.flatMap((t) => Object.values(t.cards) as Card[]), mode, trumpSuit);
+    if (seat === HUMAN_SEAT) this.noteHumanPlay(card);
+    if (akka && teamOf(seat) === teamOf(HUMAN_SEAT)) this.akkaCards.add(cardId(card));
     const balootBefore = this.round.balootDeclared;
     this.round.playCard(seat, card);
     const baloot = !balootBefore && this.round.balootDeclared;
@@ -571,4 +722,10 @@ export class GameController extends Emitter<EventMap> {
       this.dealHand();
     }
   }
+}
+
+/** Whether the buying side made its contract (a دبل can flip who's judged). */
+function buyerWonEarly(result: HandResult): boolean {
+  const sheet = result.sheet;
+  return !sheet || (sheet.judgedTeam === result.declarerTeam ? sheet.outcome === "won" : sheet.outcome === "lost");
 }

@@ -3,7 +3,7 @@ import { dealInitial, finalizeDeal, type InitialDeal } from "./deck";
 import { legalMoves, resolveTrick } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
-import type { Bid, Card, HandResult, Seat, Team, Trick } from "./types";
+import type { Bid, Card, HandResult, Seat, Suit, Team, Trick, TrickRules } from "./types";
 import { nextSeat, teamOf } from "./types";
 import {
   legalDoubles,
@@ -14,7 +14,14 @@ import {
   type DoubleBid,
   type DoublingState,
 } from "./doubling";
-import { findProjects, hasFourKingsOrQueens, resolveProjects, sequenceHoldsKQ, type ProjectsOutcome } from "./projects";
+import {
+  findProjects,
+  hasFourKingsOrQueens,
+  resolveProjects,
+  sequenceHoldsKQ,
+  type ProjectRules,
+  type ProjectsOutcome,
+} from "./projects";
 
 export type RoundPhase = "bidding" | "redeal" | "doubling" | "playing" | "complete";
 
@@ -32,6 +39,18 @@ export interface RoundOptions {
    * doubling side is at or under `sunLimit` and the buyer's side is past it (7-2).
    */
   doubling?: { matchScore: Record<Team, number>; sunLimit: number };
+  /** Joker rules — see BiddingState.extraHokum. */
+  extraHokum?: { seat: Seat; suits: Suit[] };
+  /** صاحب الحلة: this seat always leads the first trick. */
+  firstLeader?: Seat;
+  /** Per-seat project rules (نص سرا، الأربع الصغار). */
+  projectRules?: Partial<Record<Seat, ProjectRules>>;
+  /** Nobody may double this team's contract (الحكم المقفول). */
+  noDoubleAgainst?: Team[];
+  /** Rules that bend who wins a trick, every trick (ملك السبيت). */
+  trickRules?: TrickRules;
+  /** الورقة الأخيرة: this seat's card in the last trick counts as the top of its suit. */
+  lastCardTop?: Seat;
 }
 
 /**
@@ -88,16 +107,18 @@ export class Round {
 
   private readonly lastTrickBonus?: number;
   private readonly doublingRules?: RoundOptions["doubling"];
+  private readonly options: RoundOptions;
 
   constructor(dealer: Seat, rand: () => number = Math.random, options: RoundOptions = {}) {
     this.dealer = dealer;
     this.lastTrickBonus = options.lastTrickBonus;
     this.doublingRules = options.doubling;
+    this.options = options;
     this.initial = dealInitial(rand);
     if (options.guaranteeJackFor !== undefined) {
       giveAJack(this.initial, options.guaranteeJackFor, rand, options.guaranteedJacks ?? 1);
     }
-    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? []);
+    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
     this.hands = {
       0: [...this.initial.hands[0]],
       1: [...this.initial.hands[1]],
@@ -126,27 +147,37 @@ export class Round {
       this.phase = "playing";
       if (this.doublingRules) {
         const { mode: m, declarer, declarerTeam } = this.bidding.result;
-        const allowed = m === "hokum" || sunDoubleAllowed(declarerTeam, this.doublingRules.matchScore, this.doublingRules.sunLimit);
+        const allowed =
+          !this.options.noDoubleAgainst?.includes(declarerTeam) &&
+          (m === "hokum" || sunDoubleAllowed(declarerTeam, this.doublingRules.matchScore, this.doublingRules.sunLimit));
         this.doubling = startDoubling(m, declarer, allowed);
         if (!this.doubling.done) this.phase = "doubling";
       }
-      const leader = nextSeat(this.dealer);
-      this.currentTrick = { leader, cards: {}, order: [] };
+      const leader = this.options.firstLeader ?? nextSeat(this.dealer);
+      this.currentTrick = this.newTrick(leader);
       const { mode, trumpSuit } = this.bidding.result;
-      this.projects = resolveProjects(this.hands, mode, leader);
+      this.projects = resolveProjects(this.hands, mode, leader, this.options.projectRules);
       if (mode === "hokum") {
         const holder = ([0, 1, 2, 3] as Seat[]).find((seat) =>
           (["K", "Q"] as const).every((rank) => this.hands[seat].some((c) => c.suit === trumpSuit && c.rank === rank)),
         );
         // بلوت isn't called by a player who laid down four Kings or four Queens (5-8); if the
         // pair sits inside a sequence project it counts even unannounced (5-6).
-        const own = holder !== undefined ? findProjects(this.hands[holder], mode, holder) : [];
+        const own = holder !== undefined ? findProjects(this.hands[holder], mode, holder, this.options.projectRules?.[holder]) : [];
         if (holder !== undefined && !hasFourKingsOrQueens(own)) {
           this.balootHolder = holder;
           this.balootInSequence = this.projects.winner === teamOf(holder) && sequenceHoldsKQ(own, trumpSuit!);
         }
       }
     }
+  }
+
+  /** A fresh trick carrying the joker rules in force for it. */
+  private newTrick(leader: Seat): Trick {
+    const last = this.tricks.length === 7;
+    const rules: TrickRules = { ...this.options.trickRules };
+    if (last && this.options.lastCardTop !== undefined) rules.topCard = this.options.lastCardTop;
+    return Object.keys(rules).length ? { leader, cards: {}, order: [], rules } : { leader, cards: {}, order: [] };
   }
 
   legalDoubleCalls() {
@@ -243,7 +274,7 @@ export class Round {
         this.phase = "complete";
         this.currentTrick = undefined;
       } else {
-        this.currentTrick = { leader: winner, cards: {}, order: [] };
+        this.currentTrick = this.newTrick(winner);
       }
     }
   }

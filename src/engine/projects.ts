@@ -51,16 +51,25 @@ export const BALOOT_VALUE = 2;
 const SEQUENCE_ORDER: readonly Rank[] = ["7", "8", "9", "10", "J", "Q", "K", "A"];
 const KIND_RANK: Record<ProjectKind, number> = { sira: 1, khamsin: 2, miya: 3, arbaamiya: 4 };
 
-function kindFromRun(length: number): ProjectKind | undefined {
+/** Joker rules that bend what counts as a project for one seat. */
+export interface ProjectRules {
+  /** نص سرا: two cards in sequence already make a سرا. */
+  shortSira?: boolean;
+  /** الأربع الصغار: four 7s, 8s or 9s count as مئة. */
+  lowFours?: boolean;
+}
+
+function kindFromRun(length: number, rules: ProjectRules = {}): ProjectKind | undefined {
   if (length >= 5) return "miya";
   if (length === 4) return "khamsin";
-  if (length === 3) return "sira";
+  if (length === 3 || (length === 2 && rules.shortSira)) return "sira";
   return undefined;
 }
 
-function fourOfAKinds(hand: Card[], mode: Mode, seat: Seat): Project[] {
+function fourOfAKinds(hand: Card[], mode: Mode, seat: Seat, rules: ProjectRules = {}): Project[] {
   const out: Project[] = [];
-  for (const rank of ["A", "K", "Q", "10", "J"] as Rank[]) {
+  const ranks: Rank[] = ["A", "K", "Q", "10", "J", ...(rules.lowFours ? (["9", "8", "7"] as Rank[]) : [])];
+  for (const rank of ranks) {
     const cards = hand.filter((c) => c.rank === rank);
     if (cards.length < 4) continue;
     const kind: ProjectKind = rank === "A" && mode === "sun" ? "arbaamiya" : "miya";
@@ -69,7 +78,7 @@ function fourOfAKinds(hand: Card[], mode: Mode, seat: Seat): Project[] {
   return out;
 }
 
-function sequences(hand: Card[], seat: Seat): Project[] {
+function sequences(hand: Card[], seat: Seat, rules: ProjectRules = {}): Project[] {
   const out: Project[] = [];
   for (const suit of ["S", "H", "D", "C"] as Suit[]) {
     const idx = [...new Set(hand.filter((c) => c.suit === suit).map((c) => SEQUENCE_ORDER.indexOf(c.rank)))].sort((a, b) => a - b);
@@ -77,7 +86,7 @@ function sequences(hand: Card[], seat: Seat): Project[] {
     for (let i = 1; i <= idx.length; i++) {
       if (i < idx.length && idx[i] === idx[i - 1] + 1) continue;
       const run = idx.slice(start, i);
-      const kind = kindFromRun(run.length);
+      const kind = kindFromRun(run.length, rules);
       if (kind) out.push({ kind, seat, cards: run.map((r) => ({ suit, rank: SEQUENCE_ORDER[r] })) });
       start = i;
     }
@@ -91,15 +100,15 @@ const valueOf = (projects: Project[], mode: Mode) => projects.reduce((sum, p) =>
  * One seat's projects. A card can only count in one project, so when four-of-a-kind and a
  * sequence share cards, whichever reading is worth more wins.
  */
-export function findProjects(hand: Card[], mode: Mode, seat: Seat): Project[] {
+export function findProjects(hand: Card[], mode: Mode, seat: Seat, rules: ProjectRules = {}): Project[] {
   const key = (c: Card) => c.suit + c.rank;
-  const fours = fourOfAKinds(hand, mode, seat);
+  const fours = fourOfAKinds(hand, mode, seat, rules);
   const used = new Set(fours.flatMap((p) => p.cards.map(key)));
-  const foursFirst = [...fours, ...sequences(hand.filter((c) => !used.has(key(c))), seat)];
+  const foursFirst = [...fours, ...sequences(hand.filter((c) => !used.has(key(c))), seat, rules)];
 
-  const seqs = sequences(hand, seat);
+  const seqs = sequences(hand, seat, rules);
   const usedBySeq = new Set(seqs.flatMap((p) => p.cards.map(key)));
-  const seqsFirst = [...seqs, ...fourOfAKinds(hand.filter((c) => !usedBySeq.has(key(c))), mode, seat)];
+  const seqsFirst = [...seqs, ...fourOfAKinds(hand.filter((c) => !usedBySeq.has(key(c))), mode, seat, rules)];
 
   const best = valueOf(foursFirst, mode) >= valueOf(seqsFirst, mode) ? foursFirst : seqsFirst;
   return best.filter((p) => PROJECT_VALUE[mode][p.kind] > 0);
@@ -145,9 +154,14 @@ export interface ProjectsOutcome {
  * then it scores all of its projects. An exact tie goes to whoever plays first (the leader
  * is the dealer's right).
  */
-export function resolveProjects(hands: Record<Seat, Card[]>, mode: Mode, leader: Seat): ProjectsOutcome {
+export function resolveProjects(
+  hands: Record<Seat, Card[]>,
+  mode: Mode,
+  leader: Seat,
+  rules: Partial<Record<Seat, ProjectRules>> = {},
+): ProjectsOutcome {
   const order: Seat[] = [leader, nextSeat(leader), nextSeat(nextSeat(leader)), nextSeat(nextSeat(nextSeat(leader)))];
-  const declared = order.flatMap((seat) => findProjects(hands[seat], mode, seat));
+  const declared = order.flatMap((seat) => findProjects(hands[seat], mode, seat, rules[seat]));
   const points: Record<Team, number> = { 0: 0, 1: 0 };
   if (declared.length === 0) return { declared, points };
 
