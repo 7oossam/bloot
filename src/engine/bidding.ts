@@ -74,11 +74,13 @@ export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: T
  * Round 1: hokum must match the ground card's suit. Round 2: hokum must NOT match it. Sun is
  * legal on a seat's own turn.
  *
- * While a hokum is pending (the official regulation, البند 4 and 8):
- * - anyone may take it as sun — unless the ground card is an Ace, when only the dealer's right
- *   may (4-1);
- * - أشكل is open only to the dealer and the dealer's left, only over the OTHER team's hokum
- *   (8-1), and in the second round not to a player who already said ولا (8-2).
+ * أشكل is open only to the dealer and the dealer's left: on their own turn in either round,
+ * and over the OTHER team's pending hokum — but in the second round not to a player who
+ * already said ولا (8-2). (The regulation's 8-1 would allow it only over a hokum; the player
+ * wants it on their own turn too.)
+ *
+ * While a hokum is pending, anyone may take it as sun — unless the ground card is an Ace,
+ * when only the dealer's right may (4-1).
  */
 export function legalCalls(state: BiddingState): LegalCall[] {
   if (state.result || state.redeal) return [];
@@ -93,6 +95,7 @@ export function legalCalls(state: BiddingState): LegalCall[] {
     return calls;
   }
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
+  if (canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
   if (state.round === 1) {
     calls.push({ call: "hokum", suit: state.groundCard.suit });
   } else {

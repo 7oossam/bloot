@@ -1,5 +1,7 @@
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard } from "../ai/play-ai";
+import { decideDouble } from "../ai/doubling-ai";
+import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
 import type { LegalCall } from "../engine/bidding";
 import { Round } from "../engine/round";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
@@ -74,7 +76,11 @@ interface EventMap {
   "hand:dealt": { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card; round: number };
   /** `challenge` is set when the question is "take this hokum as sun?" rather than an open bid. */
   "bidding:turn": { seat: Seat; calls: LegalCall[]; round: 1 | 2; challenge?: { seat: Seat; suit: Suit } };
-  "bidding:bid": { bid: Bid };
+  /** `round` is the bidding round the call was made in (a pass is بس in the first, ولا in the second). */
+  "bidding:bid": { bid: Bid; round: 1 | 2 };
+  /** The human may raise in the دبل round. */
+  "double:turn": { seat: Seat; calls: LegalDouble[]; level: DoubleLevel };
+  "double:call": { bid: DoubleBid; level: DoubleLevel; closed: boolean };
   "bidding:resolved": { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> };
   "play:turn": { seat: Seat; legal: Card[] };
   /** `akka` when the lead is آكه; `baloot` when this card completes بلوت. */
@@ -94,7 +100,8 @@ interface EventMap {
   "gold:earned": { amount: number; reason: string };
   "action:turn": { action: PendingAction };
   "hand:changed": HandChange;
-  "match:complete": { winner: Team; matchScore: Record<Team, number> };
+  /** `qahwa` when a قهوة hand decided the match outright. */
+  "match:complete": { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean };
 }
 
 /** True if the scene should call step() again shortly; false if it should wait (on a human, or the match ended). */
@@ -158,6 +165,8 @@ export class GameController extends Emitter<EventMap> {
       guaranteeJackFor: this.options.guaranteedJacks ? HUMAN_SEAT : undefined,
       guaranteedJacks: this.options.guaranteedJacks,
       lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
+      // 7-2's "100 of 152" scaled to this match's target.
+      doubling: { matchScore: { ...this.matchScore }, sunLimit: Math.round((this.matchTarget * 100) / 152) },
     });
     this.emit("hand:dealt", {
       dealer: this.dealer,
@@ -187,6 +196,17 @@ export class GameController extends Emitter<EventMap> {
       return "advanced";
     }
 
+    if (this.round.phase === "doubling") {
+      const state = this.round.doubling!;
+      const seat = state.turnSeat;
+      if (seat === HUMAN_SEAT) {
+        this.emit("double:turn", { seat, calls: this.round.legalDoubleCalls(), level: state.level });
+        return "waiting-human";
+      }
+      this.applyDouble(decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
+      return "advanced";
+    }
+
     if (this.round.phase === "playing" && this.pendingActions.length > 0) {
       this.emit("action:turn", { action: this.pendingActions[0] });
       return "waiting-human";
@@ -204,6 +224,7 @@ export class GameController extends Emitter<EventMap> {
         declarer: result.declarer,
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
         ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
+        closed: this.round.closed,
       });
       this.applyCard(seat, card);
       return "advanced";
@@ -217,6 +238,19 @@ export class GameController extends Emitter<EventMap> {
       throw new Error("Not the human's turn to bid");
     }
     this.applyBid(bid);
+  }
+
+  submitPlayerDouble(bid: DoubleBid): void {
+    if (this.round.phase !== "doubling" || this.round.doubling?.turnSeat !== HUMAN_SEAT) {
+      throw new Error("Not the human's turn in the دبل round");
+    }
+    this.applyDouble(bid);
+  }
+
+  private applyDouble(bid: DoubleBid): void {
+    this.round.double(bid);
+    const state = this.round.doubling!;
+    this.emit("double:call", { bid, level: state.level, closed: state.closed });
   }
 
   submitPlayerCard(card: Card): void {
@@ -291,8 +325,9 @@ export class GameController extends Emitter<EventMap> {
   }
 
   private applyBid(bid: Bid): void {
+    const round = this.round.bidding.round;
     this.round.bid(bid);
-    this.emit("bidding:bid", { bid });
+    this.emit("bidding:bid", { bid, round });
 
     if (this.round.bidding.redeal) {
       this.dealer = nextSeat(this.dealer);
@@ -329,7 +364,10 @@ export class GameController extends Emitter<EventMap> {
         bonuses.push({ label: "الصن الملكي", points: extra });
       }
     }
-    const madeHokum = result.mode === "hokum" && weBought && result.sheet?.outcome === "won";
+    // "Made" = the buyer's side wasn't the one that lost the hand (a دبل can flip who's judged).
+    const sheet = result.sheet;
+    const buyerWon = !sheet || (sheet.judgedTeam === result.declarerTeam ? sheet.outcome === "won" : sheet.outcome === "lost");
+    const madeHokum = result.mode === "hokum" && weBought && buyerWon;
     if (madeHokum && o.hokumMadeBonus) {
       gained[us] += o.hokumMadeBonus;
       bonuses.push({ label: "سيد الحكم", points: o.hokumMadeBonus });
@@ -387,6 +425,13 @@ export class GameController extends Emitter<EventMap> {
       const us = teamOf(HUMAN_SEAT);
       const kaboot = result.tricksWon[us] === 8;
       this.emit("hand:complete", { result, matchScore: this.matchScore, gained, bonuses, kaboot });
+
+      // قهوة: whoever took the hand takes the match.
+      if (result.sheet?.double?.level === 5 && result.sheet.winner !== undefined) {
+        this.matchOver = true;
+        this.emit("match:complete", { winner: result.sheet.winner, matchScore: this.matchScore, qahwa: true });
+        return;
+      }
 
       if (kaboot && this.options.kabootWinsMatch) {
         this.matchOver = true;

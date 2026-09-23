@@ -2,6 +2,7 @@ import { cardPoints, LAST_TRICK_BONUS, MODE_MULTIPLIER } from "./cards";
 import type { HandResult, HandSheet, Mode, Seat, SheetProject, Suit, Team, Trick } from "./types";
 import { teamOf } from "./types";
 import { BALOOT_RAW, BALOOT_VALUE, PROJECT_NAME_AR, PROJECT_RAW, PROJECT_VALUE, type ProjectsOutcome } from "./projects";
+import { doubleMultiplier, type DoubleLevel } from "./doubling";
 
 /** What a كبوت (all eight tricks) is worth instead of the hand's usual 16/26 (7-7). */
 export const KABOOT_VALUE: Record<Mode, number> = { hokum: 25, sun: 44 };
@@ -11,6 +12,8 @@ export interface HandExtras {
   projects?: ProjectsOutcome;
   /** The seat whose بلوت counts this hand, if any. */
   baloot?: Seat;
+  /** The دبل, if the hand was doubled: its level and the side that raised last. */
+  double?: { level: DoubleLevel; raiserTeam: Team; closed: boolean };
 }
 
 /**
@@ -24,7 +27,11 @@ export interface HandExtras {
  *   of the hand's value; each side then adds its own projects.
  * - An exact tie ("متعادلة") gives each side its own points (the regulation only names the tie
  *   for doubled hands — see the guide's note).
- * - A كبوت is worth 25 in hokum and 44 in sun, and its side takes every project.
+ * - A كبوت is worth 25 in hokum and 44 in sun, and its side takes every project — doubled or
+ *   not (7-7).
+ * - A doubled hand (البند 7) is all or nothing: whoever raised last must out-count the other
+ *   side (a tie goes against them, 7-6), and the winner takes the hand × the level plus every
+ *   project — doubled only at دبل (5-4, 5-5); بلوت stays 2 with its holder.
  *
  * `lastTrickBonus` defaults to 10 but a joker can change it.
  */
@@ -72,6 +79,9 @@ export function scoreHand(
   const allProjects = projectGame[0] + projectGame[1];
   let buyer: HandSheet["outcome"];
   let kaboot: Team | undefined;
+  let judgedTeam: Team = declarerTeam;
+  let winner: Team | undefined;
+  const double = extras.double && extras.double.level > 1 ? extras.double : undefined;
 
   const kabootTeam = ([0, 1] as Team[]).find((t) => tricksWon[t] === tricks.length && tricks.length === 8);
   if (kabootTeam !== undefined) {
@@ -80,6 +90,13 @@ export function scoreHand(
     // A joker that changes الأرض still shifts the كبوت by the same amount.
     result[kabootTeam] = KABOOT_VALUE[mode] + handValue - handWorth(mode === "hokum" ? 162 : 130, mode);
     projectPoints[kabootTeam] = allProjects;
+  } else if (double) {
+    judgedTeam = double.raiserTeam;
+    const rival: Team = judgedTeam === 0 ? 1 : 0;
+    buyer = abnat[judgedTeam] > abnat[rival] ? "won" : "lost";
+    winner = buyer === "won" ? judgedTeam : rival;
+    result[winner] = handValue * doubleMultiplier(double.level);
+    projectPoints[winner] = allProjects * (double.level === 2 ? 2 : 1);
   } else if (abnat[other] > abnat[declarerTeam]) {
     buyer = "lost";
     result[other] = handValue;
@@ -95,7 +112,23 @@ export function scoreHand(
 
   const gamePoints: Record<Team, number> = { 0: result[0] + projectPoints[0], 1: result[1] + projectPoints[1] };
   const multiplier = MODE_MULTIPLIER[mode];
-  const sheet: HandSheet = { cards, ground, projects, abnat, result: gamePoints, outcome: buyer, kaboot };
+  if (kaboot !== undefined) {
+    winner = kaboot;
+    if (double) judgedTeam = double.raiserTeam;
+    buyer = kaboot === judgedTeam ? "won" : "lost";
+  }
+  const sheet: HandSheet = {
+    cards,
+    ground,
+    projects,
+    abnat,
+    result: gamePoints,
+    outcome: buyer,
+    kaboot,
+    judgedTeam,
+    winner,
+    double: double ? { level: double.level as 2 | 3 | 4 | 5, closed: double.closed } : undefined,
+  };
 
   return {
     mode,

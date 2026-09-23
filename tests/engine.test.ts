@@ -8,6 +8,7 @@ import { rankStrength, cardId, cardPoints } from "../src/engine/cards";
 import { roundNonBuyer, scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
+import { legalDoubles, raiserTeam, startDoubling, submitDouble, sunDoubleAllowed } from "../src/engine/doubling";
 import type { Bid, Card, Seat, Trick } from "../src/engine/types";
 
 describe("deck", () => {
@@ -210,7 +211,7 @@ describe("trick resolution", () => {
     expect(legalFree).toEqual(handWithTrump);
   });
 
-  it("must overtrump when able, but any trump will do if it can't beat what's out", () => {
+  it("must overtrump when able, and is free to play anything if it can't beat what's out", () => {
     // Trump = S. Seat 1 (team 1) leads H-7. Seat 3 (team 1, void in H) cuts with S-8,
     // taking the lead for team 1. Seat 0 (team 0) is void in H and must respond.
     const trick: Trick = {
@@ -238,9 +239,13 @@ describe("trick resolution", () => {
     const handCannotBeat: Card[] = [
       { suit: "S", rank: "7" },
       { suit: "S", rank: "Q" },
+      { suit: "D", rank: "9" },
     ];
-    // Nothing beats S-J (the top trump) -> any trump is legal.
+    // Nothing beats S-J (the top trump) -> no obligation to under-trump: anything goes.
     expect(legalMoves(handCannotBeat, trickWithJackOut, "hokum", "S", 0)).toEqual(handCannotBeat);
+    // Same with a lower trump out that this hand still can't beat.
+    const trickWithNineOut: Trick = { ...trickWithJackOut, cards: { 1: { suit: "H", rank: "7" }, 3: { suit: "S", rank: "9" } } };
+    expect(legalMoves(handCannotBeat, trickWithNineOut, "hokum", "S", 0)).toEqual(handCannotBeat);
   });
 });
 
@@ -657,10 +662,25 @@ describe("المشاريع (projects) — docs/baloot-guide.md §1", () => {
 describe("أشكل (Ashkal) — البند 8 of the regulation", () => {
   const ground: Card = { suit: "H", rank: "9" };
 
-  it("is open only to the dealer and the dealer's left, and only over the other team's hokum", () => {
+  it("is open to the dealer and the dealer's left on their own turn, in either round", () => {
     // Dealer 0: bidding order 1, 2, 3, 0. The dealer's left is seat 3.
     let state = startBidding(0, ground);
-    expect(legalCalls(state).some((c) => c.call === "ashkal")).toBe(false); // nobody bought hokum (8-1)
+    const can = () => legalCalls(state).some((c) => c.call === "ashkal");
+    expect(can()).toBe(false); // seat 1, the dealer's right
+    state = submitBid(state, { seat: 1, call: "pass" });
+    expect(can()).toBe(false); // seat 2, the dealer's partner
+    state = submitBid(state, { seat: 2, call: "pass" });
+    expect(can()).toBe(true); // seat 3, the dealer's left
+    state = submitBid(state, { seat: 3, call: "pass" });
+    expect(can()).toBe(true); // seat 0, the dealer
+    state = submitBid(state, { seat: 0, call: "pass" });
+    expect(state.round).toBe(2);
+    for (const seat of [1, 2] as Seat[]) state = submitBid(state, { seat, call: "pass" });
+    expect(can()).toBe(true); // seat 3 again, in round 2
+  });
+
+  it("over a hokum: only against the other team's", () => {
+    let state = startBidding(0, ground);
     state = submitBid(state, { seat: 1, call: "hokum", suit: "H" }); // team 1
     expect(state.turnSeat).toBe(2);
     expect(legalCalls(state).some((c) => c.call === "ashkal")).toBe(false); // dealer's partner
@@ -675,8 +695,8 @@ describe("أشكل (Ashkal) — البند 8 of the regulation", () => {
     const round = new Round(0, mulberry32(12));
     const g = round.groundCard;
     round.bid({ seat: 1, call: "pass" });
-    round.bid({ seat: 2, call: "hokum", suit: g.suit }); // team 0 buys
-    round.bid({ seat: 3, call: "ashkal" }); // the dealer's left, team 1
+    round.bid({ seat: 2, call: "pass" });
+    round.bid({ seat: 3, call: "ashkal" }); // the dealer's left, team 1, on its own turn
     expect(round.bidding.result).toMatchObject({ mode: "sun", declarer: 3, declarerTeam: 1 });
     expect(round.bidding.result!.ashkal).toMatchObject({ caller: 3, groundTo: 1 });
     expect(round.hands[1].some((c) => c.suit === g.suit && c.rank === g.rank)).toBe(true);
@@ -728,5 +748,119 @@ describe("آكه (Akka) — docs/baloot-guide.md §6.1", () => {
     expect(isAkka(C("AH"), [], "hokum", "S")).toBe(false);
     expect(isAkka(C("10H"), [C("AH")], "sun", undefined)).toBe(false);
     expect(isAkka(C("10S"), [C("AS"), C("JS"), C("9S")], "hokum", "S")).toBe(false); // trump
+  });
+});
+
+describe("الدبل — البند 7", () => {
+  it("hokum: دبل → ثري → فور → قهوة, between the buyer and the doubler only", () => {
+    let d = startDoubling("hokum", 0, true);
+    expect(d.askQueue).toEqual([1, 3]); // both opponents, in turn order
+    expect(legalDoubles(d)).toEqual([{ call: "pass" }, { call: "double", closed: false }, { call: "double", closed: true }]);
+    d = submitDouble(d, { seat: 1, call: "pass" });
+    expect(d.turnSeat).toBe(3);
+    d = submitDouble(d, { seat: 3, call: "double", closed: true });
+    expect(d).toMatchObject({ level: 2, closed: true, doubler: 3, turnSeat: 0, done: false });
+    expect(raiserTeam(d)).toBe(1); // the doubler is judged as the buyer now
+    d = submitDouble(d, { seat: 0, call: "triple", closed: false });
+    expect(d).toMatchObject({ level: 3, closed: false, turnSeat: 3 });
+    expect(raiserTeam(d)).toBe(0);
+    d = submitDouble(d, { seat: 3, call: "four", closed: true });
+    expect(d).toMatchObject({ level: 4, closed: true, turnSeat: 0 });
+    d = submitDouble(d, { seat: 0, call: "qahwa", closed: false });
+    expect(d).toMatchObject({ level: 5, closed: false, done: true });
+    expect(() => submitDouble(startDoubling("hokum", 0, true), { seat: 2, call: "double" })).toThrow();
+  });
+
+  it("sun: دبل only, and only by a side at or under 100 against a side past it (7-1, 7-2)", () => {
+    let d = startDoubling("sun", 1, true);
+    expect(legalDoubles(d).map((c) => c.call)).toEqual(["pass", "double"]);
+    d = submitDouble(d, { seat: 2, call: "double" });
+    expect(d).toMatchObject({ level: 2, done: true });
+    expect(sunDoubleAllowed(1, { 0: 90, 1: 120 }, 100)).toBe(true);
+    expect(sunDoubleAllowed(1, { 0: 110, 1: 120 }, 100)).toBe(false);
+    expect(sunDoubleAllowed(1, { 0: 20, 1: 90 }, 100)).toBe(false);
+  });
+
+  it("a Round with doubling waits for the دبل round before the first card", () => {
+    for (let seed = 1; seed < 200; seed++) {
+      const round = new Round(0, mulberry32(seed), { doubling: { matchScore: { 0: 0, 1: 0 }, sunLimit: 100 } });
+      while (round.phase === "bidding") {
+        const calls = round.legalBids();
+        const hokum = calls.find((c) => c.call === "hokum");
+        round.bid({ seat: round.bidding.turnSeat, ...(hokum ?? calls[0]) } as Bid);
+      }
+      if (round.bidding.result?.mode !== "hokum") continue;
+      expect(round.phase).toBe("doubling");
+      expect(round.turnSeat).toBeUndefined();
+      const doubler = round.doubling!.turnSeat;
+      round.double({ seat: doubler, call: "double", closed: true });
+      round.double({ seat: round.bidding.result.declarer, call: "pass" });
+      expect(round.phase).toBe("playing");
+      expect(round.closed).toBe(true);
+      // مقفل: the leader can't open with a trump while holding anything else.
+      const leader = round.turnSeat!;
+      const trump = round.bidding.result.trumpSuit;
+      const legal = round.legalMovesFor(leader);
+      if (round.hands[leader].some((c) => c.suit !== trump)) expect(legal.every((c) => c.suit !== trump)).toBe(true);
+      return;
+    }
+    throw new Error("no hokum found");
+  });
+
+  const hokumTricks = (): Trick[] =>
+    tricksFor([
+      [1, ["JS", "9S", "AS", "10S"]], // 55
+      [3, ["AH", "10H", "KH", "QH"]], // 28
+      [0, ["AD", "10D", "7D", "8D"]], // 21
+      [0, ["KS", "QS", "7S", "8S"]], // 7
+      [2, ["KD", "QD", "JD", "9D"]], // 9
+      [0, ["AC", "10C", "7C", "8C"]], // 21
+      [2, ["KC", "QC", "JC", "9C"]], // 9
+      [0, ["JH", "9H", "7H", "8H"]], // 2 + الأرض
+    ]);
+
+  it("a doubled hand is all or nothing: ×2 for whoever out-counts the last raiser", () => {
+    // Team 0 bought (69 + الأرض = 79 against 83). Team 1 doubled → team 1 is judged, and wins.
+    const r = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { double: { level: 2, raiserTeam: 1, closed: false } });
+    expect(r.sheet!.abnat).toEqual({ 0: 79, 1: 83 });
+    expect(r.sheet!).toMatchObject({ judgedTeam: 1, outcome: "won", winner: 1, double: { level: 2 } });
+    expect(r.gamePoints).toEqual({ 0: 0, 1: 32 });
+    // ثري: ×3, and it's the buyer's hand to lose now — and they do.
+    const t = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { double: { level: 3, raiserTeam: 0, closed: false } });
+    expect(t.gamePoints).toEqual({ 0: 0, 1: 48 });
+    expect(t.sheet!).toMatchObject({ judgedTeam: 0, outcome: "lost" });
+  });
+
+  it("projects double at دبل only (5-4, 5-5), and بلوت stays 2 with its holder", () => {
+    const projects = {
+      declared: [{ kind: "sira" as const, seat: 1 as Seat, cards: hand("7S", "8S", "9S") }],
+      winner: 1 as const,
+      points: { 0: 0, 1: 2 },
+    };
+    // Team 1's سرا: 103 against 79 + بلوت 20 = 99 — team 1 takes the hand and the سرا ×2.
+    const d = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { projects, baloot: 0, double: { level: 2, raiserTeam: 1, closed: true } });
+    expect(d.sheet!.abnat).toEqual({ 0: 99, 1: 103 });
+    expect(d.gamePoints).toEqual({ 0: 2, 1: 32 + 4 });
+    // فور: ×4 for the hand, the سرا stays 2.
+    const f = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { projects, double: { level: 4, raiserTeam: 1, closed: true } });
+    expect(f.gamePoints).toEqual({ 0: 0, 1: 64 + 2 });
+  });
+
+  it("a tie goes against whoever raised last (7-6)", () => {
+    const tie = tricksFor([
+      [1, ["AS", "10S", "KS", "QS"]], // 28
+      [3, ["AH", "10H", "KH", "7H"]], // 25
+      [1, ["QH", "7S", "8S", "9S"]], // 3 → 56
+      [0, ["AD", "10D", "KD", "QD"]], // 28
+      [2, ["AC", "10C", "KC", "QC"]], // 28
+      [0, ["JD", "JC", "JS", "JH"]], // 8
+      [2, ["9H", "8H", "9D", "9C"]], // 0
+      [3, ["7D", "8D", "7C", "8C"]], // 0 + الأرض → team 1: 66, team 0: 64
+    ]);
+    const plain = scoreHand(tie, "sun", undefined, 0);
+    expect(plain.sheet!.abnat).toEqual({ 0: 64, 1: 66 });
+    const doubled = scoreHand(tie, "sun", undefined, 0, 10, { double: { level: 2, raiserTeam: 1, closed: false } });
+    expect(doubled.sheet!).toMatchObject({ judgedTeam: 1, outcome: "won", winner: 1 });
+    expect(doubled.gamePoints).toEqual({ 0: 0, 1: 52 });
   });
 });

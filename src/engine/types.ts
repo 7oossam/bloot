@@ -93,4 +93,10 @@ export interface HandSheet {
   outcome: "won" | "lost" | "tie";
   /** The side that took all eight tricks, if one did. */
   kaboot?: Team;
+  /** The side `outcome` is about: the buyer, or after a دبل whoever raised last. */
+  judgedTeam: Team;
+  /** Set when the hand was doubled: the level (2 دبل … 5 قهوة) and whether it was مقفل. */
+  double?: { level: 2 | 3 | 4 | 5; closed: boolean };
+  /** The side that took the hand — set for doubled hands, where the winner takes all. */
+  winner?: Team;
 }

@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
+import { decideDouble } from "../src/ai/doubling-ai";
 import { GameController, HUMAN_SEAT, MATCH_TARGET, type MatchOptions } from "../src/game/GameController";
 import { rankStrength } from "../src/engine/cards";
 import { teamOf, type Bid } from "../src/engine/types";
 import { mulberry32 } from "../src/engine/rng";
+
+/** Answers whatever the human is being asked — a bid, a دبل, or a card — with the AI's choice. */
+function answerHuman(c: GameController): void {
+  const round = c.getRound();
+  if (round.phase === "bidding") c.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
+  else if (round.phase === "doubling")
+    c.submitPlayerDouble(decideDouble(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.doubling!, round.bidding.result!.trumpSuit));
+  else
+    c.submitPlayerCard(
+      decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, round.bidding.result!.mode, round.bidding.result!.trumpSuit, HUMAN_SEAT, {
+        tricks: round.tricks,
+        closed: round.closed,
+      }),
+    );
+}
 
 /** Drives the human seat with the same AI policy, purely to exercise the full loop deterministically. */
 function playMatchToCompletion(controller: GameController, maxSteps = 5000): void {
@@ -12,22 +28,7 @@ function playMatchToCompletion(controller: GameController, maxSteps = 5000): voi
     const status = controller.step();
     if (status === "match-complete") return;
     if (status === "waiting-human") {
-      const round = controller.getRound();
-      if (round.phase === "bidding") {
-        const bid = decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding);
-        controller.submitPlayerBid(bid);
-      } else if (round.phase === "playing") {
-        const card = decideCard(
-          round.hands[HUMAN_SEAT],
-          round.currentTrick!,
-          round.bidding.result!.mode,
-          round.bidding.result!.trumpSuit,
-          HUMAN_SEAT,
-        );
-        controller.submitPlayerCard(card);
-      } else {
-        throw new Error(`Unexpected phase while waiting-human: ${round.phase}`);
-      }
+      answerHuman(controller);
     }
   }
   throw new Error("Match did not complete within the step budget");
@@ -109,9 +110,7 @@ describe("joker effects in a match", () => {
     for (let i = 0; i < 3000 && hands.length < 12; i++) {
       const status = c.step();
       if (status === "waiting-human") {
-        const round = c.getRound();
-        if (round.phase === "bidding") c.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
-        else c.submitPlayerCard(decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, round.bidding.result!.mode, round.bidding.result!.trumpSuit, HUMAN_SEAT));
+        answerHuman(c);
       }
     }
     return { hands, gold, controller: c };
@@ -172,9 +171,7 @@ describe("joker effects in a match", () => {
         const status = c.step();
         if (status === "match-complete") break;
         if (status === "waiting-human") {
-          const round = c.getRound();
-          if (round.phase === "bidding") c.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
-          else c.submitPlayerCard(decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, round.bidding.result!.mode, round.bidding.result!.trumpSuit, HUMAN_SEAT));
+          answerHuman(c);
         }
         if (kaboot) break;
       }
@@ -199,10 +196,8 @@ function autoplay(c: GameController, until: (c: GameController) => boolean, maxS
       const hand = round.hands[HUMAN_SEAT];
       const pick = action.kind === "transform" ? hand.find((x) => !(x.suit === action.to.suit && x.rank === action.to.rank))! : hand[0];
       c.submitPlayerAction(pick);
-    } else if (round.phase === "bidding") {
-      c.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
     } else {
-      c.submitPlayerCard(decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, round.bidding.result!.mode, round.bidding.result!.trumpSuit, HUMAN_SEAT));
+      answerHuman(c);
     }
   }
 }
@@ -216,10 +211,14 @@ describe("combo jokers", () => {
       c.on("hand:changed", (e) => e.kind === "transform" && changes.push(`${e.to.suit}${e.to.rank}`));
       c.startMatch();
       // Force the human to buy hokum whenever it's offered.
-      for (let i = 0; i < 60 && c.getRound().phase === "bidding"; i++) {
+      for (let i = 0; i < 60 && ["bidding", "doubling"].includes(c.getRound().phase); i++) {
         const status = c.step();
         if (status === "waiting-human") {
           const r = c.getRound();
+          if (r.phase === "doubling") {
+            c.submitPlayerDouble({ seat: HUMAN_SEAT, call: "pass" });
+            continue;
+          }
           const hokum = r.legalBids().find((x) => x.call === "hokum");
           c.submitPlayerBid({ seat: HUMAN_SEAT, ...(hokum ?? { call: "pass" }) } as Bid);
         }

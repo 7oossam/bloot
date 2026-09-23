@@ -33,7 +33,16 @@ Ground rules when working on the game:
    ×2) and the buyer takes the rest; if the non-buyer's أبناط (cards + الأرض + raw projects)
    beat the buyer's, the buyer lost (خسرانة) and the hand + all projects go to the other
    side (بلوت stays with its holder); كبوت = 25 hokum / 44 sun. Don't reintroduce "sun ÷5".
-5. **أشكل** is for the dealer and the dealer's left only, only over the other team's hokum,
-   not after saying ولا in round 2; the caller buys sun and the partner takes the ground card.
-6. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+5. **أشكل** is for the dealer and the dealer's left only — on their own turn in either round
+   (the player's call, over the regulation's 8-1), or over the other team's hokum unless
+   they already said ولا in round 2. The caller buys sun; the partner takes the ground card.
+6. **الدبل** (`src/engine/doubling.ts`): after the full deal, before the first card. Hokum:
+   دبل (open/مقفل) → ثري → فور (open/مقفل) → قهوة (wins the match); sun: دبل only, and only
+   by a side ≤100 against a side >100 (scaled to the target). The last raiser is judged as
+   the buyer, a tie goes against them, and the winner takes the hand × level plus all
+   projects (×2 only at دبل). مقفل = no trump lead while holding anything else.
+7. **Trumping:** a void player must trump, and must overtrump an opponent's trump if able —
+   but if they can't beat it they may play anything. No obligation to trump a partner's trick.
+8. **Words:** pass is بس in round 1 and ولا in round 2 — never جلي.
+9. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.

@@ -10,6 +10,8 @@ export interface PlayContext {
   ashkalSuits?: Suit[];
   /** The seat that bought the hand. */
   declarer?: Seat;
+  /** مقفل: a closed دبل — no leading trumps while holding anything else. */
+  closed?: boolean;
 }
 
 /**
@@ -26,21 +28,34 @@ export function decideCard(
   seat: Seat,
   ctx?: PlayContext,
 ): Card {
-  const legal = legalMoves(hand, trick, mode, trumpSuit, seat);
+  const legal = legalMoves(hand, trick, mode, trumpSuit, seat, ctx?.closed);
   if (legal.length === 1) return legal[0];
   const beliefs = buildBeliefs(ctx?.tricks ?? [], trick, mode, trumpSuit);
   const partner = ((seat + 2) % 4) as Seat;
 
-  if (trick.order.length === 0) return chooseLead(hand, mode, trumpSuit, seat, partner, beliefs, ctx);
+  if (trick.order.length === 0) {
+    const lead = chooseLead(hand, mode, trumpSuit, seat, partner, beliefs, ctx);
+    // مقفل can rule out the trump lead the tactics wanted; pick again among what's allowed.
+    return legal.some((c) => c.suit === lead.suit && c.rank === lead.rank)
+      ? lead
+      : chooseLead(legal, mode, trumpSuit, seat, partner, beliefs, ctx);
+  }
 
   const winnerSoFar = currentWinner(trick, mode, trumpSuit);
   if (teamOf(winnerSoFar) === teamOf(seat)) {
-    // Our side has it. Bank points only if the trick is safe (§4ب.2 دعم الخوي الماكل);
-    // otherwise keep the 10s and Aces out of it (§4أ.3 حماية الأبناط).
+    // Our side has it: never ruff the partner's trick — the rules don't force it — and when
+    // it's safe, don't beat their card either; just feed it points.
+    const ledIsTrump = isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit);
+    const noRuff = legal.filter((c) => ledIsTrump || !isTrumpCard(c, mode, trumpSuit));
+    const pool = noRuff.length > 0 ? noRuff : legal;
+    const trumpCost = (c: Card) => (isTrumpCard(c, mode, trumpSuit) ? 1000 : 0);
+    // Bank points only if the trick is safe (§4ب.2 دعم الخوي الماكل); otherwise keep the 10s
+    // and Aces out of it (§4أ.3 حماية الأبناط).
     if (trickIsSafe(trick, winnerSoFar, seat, mode, trumpSuit, beliefs, hand)) {
-      return maxBy(legal, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit));
+      const under = pool.filter((c) => winnerSoFar === seat || !wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
+      return maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - trumpCost(c));
     }
-    return minBy(legal, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
+    return minBy(pool, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + trumpCost(c));
   }
 
   const winningCards = legal.filter((c) => wouldWinAgainstCurrent(c, trick, mode, trumpSuit));

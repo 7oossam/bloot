@@ -17,6 +17,7 @@ import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
 import { RANK_NAME_AR, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
 import { PROJECT_NAME_AR, type ProjectsOutcome } from "../engine/projects";
+import { DOUBLE_NAME_AR, doubleLabel, type DoubleBid, type DoubleLevel, type LegalDouble } from "../engine/doubling";
 import {
   BID_BUTTON_ROW_GAP,
   BID_BUTTON_ROW_Y,
@@ -45,6 +46,10 @@ const TRICK_COLLECT_TWEEN_MS = 420;
 const NEXT_TRICK_GAP_MS = 350;
 const CARD_MOVE_TWEEN_MS = 380;
 const BUBBLE_HOLD_MS = 1100;
+/** The deal: each card's flight, the gap between cards in a packet, and between packets. */
+const DEAL_FLY_MS = 260;
+const DEAL_CARD_GAP_MS = 45;
+const DEAL_PACKET_GAP_MS = 80;
 const LOG_LINES = 4;
 
 /** Card draw sizes per on-screen role (see CardView: these size the art, not a shrink transform). */
@@ -106,6 +111,12 @@ export class TableScene extends Phaser.Scene {
   private handSummaryPanel?: Phaser.GameObjects.Container;
   private pendingDeal: { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card } | null = null;
   private matchOver = false;
+  /** True while cards are flying out of the dealer's hands; nothing is decided meanwhile. */
+  private dealing = false;
+  /** driveAI() was asked to run mid-deal; run it once the last card lands. */
+  private resumeAfterDeal = false;
+  /** A match that ended on the hand whose النشرة is still up. */
+  private pendingMatchEnd?: { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean };
   /**
    * True from the moment a trick's fourth card lands until its cards have been collected.
    * Nothing advances while it's set — without it the AI led the next trick while the last
@@ -148,6 +159,9 @@ export class TableScene extends Phaser.Scene {
     this.handSummaryPanel = undefined;
     this.pendingDeal = null;
     this.matchOver = false;
+    this.dealing = false;
+    this.resumeAfterDeal = false;
+    this.pendingMatchEnd = undefined;
     this.trickSettling = false;
     this.afterSettle = [];
     this.seatLabels = {};
@@ -225,6 +239,8 @@ export class TableScene extends Phaser.Scene {
     c.on("bidding:turn", (e) => this.onBiddingTurn(e));
     c.on("bidding:bid", (e) => this.onBiddingBid(e));
     c.on("bidding:resolved", (e) => this.onBiddingResolved(e));
+    c.on("double:turn", (e) => this.onDoubleTurn(e));
+    c.on("double:call", (e) => this.onDoubleCall(e));
     c.on("projects:declared", (e) => this.onProjectsDeclared(e));
     c.on("gold:earned", (e) => this.onGoldEarned(e));
     c.on("action:turn", (e) => this.onActionTurn(e));
@@ -316,16 +332,21 @@ export class TableScene extends Phaser.Scene {
   // ------------------------------------------------------------- AI pacing
 
   private driveAI(): void {
+    if (this.dealing) {
+      this.resumeAfterDeal = true;
+      return;
+    }
     if (this.trickSettling || this.showingHandSummary || this.matchOver) return;
     const status = this.controller.step();
     if (this.showingHandSummary || this.matchOver) return;
     if (status === "advanced") {
-      const delay = this.controller.getRound().phase === "bidding" ? AI_BID_DELAY_MS : AI_PLAY_DELAY_MS;
+      const phase = this.controller.getRound().phase;
+      const delay = phase === "bidding" || phase === "doubling" ? AI_BID_DELAY_MS : AI_PLAY_DELAY_MS;
       this.time.delayedCall(delay, () => this.driveAI());
     }
   }
 
-  /** Pops a short label beside a seat ("جلي", "حكم ♠") so a call is attributable at a glance. */
+  /** Pops a short label beside a seat ("بس", "حكم ♠") so a call is attributable at a glance. */
   private showSeatBubble(seat: Seat, text: string, color: number): void {
     this.seatBubble[seat]?.destroy();
 
@@ -390,29 +411,37 @@ export class TableScene extends Phaser.Scene {
     this.contractChip?.destroy();
     this.contractChip = undefined;
 
-    let dealIndex = 0;
+    // The deal, as at a real table (the infographic's steps 1–3): counter-clockwise from the
+    // dealer's right, three cards each, then two each, then the ground card turned face up.
     const cards = sortHandForDisplay(e.hands[HUMAN_SEAT]);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
-    this.playerHandViews = cards.map((card, i) => {
-      const view = this.dealCardTo(positions[i].x, positions[i].y, card, true, dealIndex * 30, HAND_CARD_SIZE);
-      dealIndex++;
-      return view;
-    });
-
-    for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, e.hands[seat].length);
-
-    this.groundCardView = this.dealCardTo(
-      GROUND_CARD_POS.x,
-      GROUND_CARD_POS.y,
-      e.groundCard,
-      true,
-      dealIndex * 30,
-      HAND_CARD_SIZE,
-    );
+    const from = this.dealerPoint(e.dealer);
+    const counts: Record<Seat, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, 0);
+    let t = 0;
+    let dealt = 0;
+    for (const packet of [3, 2]) {
+      for (const seat of this.seatsFrom(e.dealer)) {
+        for (let k = 0; k < packet; k++) {
+          if (seat === HUMAN_SEAT) {
+            const i = dealt + k;
+            this.playerHandViews.push(this.flyCardTo(cards[i], from, positions[i], t));
+          } else {
+            this.flyBackTo(seat, from, t, () => this.setOpponentCount(seat, ++counts[seat]));
+          }
+          t += DEAL_CARD_GAP_MS;
+        }
+        t += DEAL_PACKET_GAP_MS;
+      }
+      dealt += packet;
+    }
+    this.groundCardView = this.flyCardTo(e.groundCard, from, GROUND_CARD_POS, t);
+    this.holdForDeal(t + DEAL_FLY_MS);
     this.groundLabel = arabicText(this, GROUND_CARD_POS.x, GROUND_CARD_POS.labelY, "ورقة الأرض", {
       fontSize: "24px",
       color: "#ffe08a",
-    });
+    }).setAlpha(0);
+    this.tweens.add({ targets: this.groundLabel, alpha: 1, delay: t, duration: DEAL_FLY_MS });
 
     this.hudModeText.setText(
       `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — مزايدة — ورقة الأرض: ${SUIT_NAME_AR[e.groundCard.suit]} ${SUIT_SYMBOL[e.groundCard.suit]}`,
@@ -430,38 +459,49 @@ export class TableScene extends Phaser.Scene {
 
     const bought = e.challenge ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]}` : "";
     const prompt = !e.challenge
-      ? `دورك — الجولة ${e.round}`
+      ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
       : e.calls.length === 1
         ? `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
         : e.calls.some((c) => c.call === "ashkal")
           ? `${bought} — تاخذها صن أو أشكل؟`
           : `${bought} — تاخذها صن؟`;
+    this.showChoices(
+      prompt,
+      e.calls.map((call) => ({
+        label: this.callLabel(call, e.round),
+        onClick: () => {
+          this.controller.submitPlayerBid({ seat: HUMAN_SEAT, call: call.call, suit: call.suit });
+          this.driveAI();
+        },
+      })),
+    );
+  }
+
+  /** A prompt line plus a row (or two) of buttons for the human's decision. */
+  private showChoices(prompt: string, items: Array<{ label: string; onClick: () => void }>): void {
+    this.clearBidButtons();
     this.bidPrompt = arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 86, prompt, {
       fontSize: "28px",
       color: "#ffd54a",
+      wordWrap: { width: WIDTH - 120, useAdvancedWrap: true },
     }).setDepth(6);
 
-    const labels = e.calls.map((c) => this.callLabel(c));
-    const perRow = labels.length <= 3 ? labels.length : Math.ceil(labels.length / 2);
+    const perRow = items.length <= 3 ? items.length : Math.ceil(items.length / 2);
     const spacingX = 200;
-
-    e.calls.forEach((call, i) => {
+    items.forEach((item, i) => {
       const row = Math.floor(i / perRow);
       const rowStart = row * perRow;
-      const itemsInRow = Math.min(perRow, labels.length - rowStart);
+      const itemsInRow = Math.min(perRow, items.length - rowStart);
       const col = i - rowStart;
       const startX = CENTER_X - ((itemsInRow - 1) * spacingX) / 2;
-
       const btn = makeButton(
         this,
         startX + col * spacingX,
         BID_BUTTON_ROW_Y + row * BID_BUTTON_ROW_GAP,
-        labels[i],
+        item.label,
         () => {
-          const bid: Bid = { seat: HUMAN_SEAT, call: call.call, suit: call.suit };
           this.clearBidButtons();
-          this.controller.submitPlayerBid(bid);
-          this.driveAI();
+          item.onClick();
         },
         { width: 184, height: 74, fontSize: "26px" },
       );
@@ -469,11 +509,71 @@ export class TableScene extends Phaser.Scene {
     });
   }
 
-  private callLabel(call: LegalCall): string {
-    if (call.call === "pass") return "جلي";
+  /** The pass word depends on the round: بس in the first, ولا in the second. */
+  private passWord(round: 1 | 2): string {
+    return round === 1 ? "بس" : "ولا";
+  }
+
+  private callLabel(call: LegalCall, round: 1 | 2): string {
+    if (call.call === "pass") return this.passWord(round);
     if (call.call === "sun") return "صن";
     if (call.call === "ashkal") return "أشكل";
     return `حكم ${SUIT_SYMBOL[call.suit!]}`;
+  }
+
+  // ---------------------------------------------------------------- الدبل
+
+  private contractLabel(): string {
+    const round = this.controller.getRound();
+    const res = round.bidding.result;
+    if (!res) return "";
+    const base = res.mode === "hokum" ? `حكم ${SUIT_SYMBOL[res.trumpSuit!]}` : res.ashkal ? "أشكل · صن" : "صن";
+    const d = round.doubling;
+    const extra = d ? doubleLabel(d.level, d.closed, res.mode) : "";
+    return extra ? `${base} · ${extra}` : base;
+  }
+
+  private onDoubleTurn(e: { seat: Seat; calls: LegalDouble[]; level: DoubleLevel }): void {
+    this.clearBidButtons();
+    if (e.seat !== HUMAN_SEAT) return;
+    const round = this.controller.getRound();
+    const res = round.bidding.result!;
+    const d = round.doubling!;
+    const contract = res.mode === "hokum" ? `حكم ${SUIT_SYMBOL[res.trumpSuit!]}` : "صن";
+    const prompt =
+      e.level === 1
+        ? `${SEAT_LABEL_AR[res.declarer]} اشترى ${contract} — تدبل؟`
+        : e.level === 2
+          ? `${SEAT_LABEL_AR[d.doubler!]} دبّل عليك — ثري؟`
+          : e.level === 3
+            ? `${SEAT_LABEL_AR[res.declarer]} قال ثري — فور؟`
+            : `${SEAT_LABEL_AR[d.doubler!]} قال فور — قهوة؟ (الجولة تحسم المباراة)`;
+    this.showChoices(
+      prompt,
+      e.calls.map((call) => ({
+        label: call.call === "pass" ? "بس" : `${DOUBLE_NAME_AR[call.call]}${call.closed ? " مقفل" : ""}`,
+        onClick: () => {
+          this.controller.submitPlayerDouble({ seat: HUMAN_SEAT, call: call.call, closed: call.closed });
+          this.driveAI();
+        },
+      })),
+    );
+  }
+
+  private onDoubleCall(e: { bid: DoubleBid; level: DoubleLevel; closed: boolean }): void {
+    const who = SEAT_LABEL_AR[e.bid.seat];
+    if (e.bid.call === "pass") {
+      this.showSeatBubble(e.bid.seat, "بس", 0x8aa79a);
+      this.log(`${who}: بس`);
+      return;
+    }
+    const word = `${DOUBLE_NAME_AR[e.bid.call]}${e.bid.closed ? " مقفل" : ""}`;
+    this.showSeatBubble(e.bid.seat, word, 0xff6b4a);
+    this.log(`${who}: ${word}${e.bid.call === "qahwa" ? " ☕ — الجولة تحسم المباراة" : ""}`);
+    this.flashNote(`${word}!${e.bid.call === "qahwa" ? " ☕" : ""}`);
+    const res = this.controller.getRound().bidding.result!;
+    this.placeContractChip(res.declarer, this.contractLabel());
+    this.hudModeText.setText(`${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${this.contractLabel()} — المعلن: ${SEAT_LABEL_AR[res.declarer]}`);
   }
 
   private clearBidButtons(): void {
@@ -483,11 +583,12 @@ export class TableScene extends Phaser.Scene {
     this.bidPrompt = undefined;
   }
 
-  private onBiddingBid(e: { bid: Bid }): void {
+  private onBiddingBid(e: { bid: Bid; round: 1 | 2 }): void {
     const who = SEAT_LABEL_AR[e.bid.seat];
     if (e.bid.call === "pass") {
-      this.log(`${who}: جلي`);
-      this.showSeatBubble(e.bid.seat, "جلي", 0x8aa79a);
+      const word = this.passWord(e.round);
+      this.log(`${who}: ${word}`);
+      this.showSeatBubble(e.bid.seat, word, 0x8aa79a);
     } else if (e.bid.call === "sun") {
       this.log(`${who}: صن`);
       this.showSeatBubble(e.bid.seat, "صن", 0xffd54a);
@@ -506,27 +607,84 @@ export class TableScene extends Phaser.Scene {
 
   private onBiddingResolved(e: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> }): void {
     this.clearBidButtons();
-    this.groundCardView?.destroy();
     this.groundLabel?.destroy();
-    this.groundCardView = undefined;
     this.groundLabel = undefined;
 
-    let dealIndex = 0;
+    // The rest of the deal: the ground card goes to whoever takes it (the buyer, or after أشكل
+    // the caller's partner), then three more each — two for the taker — from the dealer's right.
+    const round = this.controller.getRound();
+    const result = round.bidding.result!;
+    const taker = result.ashkal?.groundTo ?? e.declarer;
+    const from = this.dealerPoint(round.dealer);
+    const ground = this.groundCardView;
+    this.groundCardView = undefined;
+
     const alreadyHeld = new Set(this.playerHandViews.map((v) => cardId(v.card)));
-    for (const view of this.playerHandViews) view.destroy();
     const cards = sortHandForDisplay(e.hands[HUMAN_SEAT], e.trumpSuit);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
-    this.playerHandViews = cards.map((card, i) => {
-      const pos = positions[i];
-      if (alreadyHeld.has(cardId(card))) {
-        return new CardView(this, pos.x, pos.y, card, true, HAND_CARD_SIZE);
+    const counts: Record<Seat, number> = { 0: 5, 1: 5, 2: 5, 3: 5 };
+    for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, 5);
+    // Reuse the views still in hand (sliding them to their new places), and queue the new ones.
+    const oldViews = new Map(this.playerHandViews.map((v) => [cardId(v.card), v]));
+    const fresh: Array<{ card: Card; pos: { x: number; y: number } }> = [];
+    this.playerHandViews = [];
+    cards.forEach((card, i) => {
+      const held = alreadyHeld.has(cardId(card)) ? oldViews.get(cardId(card)) : undefined;
+      if (held) {
+        oldViews.delete(cardId(card));
+        this.tweens.add({ targets: held, x: positions[i].x, y: positions[i].y, duration: 240, ease: "Cubic.Out" });
+        this.playerHandViews.push(held);
+      } else {
+        fresh.push({ card, pos: positions[i] });
       }
-      const view = this.dealCardTo(pos.x, pos.y, card, true, dealIndex * 60, HAND_CARD_SIZE);
-      dealIndex++;
-      return view;
     });
+    for (const v of oldViews.values()) v.destroy();
 
-    for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, e.hands[seat].length);
+    let t = 0;
+    const groundId = ground ? cardId(ground.card) : "";
+    if (ground) {
+      if (taker === HUMAN_SEAT) {
+        const slot = fresh.findIndex((f) => cardId(f.card) === groundId);
+        const target = slot >= 0 ? fresh.splice(slot, 1)[0].pos : { x: ground.x, y: ground.y };
+        this.tweens.add({ targets: ground, x: target.x, y: target.y, duration: DEAL_FLY_MS + 80, ease: "Cubic.Out" });
+        this.playerHandViews.push(ground);
+      } else {
+        const to = HAND_ANCHOR[taker];
+        this.tweens.add({
+          targets: ground,
+          x: to.x,
+          y: to.y,
+          scale: 0.6,
+          alpha: 0.2,
+          duration: DEAL_FLY_MS + 80,
+          ease: "Cubic.In",
+          onComplete: () => {
+            ground.destroy();
+            this.setOpponentCount(taker, ++counts[taker]);
+          },
+        });
+      }
+      t += DEAL_FLY_MS + 120;
+    }
+    for (const seat of this.seatsFrom(round.dealer)) {
+      const n = seat === taker ? 2 : 3;
+      for (let k = 0; k < n; k++) {
+        if (seat === HUMAN_SEAT) {
+          const next = fresh.shift();
+          if (next) this.playerHandViews.push(this.flyCardTo(next.card, from, next.pos, t));
+        } else {
+          this.flyBackTo(seat, from, t, () => this.setOpponentCount(seat, ++counts[seat]));
+        }
+        t += DEAL_CARD_GAP_MS;
+      }
+      t += DEAL_PACKET_GAP_MS;
+    }
+    // Keep the hand in display order for the card-picking code.
+    const order = new Map(cards.map((c, i) => [cardId(c), i]));
+    this.playerHandViews.sort((a, b) => order.get(cardId(a.card))! - order.get(cardId(b.card))!);
+    // …and stack them so each card covers the one to its left, as the fan expects.
+    for (const v of this.playerHandViews) this.children.bringToTop(v);
+    this.holdForDeal(t + DEAL_FLY_MS);
 
     const modeLabel =
       e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]} ${SUIT_NAME_AR[e.trumpSuit!]}` : "صن (بدون حكم)";
@@ -534,8 +692,7 @@ export class TableScene extends Phaser.Scene {
       `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`,
     );
     this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
-    const ashkal = !!this.controller.getRound().bidding.result?.ashkal;
-    this.placeContractChip(e.declarer, e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]}` : ashkal ? "أشكل · صن" : "صن");
+    this.placeContractChip(e.declarer, this.contractLabel());
   }
 
   /** Writes the contract beside the buyer's name, so the table always shows who bought what. */
@@ -732,12 +889,55 @@ export class TableScene extends Phaser.Scene {
   }
 
   /** Creates a card at the table center and tweens it out to its seat position, like a real deal. */
-  private dealCardTo(x: number, y: number, card: Card, faceUp: boolean, delay: number, sizeScale: number): CardView {
-    const view = new CardView(this, CENTER_X, CENTER_Y, card, faceUp, sizeScale);
-    view.setScale(0.5);
-    view.setAlpha(0.85);
-    this.tweens.add({ targets: view, x, y, scale: 1, alpha: 1, delay, duration: 240, ease: "Cubic.Out" });
+  /** Where the dealer's cards come from: their seat, pulled in toward the table. */
+  private dealerPoint(dealer: Seat): { x: number; y: number } {
+    const a = HAND_ANCHOR[dealer];
+    return { x: a.x + (CENTER_X - a.x) * 0.25, y: a.y + (CENTER_Y - a.y) * 0.25 };
+  }
+
+  /** The four seats in dealing (and playing) order: the dealer's right first, the dealer last. */
+  private seatsFrom(dealer: Seat): Seat[] {
+    return [1, 2, 3, 4].map((k) => ((dealer + k) % 4) as Seat);
+  }
+
+  /** A face-up card flying from `from` to `to`, hidden until its turn in the deal. */
+  private flyCardTo(card: Card, from: { x: number; y: number }, to: { x: number; y: number }, delay: number): CardView {
+    const view = new CardView(this, from.x, from.y, card, true, HAND_CARD_SIZE);
+    view.setScale(0.45).setAlpha(0);
+    this.tweens.add({ targets: view, x: to.x, y: to.y, scale: 1, alpha: 1, delay, duration: DEAL_FLY_MS, ease: "Cubic.Out" });
     return view;
+  }
+
+  /** A card back flying to another player's seat; `onArrive` bumps their count. */
+  private flyBackTo(seat: Seat, from: { x: number; y: number }, delay: number, onArrive: () => void): void {
+    const to = HAND_ANCHOR[seat];
+    const view = new CardView(this, from.x, from.y, { suit: "S", rank: "7" }, false, WIDGET_CARD_SIZE);
+    view.setAlpha(0).setDepth(12);
+    this.tweens.add({
+      targets: view,
+      x: to.x,
+      y: to.y,
+      alpha: 1,
+      delay,
+      duration: DEAL_FLY_MS,
+      ease: "Cubic.Out",
+      onComplete: () => {
+        view.destroy();
+        onArrive();
+      },
+    });
+  }
+
+  /** Blocks the game loop until the deal animation has landed. */
+  private holdForDeal(ms: number): void {
+    this.dealing = true;
+    this.time.delayedCall(ms, () => {
+      this.dealing = false;
+      if (this.resumeAfterDeal) {
+        this.resumeAfterDeal = false;
+        this.driveAI();
+      }
+    });
   }
 
   private relayoutHand(): void {
@@ -772,6 +972,7 @@ export class TableScene extends Phaser.Scene {
     if (!this.showingHandSummary && !this.matchOver && this.controller) {
       const round = this.controller.getRound();
       if (round?.phase === "bidding") seat = round.bidding.turnSeat;
+      else if (round?.phase === "doubling") seat = round.doubling?.turnSeat ?? null;
       else if (round?.phase === "playing" && !this.trickSettling) seat = round.turnSeat ?? null;
     }
     if (seat === this.highlightedSeat) return;
@@ -850,7 +1051,6 @@ export class TableScene extends Phaser.Scene {
    * النتيجة for لنا and لهم, then whatever the run's jokers added.
    */
   private showHandSummary(e: HandCompleteEvent): void {
-    if (this.matchOver) return; // the match-end panel replaces it
     this.updateScoreHud(e.matchScore);
 
     const r = e.result;
@@ -880,9 +1080,12 @@ export class TableScene extends Phaser.Scene {
     g.fillStyle(0xe2e2e2, 1);
     g.fillRoundedRect(left + 14, y + 14, right - left - 28, 68, 16);
     g.fillRoundedRect(left + 14, y + 94, right - left - 28, 68, 16);
-    const mode = r.mode === "hokum" ? `حكم ${SUIT_SYMBOL[r.trumpSuit!]} ${SUIT_NAME_AR[r.trumpSuit!]}` : e.ashkal ? "صن (أشكل)" : "صن";
-    put(right - 40, y + 48, `اللعبة: ${mode}`, { fontSize: "26px" }, 1);
-    put(left + 40, y + 48, `المشتري: ${r.declarerTeam === us ? "فريقنا" : "فريقهم"}`, { fontSize: "26px" }, 0);
+    const base = r.mode === "hokum" ? `حكم ${SUIT_SYMBOL[r.trumpSuit!]}` : e.ashkal ? "صن (أشكل)" : "صن";
+    const dbl = sheet.double ? ` ${doubleLabel(sheet.double.level, sheet.double.closed, r.mode)}` : "";
+    put(right - 40, y + 48, `اللعبة: ${base}${dbl}`, { fontSize: "26px", color: dbl ? "#b3261e" : INK }, 1);
+    // After a دبل the side being judged is whoever raised last — the buyer or the doubler.
+    const judgedIsBuyer = sheet.judgedTeam === r.declarerTeam;
+    put(left + 40, y + 48, `${judgedIsBuyer ? "المشتري" : "المدبل"}: ${sheet.judgedTeam === us ? "فريقنا" : "فريقهم"}`, { fontSize: "26px" }, 0);
     const outcome = { won: ["ربحانة", "#3c9a2e"], lost: ["خسرانة", "#c8322d"], tie: ["متعادلة", "#c07a12"] }[sheet.outcome];
     const kabootNote = sheet.kaboot !== undefined ? (sheet.kaboot === us ? " — كبوت لنا! 💥" : " — كبوت علينا") : "";
     put(CENTER_X, y + 128, `نتيجة الشراء: ${outcome[0]}${kabootNote}`, { fontSize: "28px", color: outcome[1], fontStyle: "bold" });
@@ -967,6 +1170,12 @@ export class TableScene extends Phaser.Scene {
         panel.destroy();
         this.handSummaryPanel = undefined;
         this.showingHandSummary = false;
+        if (this.pendingMatchEnd) {
+          const end = this.pendingMatchEnd;
+          this.pendingMatchEnd = undefined;
+          this.showMatchEnd(end);
+          return;
+        }
         if (this.pendingDeal) {
           const deal = this.pendingDeal;
           this.pendingDeal = null;
@@ -979,13 +1188,15 @@ export class TableScene extends Phaser.Scene {
     panel.add(btn.container);
   }
 
-  private onMatchComplete(e: { winner: Team; matchScore: Record<Team, number> }): void {
+  private onMatchComplete(e: { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean }): void {
     this.matchOver = true;
-    const matchScore = { ...e.matchScore };
-    this.whenTableSettled(() => this.showMatchEnd({ winner: e.winner, matchScore }));
+    const end = { winner: e.winner, matchScore: { ...e.matchScore }, qahwa: e.qahwa };
+    // The hand that ended the match still gets its النشرة; the match panel follows it.
+    if (this.showingHandSummary) this.pendingMatchEnd = end;
+    else this.whenTableSettled(() => this.showMatchEnd(end));
   }
 
-  private showMatchEnd(e: { winner: Team; matchScore: Record<Team, number> }): void {
+  private showMatchEnd(e: { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean }): void {
     this.updateScoreHud(e.matchScore);
     // The match can end on the same synchronous step that just completed a hand — the
     // "التالي" summary panel above may still be up (never clicked), so clear it first.
@@ -998,7 +1209,7 @@ export class TableScene extends Phaser.Scene {
     const { shieldUsed } = runController.resolveMatchNode(won);
     const runState = runController.getState();
 
-    const title = won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة";
+    const title = (won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة") + (e.qahwa ? " — قهوة ☕" : "");
     const rewardLine = won
       ? `+${runState.nodes[runState.currentIndex].reward} ذهب`
       : shieldUsed

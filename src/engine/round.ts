@@ -5,9 +5,18 @@ import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
 import type { Bid, Card, HandResult, Seat, Team, Trick } from "./types";
 import { nextSeat, teamOf } from "./types";
+import {
+  legalDoubles,
+  raiserTeam,
+  startDoubling,
+  submitDouble,
+  sunDoubleAllowed,
+  type DoubleBid,
+  type DoublingState,
+} from "./doubling";
 import { findProjects, hasFourKingsOrQueens, resolveProjects, sequenceHoldsKQ, type ProjectsOutcome } from "./projects";
 
-export type RoundPhase = "bidding" | "redeal" | "playing" | "complete";
+export type RoundPhase = "bidding" | "redeal" | "doubling" | "playing" | "complete";
 
 export interface RoundOptions {
   /** Overrides the last-trick ("الأرض") bonus, normally 10. */
@@ -18,6 +27,11 @@ export interface RoundOptions {
   guaranteedJacks?: number;
   /** Teams whose hokum can't be challenged to sun. */
   lockedHokumTeams?: Team[];
+  /**
+   * Plays the دبل round between the buy and the first card. Sun may only be doubled while the
+   * doubling side is at or under `sunLimit` and the buyer's side is past it (7-2).
+   */
+  doubling?: { matchScore: Record<Team, number>; sunLimit: number };
 }
 
 /**
@@ -69,11 +83,16 @@ export class Round {
   private balootInSequence = false;
   private balootPlayed = 0;
 
+  /** The دبل round, once the contract is set (only when doubling is enabled). */
+  doubling?: DoublingState;
+
   private readonly lastTrickBonus?: number;
+  private readonly doublingRules?: RoundOptions["doubling"];
 
   constructor(dealer: Seat, rand: () => number = Math.random, options: RoundOptions = {}) {
     this.dealer = dealer;
     this.lastTrickBonus = options.lastTrickBonus;
+    this.doublingRules = options.doubling;
     this.initial = dealInitial(rand);
     if (options.guaranteeJackFor !== undefined) {
       giveAJack(this.initial, options.guaranteeJackFor, rand, options.guaranteedJacks ?? 1);
@@ -105,6 +124,12 @@ export class Round {
     if (this.bidding.result) {
       this.hands = finalizeDeal(this.initial, this.bidding.result);
       this.phase = "playing";
+      if (this.doublingRules) {
+        const { mode: m, declarer, declarerTeam } = this.bidding.result;
+        const allowed = m === "hokum" || sunDoubleAllowed(declarerTeam, this.doublingRules.matchScore, this.doublingRules.sunLimit);
+        this.doubling = startDoubling(m, declarer, allowed);
+        if (!this.doubling.done) this.phase = "doubling";
+      }
       const leader = nextSeat(this.dealer);
       this.currentTrick = { leader, cards: {}, order: [] };
       const { mode, trumpSuit } = this.bidding.result;
@@ -122,6 +147,22 @@ export class Round {
         }
       }
     }
+  }
+
+  legalDoubleCalls() {
+    return this.doubling && this.phase === "doubling" ? legalDoubles(this.doubling) : [];
+  }
+
+  /** One answer in the دبل round; play starts once it's settled. */
+  double(bid: DoubleBid): void {
+    if (this.phase !== "doubling" || !this.doubling) throw new Error(`Cannot double during phase "${this.phase}"`);
+    this.doubling = submitDouble(this.doubling, bid);
+    if (this.doubling.done) this.phase = "playing";
+  }
+
+  /** مقفل: set when a closed دبل or فور stands. */
+  get closed(): boolean {
+    return !!this.doubling && this.doubling.level > 1 && this.doubling.closed;
   }
 
   /**
@@ -156,7 +197,7 @@ export class Round {
     if (this.phase !== "playing" || !this.currentTrick) return [];
     if (!this.bidding.result) return [];
     const { mode, trumpSuit } = this.bidding.result;
-    return legalMoves(this.hands[seat], this.currentTrick, mode, trumpSuit, seat);
+    return legalMoves(this.hands[seat], this.currentTrick, mode, trumpSuit, seat, this.closed);
   }
 
   playCard(seat: Seat, card: Card): void {
@@ -194,6 +235,10 @@ export class Round {
         this.result = scoreHand(this.tricks, mode, trumpSuit, this.bidding.result.declarerTeam, this.lastTrickBonus, {
           projects: this.projects,
           baloot,
+          double:
+            this.doubling && this.doubling.level > 1
+              ? { level: this.doubling.level, raiserTeam: raiserTeam(this.doubling), closed: this.doubling.closed }
+              : undefined,
         });
         this.phase = "complete";
         this.currentTrick = undefined;

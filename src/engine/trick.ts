@@ -53,11 +53,12 @@ export function wouldWinAgainstCurrent(card: Card, trick: Trick, mode: Mode, tru
  * Which cards `seat` may legally play right now.
  *
  * Rules: follow the led suit if you can. If you can't, and it's Hokum and you
- * hold trump, you must trump — and if a trump has already been played in this
- * trick, you must overtrump it if you're able to. The one exception: if your
- * own team is currently winning the trick, you're free to discard anything
- * (no obligation to trump your partner's win). Sun has no trump, so a void
- * player may discard freely.
+ * hold trump, you must trump — and if an opponent has already trumped, you must
+ * overtrump (ترقيع) if you're able to; if you can't beat their trump you're free
+ * to play anything, since a lower trump would be thrown away. If your own team
+ * is currently winning the trick, you're free to discard anything (no obligation
+ * to trump your partner's win). Sun has no trump, so a void player may discard
+ * freely.
  */
 export function legalMoves(
   hand: Card[],
@@ -65,8 +66,16 @@ export function legalMoves(
   mode: Mode,
   trumpSuit: Suit | undefined,
   seat: Seat,
+  closed = false,
 ): Card[] {
-  if (trick.order.length === 0) return hand; // leading: anything goes
+  if (trick.order.length === 0) {
+    // مقفل (a closed دبل): no leading a trump while holding anything else.
+    if (closed && mode === "hokum") {
+      const side = hand.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+      if (side.length > 0) return side;
+    }
+    return hand; // leading: anything goes
+  }
 
   const ledSuit = trick.cards[trick.order[0]]!.suit;
   const followSuit = hand.filter((c) => c.suit === ledSuit);
@@ -88,7 +97,7 @@ export function legalMoves(
 
   const bestTrumpStrength = Math.max(...trumpsPlayed.map((c) => rankStrength(c, mode, trumpSuit)));
   const overtrumps = trumps.filter((c) => rankStrength(c, mode, trumpSuit) > bestTrumpStrength);
-  return overtrumps.length > 0 ? overtrumps : trumps; // must overtrump if able, else any trump
+  return overtrumps.length > 0 ? overtrumps : hand; // must overtrump if able, else free
 }
 
 /**
