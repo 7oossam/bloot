@@ -49,6 +49,24 @@ export interface MatchOptions {
   jackHunt?: { preferTrump: boolean; nineToo: boolean; partnerToo: boolean };
   /** Winning a trick with the trump Jack burns an opponent's best trump into a 7. */
   burn?: { bothOpponents: boolean; partnerToo: boolean };
+  /** Your team's projects are worth this many times their game points. */
+  projectMultiplier?: number;
+  /** +points every hand your team scores a project (the مشروع synergy). */
+  projectSynergyBonus?: number;
+  /** Your team's بلوت pays extra points and gold. */
+  balootBonus?: { points: number; gold: number };
+  /** Gold whenever your team takes الأرض (the last trick). */
+  groundGold?: number;
+  /** +points whenever the other team bought and lost (خسرانة). */
+  rivalLossBonus?: number;
+  /** A doubled hand your team wins pays this fraction extra. */
+  doubleWinBonus?: number;
+  /** Gold for every آكه your team calls. */
+  akkaGold?: number;
+  /** Gold for every hand your team loses. */
+  lossGold?: number;
+  /** Extra points and gold when your team takes a كبوت. */
+  kabootBonus?: { points: number; gold: number };
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
@@ -304,6 +322,7 @@ export class GameController extends Emitter<EventMap> {
       const aces = Object.values(trick.cards).filter((c) => c?.rank === "A").length;
       if (aces > 0) this.emit("gold:earned", { amount: o.goldPerAceTrick * aces, reason: "اللمسة الذهبية" });
     }
+    if (o.groundGold && ours && handOver) this.emit("gold:earned", { amount: o.groundGold, reason: "حارس الأرض" });
     if (handOver || !ours) return;
 
     const byMe = winner === HUMAN_SEAT;
@@ -390,6 +409,36 @@ export class GameController extends Emitter<EventMap> {
       gained[us] += pts;
       bonuses.push({ label: "أكلات الأولاد", points: pts });
     }
+    const ourProjects = result.projectPoints?.[us] ?? 0;
+    if (o.projectMultiplier && ourProjects > 0) {
+      const extra = Math.round(ourProjects * (o.projectMultiplier - 1));
+      gained[us] += extra;
+      bonuses.push({ label: "مهندس المشاريع", points: extra });
+    }
+    if (o.projectSynergyBonus && ourProjects > 0) {
+      gained[us] += o.projectSynergyBonus;
+      bonuses.push({ label: "تآزر المشاريع", points: o.projectSynergyBonus });
+    }
+    if (o.balootBonus && result.baloot !== undefined && teamOf(result.baloot) === us) {
+      gained[us] += o.balootBonus.points;
+      bonuses.push({ label: "البلوت الملكي", points: o.balootBonus.points });
+      this.emit("gold:earned", { amount: o.balootBonus.gold, reason: "البلوت الملكي" });
+    }
+    if (o.rivalLossBonus && result.declarerTeam === them && !buyerWon) {
+      gained[us] += o.rivalLossBonus;
+      bonuses.push({ label: "الفخ", points: o.rivalLossBonus });
+    }
+    if (o.doubleWinBonus && sheet?.double && sheet.winner === us) {
+      const extra = Math.round(result.gamePoints[us] * o.doubleWinBonus);
+      gained[us] += extra;
+      bonuses.push({ label: "القهوجي", points: extra });
+    }
+    if (o.kabootBonus && result.tricksWon[us] === 8) {
+      gained[us] += o.kabootBonus.points;
+      bonuses.push({ label: "الكبوت الذهبي", points: o.kabootBonus.points });
+      this.emit("gold:earned", { amount: o.kabootBonus.gold, reason: "الكبوت الذهبي" });
+    }
+    if (o.lossGold && gained[us] < gained[them]) this.emit("gold:earned", { amount: o.lossGold, reason: "الصبر مفتاح" });
     if (o.comeback && gained[us] > 0 && this.matchScore[them] - this.matchScore[us] >= o.comeback.deficit) {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
@@ -406,6 +455,9 @@ export class GameController extends Emitter<EventMap> {
     this.round.playCard(seat, card);
     const baloot = !balootBefore && this.round.balootDeclared;
     this.emit("play:card", { seat, card, akka: akka || undefined, baloot: baloot || undefined });
+    if (akka && this.options.akkaGold && teamOf(seat) === teamOf(HUMAN_SEAT)) {
+      this.emit("gold:earned", { amount: this.options.akkaGold, reason: "ذهب الآكه" });
+    }
 
     if (this.round.tricks.length > tricksBefore) {
       const finishedTrick = this.round.tricks[this.round.tricks.length - 1];

@@ -48,14 +48,29 @@ export function decideCard(
     const ledIsTrump = isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit);
     const noRuff = legal.filter((c) => ledIsTrump || !isTrumpCard(c, mode, trumpSuit));
     const pool = noRuff.length > 0 ? noRuff : legal;
-    const trumpCost = (c: Card) => (isTrumpCard(c, mode, trumpSuit) ? 1000 : 0);
+    const safe = trickIsSafe(trick, winnerSoFar, seat, mode, trumpSuit, beliefs, hand);
+    const ledSuit = trick.cards[trick.order[0]]!.suit;
+    const discarding = !legal.some((c) => c.suit === ledSuit);
+
+    // برقية: an Ace thrown on the partner's trick says "come back to me in this suit" — only
+    // when every card left after it is a sure winner.
+    if (safe && discarding) {
+      const barqiya = barqiyaAce(pool, hand, mode, trumpSuit, seat, beliefs);
+      if (barqiya) return barqiya;
+    }
+    // Otherwise keep the strength: Aces and sure winners are how we get the lead back once
+    // the partner's tricks run out, so they're never fed to the partner or thrown away.
+    // An Ace is kept above any other winner: it only goes as a برقية.
+    const cost = (c: Card) =>
+      (isTrumpCard(c, mode, trumpSuit) ? 1000 : 0) +
+      (c.rank === "A" ? 800 : isBoss(c, hand, beliefs, mode, trumpSuit) ? 500 : 0);
     // Bank points only if the trick is safe (§4ب.2 دعم الخوي الماكل); otherwise keep the 10s
     // and Aces out of it (§4أ.3 حماية الأبناط).
-    if (trickIsSafe(trick, winnerSoFar, seat, mode, trumpSuit, beliefs, hand)) {
+    if (safe) {
       const under = pool.filter((c) => winnerSoFar === seat || !wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
-      return maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - trumpCost(c));
+      return maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - cost(c));
     }
-    return minBy(pool, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + trumpCost(c));
+    return minBy(pool, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + cost(c));
   }
 
   const winningCards = legal.filter((c) => wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
@@ -66,7 +81,7 @@ export function decideCard(
 
   // Can't win. If we're not following suit this discard is a message to the partner (§4).
   const ledSuit = trick.cards[trick.order[0]]!.suit;
-  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit);
+  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit, beliefs);
   return minBy(legal, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
 }
 
@@ -74,7 +89,7 @@ export function decideCard(
  * التهريب: in sun, throw a 7/8 from the suit you hold the Ace in to ask for it (§4أ.1);
  * otherwise throw from the weakest suit (§4أ.2). Never a 10 or Ace if anything else will do.
  */
-function chooseDiscard(legal: Card[], hand: Card[], mode: Mode, trumpSuit: Suit | undefined): Card {
+function chooseDiscard(legal: Card[], hand: Card[], mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): Card {
   const by = suitsOf(hand);
   const nonTrump = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
   const pool = nonTrump.length > 0 ? nonTrump : legal;
@@ -87,7 +102,9 @@ function chooseDiscard(legal: Card[], hand: Card[], mode: Mode, trumpSuit: Suit 
   }
   const weakness = (suit: Suit) =>
     by[suit].reduce((sum, c) => sum + cardPoints(c, mode, trumpSuit), 0) + (by[suit].some((c) => c.rank === "A") ? 30 : 0);
-  return minBy(pool, (c) => weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
+  // Sure winners stay in hand: they're the way back in later.
+  const keep = (c: Card) => (c.rank === "A" ? 500 : isBoss(c, hand, beliefs, mode, trumpSuit) ? 400 : 0);
+  return minBy(pool, (c) => weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + keep(c));
 }
 
 /** Will the side currently winning keep this trick whatever the players still to come do? */
@@ -132,6 +149,11 @@ function chooseLead(
   const lowest = (cards: Card[]) => minBy(cards, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
   const sideSuits = SUITS.filter((s) => by[s].length > 0 && !(mode === "hokum" && s === trumpSuit));
 
+  // The partner sent a برقية: they hold the rest — give them the lead in that suit.
+  for (const suit of beliefs.barqiya[partner]) {
+    if (by[suit].length > 0) return lowest(by[suit]);
+  }
+
   if (mode === "hokum" && trumpSuit) {
     const trumps = by[trumpSuit];
     const opponentsOutOfTrump = opponents.every((o) => beliefs.voids[o][trumpSuit]);
@@ -164,6 +186,32 @@ function chooseLead(
   const pool = candidates.length > 0 ? candidates : sideSuits.length > 0 ? sideSuits : SUITS.filter((s) => by[s].length > 0);
   const longest = maxBy(pool, (s) => by[s].length * 10 - by[s].reduce((a, c) => a + cardPoints(c, mode, trumpSuit), 0) / 10);
   return lowest(by[longest]);
+}
+
+/** No card still out in this suit beats it — it wins whenever it's led (bar a ruff). */
+function isBoss(card: Card, hand: Card[], beliefs: Beliefs, mode: Mode, trumpSuit: Suit | undefined): boolean {
+  return !outstanding(beliefs, hand, card.suit).some((o) => rankStrength(o, mode, trumpSuit) > rankStrength(card, mode, trumpSuit));
+}
+
+/**
+ * The Ace to throw as a برقية, if this hand can promise every trick after it: with the Ace
+ * gone, every card left must be the top card still out in its suit, and in hokum a side-suit
+ * card only counts once neither opponent can have a trump left.
+ */
+function barqiyaAce(pool: Card[], hand: Card[], mode: Mode, trumpSuit: Suit | undefined, seat: Seat, beliefs: Beliefs): Card | undefined {
+  const opponents = [((seat + 1) % 4) as Seat, ((seat + 3) % 4) as Seat];
+  const trumpsGone = !trumpSuit || opponents.every((o) => beliefs.voids[o][trumpSuit]) || outstanding(beliefs, hand, trumpSuit).length === 0;
+  for (const ace of pool.filter((c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit))) {
+    const rest = hand.filter((c) => c !== ace);
+    // A message needs tricks left to promise, and cards in the Ace's suit to come back to.
+    if (rest.length < 2 || !rest.some((c) => c.suit === ace.suit)) continue;
+    const played = { ...beliefs, played: [...beliefs.played, ace] };
+    const allWin = rest.every(
+      (c) => isBoss(c, rest, played, mode, trumpSuit) && (mode === "sun" || isTrumpCard(c, mode, trumpSuit) || trumpsGone),
+    );
+    if (allWin) return ace;
+  }
+  return undefined;
 }
 
 function minBy<T>(items: T[], score: (item: T) => number): T {

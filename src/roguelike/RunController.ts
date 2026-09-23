@@ -5,55 +5,41 @@ import {
   getJokerDef,
   JOKER_CATALOG,
   maxLevel,
+  sellPrice,
   shopDiscount,
+  UPGRADE_CATALOG,
   upgradeCost,
   type Rarity,
 } from "./jokers";
-import { metaController } from "./meta";
-import { MAX_LIVES, REROLL_STEP, type MapNode, type RunState } from "./types";
+import { MAX_LIVES, type MapNode, type RunState } from "./types";
 
 /** How often each rarity turns up in a shop slot. */
-const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, rare: 30, legendary: 10 };
+const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, rare: 32, legendary: 8 };
 /** Treasury joker: 1 gold per 10 held, capped by level. */
 const TREASURY_CAP = [5, 8, 12];
+/** زبون مميز: everything in the shop costs this much. */
+const VIP_DISCOUNT = 0.85;
+/** The دفعة consumable: start the next match this far ahead. */
+const BOOST_POINTS = 10;
 
 export interface MatchOutcome {
   /** A shield took the hit, so no life was lost. */
   shieldUsed: boolean;
-  /** Set when this match ended the run: glory banked into الديوانية. */
-  gloryEarned?: number;
+  /** Gold paid for the win: the node's reward plus الراتب. */
+  goldEarned: number;
 }
 
 /**
- * Owns the meta-run state (map position, lives, gold, jokers) across nodes.
+ * Owns the run state (map position, lives, gold, jokers, upgrades) across nodes.
  * A single shared instance — MapScene and TableScene both import it directly
  * rather than passing the whole state through Phaser scene data.
  */
 class RunController {
-  private state: RunState = this.freshRun(Date.now());
+  private state: RunState = generateMap(Date.now());
   private shopRolls = 0;
 
-  /** A new run with the permanent الديوانية upgrades applied. */
-  private freshRun(seed: number): RunState {
-    const state = generateMap(seed);
-    const setup = metaController.runSetup();
-    state.lives += setup.lives;
-    state.gold += setup.gold;
-    state.maxJokers += setup.maxJokers;
-    state.shopSlots += setup.shopSlots;
-    state.rerollBase = setup.rerollBase;
-    state.rerollCost = setup.rerollBase;
-    if (setup.starterJoker) {
-      const commons = JOKER_CATALOG.filter((j) => j.rarity === "common" && metaController.isUnlocked(j.id));
-      const pick = commons[Math.floor(mulberry32(seed)() * commons.length)];
-      state.jokerIds.push(pick.id);
-      state.jokerLevels[pick.id] = 1;
-    }
-    return state;
-  }
-
   startNewRun(seed: number = Date.now()): void {
-    this.state = this.freshRun(seed);
+    this.state = generateMap(seed);
     this.shopRolls = 0;
   }
 
@@ -61,8 +47,9 @@ class RunController {
     return this.state;
   }
 
-  levelOf(jokerId: string): number {
-    return this.state.jokerLevels[jokerId] ?? 0;
+  /** An owned joker's level, or a bought run upgrade's level; 0 if neither. */
+  levelOf(itemId: string): number {
+    return this.state.jokerLevels[itemId] ?? this.state.upgrades[itemId] ?? 0;
   }
 
   /** The node the player can currently walk into, or undefined if the run is over / finished. */
@@ -85,8 +72,15 @@ class RunController {
     }
   }
 
+  /** The دفعة bonus for the match about to start; it's used up by asking. */
+  takeMatchBoost(): number {
+    const boost = this.state.nextMatchBoost;
+    this.state.nextMatchBoost = 0;
+    return boost;
+  }
+
   private payInterest(): void {
-    const lvl = this.levelOf("treasury");
+    const lvl = this.state.jokerLevels["treasury"] ?? 0;
     this.state.lastInterest = 0;
     if (!lvl) return;
     const interest = Math.min(Math.floor(this.state.gold / 10), TREASURY_CAP[lvl - 1]);
@@ -100,9 +94,11 @@ class RunController {
     this.state.cleared[this.state.currentIndex] = true;
     this.state.nodeWon[this.state.currentIndex] = won;
     let shieldUsed = false;
+    let goldEarned = 0;
 
     if (won) {
-      this.state.gold += node.reward;
+      goldEarned = node.reward + this.state.salary;
+      this.state.gold += goldEarned;
       if (node.type === "boss") {
         this.state.over = true;
         this.state.won = true;
@@ -117,11 +113,7 @@ class RunController {
         this.state.won = false;
       }
     }
-
-    if (this.state.over && this.state.gloryEarned === undefined) {
-      this.state.gloryEarned = metaController.recordRun(this.state);
-    }
-    return { shieldUsed, gloryEarned: this.state.over ? this.state.gloryEarned : undefined };
+    return { shieldUsed, goldEarned };
   }
 
   /** Gold picked up mid-match (e.g. from a joker). */
@@ -134,25 +126,33 @@ class RunController {
     this.state.cleared[this.state.currentIndex] = true;
   }
 
-  /** What an item costs right now: a new joker, an upgrade of one you own, or a consumable. */
+  private discount(): number {
+    return shopDiscount(this.state.jokerIds) * (this.state.upgrades["vip"] ? VIP_DISCOUNT : 1);
+  }
+
+  /** What an item costs right now: a new joker, a level of one you own, a consumable, or an upgrade. */
   priceOf(itemId: string): number {
     const def = getJokerDef(itemId);
     if (!def) return Infinity;
     const lvl = this.levelOf(itemId);
-    const base = def.kind === "joker" && lvl > 0 ? upgradeCost(def, lvl) : def.cost;
-    return Math.round(base * shopDiscount(this.state.jokerIds));
+    let base = def.cost;
+    if (def.kind === "joker" && lvl > 0) base = upgradeCost(def, lvl);
+    if (def.kind === "upgrade") base = def.costs?.[lvl] ?? Infinity;
+    return Math.round(base * this.discount());
   }
 
   /** Why an item can't be bought right now, or undefined if it can. */
   whyNot(itemId: string): string | undefined {
     const def = getJokerDef(itemId);
     if (!def) return "غير موجود";
+    const lvl = this.levelOf(itemId);
     if (def.kind === "joker") {
-      const lvl = this.levelOf(itemId);
       if (lvl >= maxLevel(def)) return "أعلى مستوى";
       if (lvl === 0 && this.state.jokerIds.length >= this.state.maxJokers) return "الخانات مليانة";
     }
+    if (def.kind === "upgrade" && lvl >= maxLevel(def)) return "مكتمل";
     if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
+    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك جوكر يترقى";
     if (this.state.gold < this.priceOf(itemId)) return "ذهبك ما يكفي";
     return undefined;
   }
@@ -161,7 +161,11 @@ class RunController {
     return this.whyNot(itemId) === undefined;
   }
 
-  /** Buys a joker (or levels up one you own) or a consumable. Consumables act immediately. */
+  private upgradeable(): string[] {
+    return this.state.jokerIds.filter((id) => this.levelOf(id) < maxLevel(getJokerDef(id)!));
+  }
+
+  /** Buys a joker (or levels up one you own), a consumable, or a run upgrade. */
   buyJoker(itemId: string): void {
     const reason = this.whyNot(itemId);
     if (reason) throw new Error(`Cannot buy ${itemId}: ${reason}`);
@@ -171,12 +175,58 @@ class RunController {
       const lvl = this.levelOf(itemId);
       if (lvl === 0) this.state.jokerIds.push(itemId);
       this.state.jokerLevels[itemId] = lvl + 1;
+    } else if (def.kind === "upgrade") {
+      this.state.upgrades[itemId] = (this.state.upgrades[itemId] ?? 0) + 1;
+      this.applyUpgrade(itemId);
     } else if (itemId === "extra-life") {
       this.state.lives++;
     } else if (itemId === "shield") {
       this.state.shields++;
+    } else if (itemId === "boost") {
+      this.state.nextMatchBoost += BOOST_POINTS;
+    } else if (itemId === "upgrade-ticket") {
+      const pool = this.upgradeable();
+      const pick = pool[Math.floor(mulberry32(this.state.seed + this.state.gold * 31 + pool.length)() * pool.length)];
+      this.state.jokerLevels[pick] = this.levelOf(pick) + 1;
+      this.state.lastTicket = pick;
     }
     this.state.shopStock = this.state.shopStock.filter((id) => id !== itemId);
+  }
+
+  private applyUpgrade(itemId: string): void {
+    const s = this.state;
+    switch (itemId) {
+      case "joker-slot":
+        s.maxJokers++;
+        break;
+      case "shop-slot":
+        s.shopSlots++;
+        break;
+      case "cheap-reroll":
+        s.rerollBase = 1;
+        s.rerollStep = 1;
+        s.rerollCost = Math.min(s.rerollCost, 1);
+        break;
+      case "salary":
+        s.salary += 4;
+        break;
+    }
+  }
+
+  /** What selling an owned joker would pay. */
+  sellValue(jokerId: string): number {
+    const def = getJokerDef(jokerId);
+    const lvl = this.levelOf(jokerId);
+    return def && lvl > 0 && def.kind === "joker" ? sellPrice(def, lvl) : 0;
+  }
+
+  /** Sells an owned joker for half its worth, freeing its slot. */
+  sellJoker(jokerId: string): void {
+    const value = this.sellValue(jokerId);
+    if (!value) throw new Error(`You don't own ${jokerId}`);
+    this.state.gold += value;
+    this.state.jokerIds = this.state.jokerIds.filter((id) => id !== jokerId);
+    delete this.state.jokerLevels[jokerId];
   }
 
   shopOffering(): string[] {
@@ -191,21 +241,17 @@ class RunController {
   reroll(): void {
     if (!this.canReroll()) throw new Error("Not enough gold to reroll");
     this.state.gold -= this.state.rerollCost;
-    this.state.rerollCost += REROLL_STEP;
+    this.state.rerollCost += this.state.rerollStep;
     this.rollShop();
   }
 
   /**
-   * Fills the shelf: `shopSlots` jokers weighted by rarity — unlocked ones you don't own yet,
-   * plus upgrades for ones you own below max level — and one consumable.
+   * Fills the shelf: `shopSlots` jokers weighted by rarity — new ones and levels for ones you
+   * own — then one consumable and one run upgrade you haven't maxed.
    */
   private rollShop(): void {
     const rand = mulberry32(this.state.seed + this.state.currentIndex * 7919 + ++this.shopRolls * 104729);
-    const pool = JOKER_CATALOG.filter((j) => {
-      if (!metaController.isUnlocked(j.id)) return false;
-      const lvl = this.levelOf(j.id);
-      return lvl === 0 || lvl < maxLevel(j);
-    });
+    const pool = JOKER_CATALOG.filter((j) => this.levelOf(j.id) < maxLevel(j));
     const picks: string[] = [];
     while (picks.length < this.state.shopSlots && pool.length > 0) {
       const total = pool.reduce((sum, j) => sum + RARITY_WEIGHT[j.rarity], 0);
@@ -215,7 +261,9 @@ class RunController {
       picks.push(picked.id);
     }
     const consumable = CONSUMABLE_CATALOG[Math.floor(rand() * CONSUMABLE_CATALOG.length)];
-    this.state.shopStock = [...picks, consumable.id];
+    const upgrades = UPGRADE_CATALOG.filter((u) => this.levelOf(u.id) < maxLevel(u));
+    const upgrade = upgrades.length > 0 ? [upgrades[Math.floor(rand() * upgrades.length)].id] : [];
+    this.state.shopStock = [...picks, consumable.id, ...upgrade];
   }
 }
 

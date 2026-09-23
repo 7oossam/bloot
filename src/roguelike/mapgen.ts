@@ -1,5 +1,5 @@
 import type { MapNode, NodeType, RunState } from "./types";
-import { MAX_JOKERS, REROLL_BASE_COST, SHOP_JOKER_SLOTS, STARTING_LIVES } from "./types";
+import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, SHOP_JOKER_SLOTS, STARTING_GOLD, STARTING_LIVES } from "./types";
 
 /** A fixed linear run for the first pass — branching paths are a natural follow-up. */
 const FLOOR_PLAN: NodeType[] = ["match", "match", "shop", "match", "elite", "shop", "boss"];
@@ -11,7 +11,8 @@ export function generateMap(seed: number): RunState {
     }
     const target =
       type === "boss" ? 131 : type === "elite" ? 101 : 41 + floor * 20;
-    const reward = type === "boss" ? 60 : type === "elite" ? 35 : 15 + floor * 5;
+    // Tuned against shop prices: two matches buy the first shop two commons or a rare.
+    const reward = type === "boss" ? 80 : type === "elite" ? 50 : 20 + floor * 5;
     return { id: `node-${floor}`, type, floor, matchTarget: target, reward };
   });
 
@@ -20,12 +21,16 @@ export function generateMap(seed: number): RunState {
     nodes,
     currentIndex: -1,
     lives: STARTING_LIVES,
-    gold: 0,
+    gold: STARTING_GOLD,
     jokerIds: [],
     jokerLevels: {},
     maxJokers: MAX_JOKERS,
     shopSlots: SHOP_JOKER_SLOTS,
     rerollBase: REROLL_BASE_COST,
+    rerollStep: REROLL_STEP,
+    upgrades: {},
+    salary: 0,
+    nextMatchBoost: 0,
     nodeWon: nodes.map(() => false),
     shields: 0,
     shopStock: [],

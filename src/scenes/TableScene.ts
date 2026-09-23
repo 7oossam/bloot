@@ -1206,12 +1206,12 @@ export class TableScene extends Phaser.Scene {
     this.matchOver = true;
 
     const won = e.winner === teamOf(HUMAN_SEAT);
-    const { shieldUsed } = runController.resolveMatchNode(won);
+    const { shieldUsed, goldEarned } = runController.resolveMatchNode(won);
     const runState = runController.getState();
 
     const title = (won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة") + (e.qahwa ? " — قهوة ☕" : "");
     const rewardLine = won
-      ? `+${runState.nodes[runState.currentIndex].reward} ذهب`
+      ? `+${goldEarned} ذهب${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
       : shieldUsed
         ? `🛡️ الدرع حماك — ما نقصت حياة`
         : `-1 حياة (متبقي ${runState.lives})`;

@@ -99,7 +99,7 @@ describe("play AI", () => {
     expect(chosen).toEqual({ suit: "H", rank: "10" });
   });
 
-  it("dumps its highest-point card when the partner is already winning", () => {
+  it("feeds points to a partner who is winning — but keeps a card that just became the top one", () => {
     const trick: Trick = {
       leader: 1,
       order: [1, 2],
@@ -108,12 +108,10 @@ describe("play AI", () => {
         2: { suit: "H", rank: "A" }, // seat 2 = partner of seat 0, currently winning
       },
     };
-    const hand: Card[] = [
-      { suit: "H", rank: "10" }, // 10 points
-      { suit: "H", rank: "9" }, // 0 points in non-trump
-    ];
-    const chosen = decideCard(hand, trick, "sun", undefined, 0);
-    expect(chosen).toEqual({ suit: "H", rank: "10" });
+    // With the Ace gone, 10♥ is the boss of hearts — a way back in later, so it stays.
+    expect(decideCard([c("10H"), c("9H")], trick, "sun", undefined, 0)).toEqual(c("9H"));
+    // K♥ isn't a winner (10♥ is still out), so it's fed to the partner.
+    expect(decideCard([c("KH"), c("9H")], trick, "sun", undefined, 0)).toEqual(c("KH"));
   });
 
   it("sheds the cheapest card when it cannot win and must follow suit", () => {
@@ -231,6 +229,26 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
     const t2 = trickOf(0, "KH", "7H");
     const follow = decideCard(cards("AH", "8H", "9C"), t2, "hokum", "S", 2, { tricks: [] });
     expect(follow).toEqual(c("8H"));
+  });
+
+  it("never throws an Ace on the partner's trick — unless it's a برقية", () => {
+    // Sun. Seat 2 led A♠ and wins; seat 3 followed; seat 0 is void in spades.
+    const t = trickOf(2, "AS", "7S");
+    const plain = decideCard(cards("AH", "8H", "9D", "7C", "KD"), t, "sun", undefined, 0, { tricks: [] });
+    expect(plain.rank).not.toBe("A");
+    // Everything else is a sure winner: A♥ then 10♥ K♥ run, and ♦ is gone except our A-10.
+    const played = [trickOf(1, "KD", "QD", "JD", "9D"), trickOf(1, "8D", "7D", "QH", "JH")];
+    played.forEach((tr) => (tr.winner = 1));
+    const barqiya = decideCard(cards("AH", "10H", "KH"), t, "sun", undefined, 0, { tricks: played });
+    expect(barqiya).toEqual(c("AH"));
+  });
+
+  it("answers a برقية: leads back the suit of the partner's Ace", () => {
+    // Earlier: seat 0 led A♠ and won; partner (seat 2), void in spades, threw A♥ — a برقية.
+    const earlier = trickOf(0, "AS", "7S", "AH", "8S");
+    earlier.winner = 0;
+    const lead = decideCard(cards("7H", "KD", "QD", "10C", "9C", "8C", "JS"), trickOf(0), "sun", undefined, 0, { tricks: [earlier] });
+    expect(lead).toEqual(c("7H"));
   });
 
   it("the partner who took the ground card plays the suit أشكل asked for", () => {

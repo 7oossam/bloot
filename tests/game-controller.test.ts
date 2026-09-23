@@ -266,7 +266,9 @@ describe("combo jokers", () => {
         }
       });
       c.startMatch();
-      autoplay(c, () => swaps > 0, 1500);
+      // Play each seed until it produces its own swap (a shared counter stopped every later seed at once).
+      const before = swaps;
+      autoplay(c, () => swaps > before, 1500);
       if (swaps >= 6) break;
     }
     expect(swaps).toBeGreaterThan(0);
@@ -327,5 +329,30 @@ describe("combo jokers", () => {
       c.startMatch();
       autoplay(c, (x) => x.getRound().phase === "playing");
     }
+  });
+});
+
+describe("the shop-rework jokers in play", () => {
+  it("حارس الأرض pays for الأرض, الصبر مفتاح for lost hands, مهندس المشاريع doubles our projects", () => {
+    const reasons: Record<string, number> = {};
+    let projectBonus = 0, ourProjects = 0;
+    const c = new GameController(mulberry32(21), {
+      matchTarget: 999,
+      groundGold: 4,
+      lossGold: 3,
+      projectMultiplier: 2,
+    });
+    c.on("gold:earned", (e) => (reasons[e.reason] = (reasons[e.reason] ?? 0) + e.amount));
+    c.on("hand:complete", (e) => {
+      const p = e.result.projectPoints?.[0] ?? 0;
+      ourProjects += p;
+      projectBonus += e.bonuses.find((b) => b.label === "مهندس المشاريع")?.points ?? 0;
+    });
+    c.startMatch();
+    autoplay(c, () => false, 6000);
+    expect(reasons["حارس الأرض"] ?? 0).toBeGreaterThan(0);
+    expect((reasons["حارس الأرض"] ?? 0) % 4).toBe(0);
+    expect(reasons["الصبر مفتاح"] ?? 0).toBeGreaterThan(0);
+    expect(projectBonus).toBe(ourProjects); // ×2 = the same again on top
   });
 });

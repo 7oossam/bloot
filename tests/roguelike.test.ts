@@ -8,10 +8,11 @@ import {
   JOKER_CATALOG,
   matchOptionsFromJokers,
   maxLevel,
+  sellPrice,
   shopDiscount,
+  UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
-import { gloryForRun, metaController } from "../src/roguelike/meta";
-import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_LIVES } from "../src/roguelike/types";
+import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -37,7 +38,6 @@ describe("generateMap", () => {
 
 describe("RunController", () => {
   beforeEach(() => {
-    metaController.reset();
     runController.startNewRun(42);
   });
 
@@ -56,7 +56,7 @@ describe("RunController", () => {
     const node = runController.getAvailableNode()!;
     runController.enterNode(node.id);
     runController.resolveMatchNode(true);
-    expect(runController.getState().gold).toBe(node.reward);
+    expect(runController.getState().gold).toBe(STARTING_GOLD + node.reward);
     expect(runController.getState().cleared[0]).toBe(true);
 
     const next = runController.getAvailableNode()!;
@@ -93,7 +93,7 @@ describe("RunController", () => {
   });
 
   it("buyJoker respects affordability, duplicates, and the joker cap", () => {
-    expect(runController.canAfford("head-start")).toBe(false); // no gold yet
+    expect(runController.canAfford("head-start")).toBe(false); // only the starting purse
 
     // Force some gold by winning a node.
     const node = runController.getAvailableNode()!;
@@ -104,7 +104,9 @@ describe("RunController", () => {
     if (runController.canAfford("head-start")) {
       runController.buyJoker("head-start");
       expect(runController.getState().jokerIds).toContain("head-start");
-      expect(() => runController.buyJoker("head-start")).toThrow(); // already owned
+      // Buying it again is a level-up, not a second copy.
+      if (runController.canAfford("head-start")) runController.buyJoker("head-start");
+      expect(runController.getState().jokerIds.filter((id) => id === "head-start")).toHaveLength(1);
     }
   });
 });
@@ -129,7 +131,6 @@ describe("matchOptionsFromJokers", () => {
 });
 
 describe("shop", () => {
-  beforeEach(() => metaController.reset());
   const enterFirstShop = () => {
     runController.startNewRun(7);
     // Walk up to the first shop, winning the matches on the way for gold.
@@ -141,14 +142,24 @@ describe("shop", () => {
     }
   };
 
-  it("offers three unowned jokers and one consumable", () => {
+  it("offers three jokers, a consumable and a run upgrade", () => {
     enterFirstShop();
     const stock = runController.shopOffering();
-    expect(stock).toHaveLength(4);
+    expect(stock).toHaveLength(5);
     const jokers = stock.slice(0, 3);
     expect(new Set(jokers).size).toBe(3);
     for (const id of jokers) expect(JOKER_CATALOG.some((j) => j.id === id)).toBe(true);
     expect(CONSUMABLE_CATALOG.some((c) => c.id === stock[3])).toBe(true);
+    expect(UPGRADE_CATALOG.some((u) => u.id === stock[4])).toBe(true);
+  });
+
+  it("the first shop affords two commons or a rare (the balance target)", () => {
+    enterFirstShop();
+    const gold = runController.getState().gold;
+    const commons = JOKER_CATALOG.filter((j) => j.rarity === "common").map((j) => j.cost).sort((a, b) => a - b);
+    const rares = JOKER_CATALOG.filter((j) => j.rarity === "rare").map((j) => j.cost).sort((a, b) => a - b);
+    expect(gold).toBeGreaterThanOrEqual(commons[0] + commons[1]);
+    expect(gold).toBeGreaterThanOrEqual(rares[Math.floor(rares.length / 2)]);
   });
 
   it("rerolling costs gold and gets pricier each time", () => {
@@ -159,7 +170,7 @@ describe("shop", () => {
     runController.reroll();
     expect(runController.getState().gold).toBe(gold - REROLL_BASE_COST);
     expect(runController.getState().rerollCost).toBe(REROLL_BASE_COST + REROLL_STEP);
-    expect(runController.shopOffering()).toHaveLength(4);
+    expect(runController.shopOffering()).toHaveLength(5);
   });
 
   it("a bought joker leaves the shelf; once maxed it never shows up again", () => {
@@ -273,7 +284,6 @@ describe("joker levels and synergies", () => {
 });
 
 describe("treasury", () => {
-  beforeEach(() => metaController.reset());
   it("pays interest when you walk into a shop, capped by level", () => {
     runController.startNewRun(5);
     runController.addGold(200);
@@ -291,84 +301,82 @@ describe("treasury", () => {
   });
 });
 
-describe("meta progression (الديوانية)", () => {
-  beforeEach(() => metaController.reset());
+describe("run upgrades, selling and the new consumables", () => {
+  beforeEach(() => runController.startNewRun(3));
 
-  it("a finished run banks glory once, more for wins than losses", () => {
-    runController.startNewRun(1);
-    let outcome;
-    do {
-      const node = runController.getAvailableNode()!;
-      runController.enterNode(node.id);
-      if (node.type === "shop") { runController.leaveShopNode(); continue; }
-      outcome = runController.resolveMatchNode(false);
-    } while (!runController.getState().over);
-    const lossGlory = outcome!.gloryEarned!;
-    expect(lossGlory).toBeGreaterThan(0);
-    expect(metaController.getProfile().glory).toBe(lossGlory);
-    expect(metaController.getProfile().runs).toBe(1);
-
-    runController.startNewRun(2);
-    while (!runController.getState().over) {
-      const node = runController.getAvailableNode()!;
-      runController.enterNode(node.id);
-      if (node.type === "shop") { runController.leaveShopNode(); continue; }
-      runController.resolveMatchNode(true);
-    }
-    expect(runController.getState().won).toBe(true);
-    expect(runController.getState().gloryEarned!).toBeGreaterThan(lossGlory);
-    expect(gloryForRun(runController.getState())).toBe(runController.getState().gloryEarned);
-  });
-
-  it("permanent upgrades change how the next run starts", () => {
-    metaController["profile"].glory = 500;
-    const base = (runController.startNewRun(3), runController.getState());
-    const baseLives = base.lives, baseGold = base.gold, baseSlots = base.maxJokers, baseShelf = base.shopSlots;
-    for (const id of ["start-life", "start-gold", "joker-slot", "shop-slot", "cheap-reroll", "starter-joker"]) metaController.buyUpgrade(id);
-    runController.startNewRun(3);
+  it("upgrades are bought with gold, level by level, and change the run at once", () => {
+    runController.addGold(1000);
     const s = runController.getState();
-    expect(s.lives).toBe(baseLives + 1);
-    expect(s.gold).toBe(baseGold + 10);
-    expect(s.maxJokers).toBe(baseSlots + 1);
-    expect(s.shopSlots).toBe(baseShelf + 1);
-    expect(s.rerollBase).toBe(2);
-    expect(s.jokerIds).toHaveLength(1);
-    expect(getJokerDef(s.jokerIds[0])!.rarity).toBe("common");
+    runController.buyJoker("joker-slot");
+    expect(s.maxJokers).toBe(MAX_JOKERS + 1);
+    expect(runController.priceOf("joker-slot")).toBe(45); // the second level costs more
+    runController.buyJoker("joker-slot");
+    expect(s.maxJokers).toBe(MAX_JOKERS + 2);
+    expect(runController.whyNot("joker-slot")).toBe("مكتمل");
+    runController.buyJoker("shop-slot");
+    expect(s.shopSlots).toBe(4);
+    runController.buyJoker("cheap-reroll");
+    expect(s.rerollBase).toBe(1);
+    runController.buyJoker("salary");
+    const node = runController.getAvailableNode()!;
+    runController.enterNode(node.id);
+    const gold = s.gold;
+    expect(runController.resolveMatchNode(true).goldEarned).toBe(node.reward + 4);
+    expect(s.gold).toBe(gold + node.reward + 4);
   });
 
-  it("locked jokers never show up in shops until unlocked", () => {
-    const locked = JOKER_CATALOG.filter((j) => j.unlockCost > 0).map((j) => j.id);
-    runController.startNewRun(8);
-    runController.addGold(10_000);
-    for (;;) {
-      const node = runController.getAvailableNode()!;
-      runController.enterNode(node.id);
-      if (node.type === "shop") break;
-      runController.resolveMatchNode(true);
-    }
-    for (let i = 0; i < 40; i++) {
-      for (const id of runController.shopOffering()) expect(locked).not.toContain(id);
-      runController.reroll();
-    }
-    metaController["profile"].glory = 100;
-    metaController.unlock("forged-jack");
-    let seen = false;
-    for (let i = 0; i < 60 && !seen; i++) {
-      runController.reroll();
-      seen = runController.shopOffering().includes("forged-jack");
-    }
-    expect(seen).toBe(true);
+  it("زبون مميز takes 15% off everything", () => {
+    runController.addGold(1000);
+    const before = runController.priceOf("royal-sun");
+    runController.buyJoker("vip");
+    expect(runController.priceOf("royal-sun")).toBe(Math.round(before * 0.85));
   });
 
-  it("upgrades and unlocks cost glory and can't be bought twice past their max", () => {
-    metaController["profile"].glory = 12;
-    expect(metaController.whyNotUpgrade("joker-slot")).toBe("مجدك ما يكفي");
-    metaController.buyUpgrade("start-gold");
-    expect(metaController.getProfile().glory).toBe(2);
-    metaController["profile"].glory = 100;
-    metaController.buyUpgrade("cheap-reroll");
-    expect(metaController.whyNotUpgrade("cheap-reroll")).toBe("مكتمل");
-    metaController.unlock("burn");
-    expect(metaController.whyNotUnlock("burn")).toBe("مفتوح");
+  it("selling a joker frees its slot and pays half its worth", () => {
+    runController.addGold(1000);
+    runController.buyJoker("hokum-master");
+    runController.buyJoker("hokum-master"); // Lv2
+    const def = getJokerDef("hokum-master")!;
+    const value = runController.sellValue("hokum-master");
+    expect(value).toBe(sellPrice(def, 2));
+    expect(value).toBe(Math.floor((14 + 11) / 2));
+    const gold = runController.getState().gold;
+    runController.sellJoker("hokum-master");
+    expect(runController.getState().gold).toBe(gold + value);
+    expect(runController.getState().jokerIds).not.toContain("hokum-master");
+    expect(runController.levelOf("hokum-master")).toBe(0);
+  });
+
+  it("دفعة starts the next match ahead once; the ticket levels up a joker for free", () => {
+    runController.addGold(1000);
+    runController.buyJoker("boost");
+    expect(runController.takeMatchBoost()).toBe(10);
+    expect(runController.takeMatchBoost()).toBe(0);
+    expect(runController.whyNot("upgrade-ticket")).toBe("ما عندك جوكر يترقى");
+    runController.buyJoker("spy");
+    runController.buyJoker("upgrade-ticket");
+    expect(runController.levelOf("spy")).toBe(2);
+  });
+});
+
+describe("the new jokers", () => {
+  it("each one turns into its match option, scaling with level", () => {
+    expect(matchOptionsFromJokers(["project-engineer"], { "project-engineer": 3 }).projectMultiplier).toBe(3);
+    expect(matchOptionsFromJokers(["royal-baloot"]).balootBonus).toEqual({ points: 4, gold: 4 });
+    expect(matchOptionsFromJokers(["ground-keeper"], { "ground-keeper": 2 }).groundGold).toBe(6);
+    expect(matchOptionsFromJokers(["trap"]).rivalLossBonus).toBe(5);
+    expect(matchOptionsFromJokers(["qahwaji"], { qahwaji: 2 }).doubleWinBonus).toBe(1);
+    expect(matchOptionsFromJokers(["akka-gold"]).akkaGold).toBe(3);
+    expect(matchOptionsFromJokers(["patience"]).lossGold).toBe(3);
+    expect(matchOptionsFromJokers(["golden-kaboot"]).kabootBonus).toEqual({ points: 15, gold: 15 });
+  });
+
+  it("the new synergies: مشروع pays per hand with projects, دفاع stacks on الفخ and الصبر", () => {
+    expect(matchOptionsFromJokers(["project-engineer", "royal-baloot"]).projectSynergyBonus).toBe(3);
+    const two = matchOptionsFromJokers(["trap", "comeback"]);
+    expect(two.rivalLossBonus).toBe(5 + 4);
+    const three = matchOptionsFromJokers(["trap", "comeback", "patience"]);
+    expect(three.rivalLossBonus).toBe(5 + 8);
+    expect(three.lossGold).toBe(3 + 2);
   });
 });

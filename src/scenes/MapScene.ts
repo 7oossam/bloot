@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
-import { metaController } from "../roguelike/meta";
 import { runController } from "../roguelike/RunController";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
@@ -47,12 +46,6 @@ export class MapScene extends Phaser.Scene {
     });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
-    makeButton(this, 150, 262, "🏛️ الديوانية", () => this.scene.start("meta"), {
-      width: 230,
-      height: 64,
-      fontSize: "24px",
-      color: 0x5a3d99,
-    });
   }
 
   private refresh(): void {
@@ -83,7 +76,7 @@ export class MapScene extends Phaser.Scene {
       .map((x) => `${x.tag} ${x.count}✓`)
       .join("  ");
     this.hudText.setText(
-      `❤️ ${state.lives}   💰 ${state.gold}${shields}   🏆 ${metaController.getProfile().glory} مجد\nالجوكرز: ${jokerNames}` +
+      `❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}\nالجوكرز: ${jokerNames}` +
         (synergies ? `\nتآزر: ${synergies}` : ""),
     );
   }
@@ -167,11 +160,11 @@ export class MapScene extends Phaser.Scene {
       this.scene.start("shop");
       return;
     }
-    const data: TableSceneData = {
-      nodeType: node.type,
-      matchTarget: node.matchTarget!,
-      modifiers: matchOptionsFromJokers(runController.getState().jokerIds, runController.getState().jokerLevels),
-    };
+    const modifiers = matchOptionsFromJokers(runController.getState().jokerIds, runController.getState().jokerLevels);
+    // دفعة: a one-off head start for this match, on top of any joker's.
+    const boost = runController.takeMatchBoost();
+    if (boost) modifiers.headStart = { ...modifiers.headStart, 0: (modifiers.headStart?.[0] ?? 0) + boost };
+    const data: TableSceneData = { nodeType: node.type, matchTarget: node.matchTarget!, modifiers };
     this.scene.start("table", data);
   }
 
@@ -194,19 +187,13 @@ export class MapScene extends Phaser.Scene {
         fontSize: "27px",
       }),
     );
-    panel.add(
-      arabicText(this, 0, 5, `🏆 +${state.gloryEarned ?? 0} مجد للديوانية`, { fontSize: "30px", color: "#ffd54a" }),
-    );
+    const jokers = state.jokerIds.map((id) => getJokerDef(id)?.icon ?? "").join(" ");
+    if (jokers) panel.add(arabicText(this, 0, 5, `جوكرزك: ${jokers}`, { fontSize: "30px" }));
 
-    const btn: ButtonHandle = makeButton(this, -150, 120, "ابدأ رن جديد", () => {
+    const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ رن جديد", () => {
       runController.startNewRun();
       this.scene.restart();
-    }, { width: 260 });
+    }, { width: 300 });
     panel.add(btn.container);
-    const meta: ButtonHandle = makeButton(this, 150, 120, "🏛️ الديوانية", () => this.scene.start("meta"), {
-      width: 260,
-      color: 0x5a3d99,
-    });
-    panel.add(meta.container);
   }
 }

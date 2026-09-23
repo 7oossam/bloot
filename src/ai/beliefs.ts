@@ -1,4 +1,6 @@
-import { cardId } from "../engine/cards";
+import { cardId, isTrumpCard } from "../engine/cards";
+import { currentWinner } from "../engine/trick";
+import { teamOf } from "../engine/types";
 import { SUITS, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
 
 /**
@@ -17,6 +19,11 @@ export interface Beliefs {
   wants: Record<Seat, Suit[]>;
   /** Suits a seat discarded a non-small card from: weak or empty, don't lead it to them (§4أ.2). */
   rejects: Record<Seat, Suit[]>;
+  /**
+   * برقية: a seat threw an Ace onto a trick its partner was already winning. It means "take
+   * this one, then come back to me in this suit" — the sender holds every trick that's left.
+   */
+  barqiya: Record<Seat, Suit[]>;
 }
 
 const emptyBySuit = (): Record<Suit, boolean> => ({ S: false, H: false, D: false, C: false });
@@ -27,20 +34,29 @@ export function buildBeliefs(tricks: Trick[], current: Trick | undefined, mode: 
     voids: { 0: emptyBySuit(), 1: emptyBySuit(), 2: emptyBySuit(), 3: emptyBySuit() },
     wants: { 0: [], 1: [], 2: [], 3: [] },
     rejects: { 0: [], 1: [], 2: [], 3: [] },
+    barqiya: { 0: [], 1: [], 2: [], 3: [] },
   };
   for (const trick of current ? [...tricks, current] : tricks) {
     if (trick.order.length === 0) continue;
     const led = trick.cards[trick.order[0]]!.suit;
-    for (const seat of trick.order) {
+    trick.order.forEach((seat, i) => {
       const card = trick.cards[seat]!;
       beliefs.played.push(card);
-      if (card.suit === led) continue;
+      if (card.suit === led) return;
       beliefs.voids[seat][led] = true;
-      if (mode === "hokum" && card.suit === trumpSuit) continue; // a ruff, not a signal
+      if (mode === "hokum" && card.suit === trumpSuit) return; // a ruff, not a signal
+      if (card.rank === "A" && !isTrumpCard(card, mode, trumpSuit)) {
+        const before: Trick = { leader: trick.leader, order: trick.order.slice(0, i), cards: trick.cards };
+        const winner = currentWinner(before, mode, trumpSuit);
+        if (winner !== seat && teamOf(winner) === teamOf(seat)) {
+          if (!beliefs.barqiya[seat].includes(card.suit)) beliefs.barqiya[seat].push(card.suit);
+          return;
+        }
+      }
       const small = card.rank === "7" || card.rank === "8";
       const list = small && mode === "sun" ? beliefs.wants[seat] : beliefs.rejects[seat];
       if (!list.includes(card.suit)) list.push(card.suit);
-    }
+    });
   }
   return beliefs;
 }

@@ -44,5 +44,10 @@ Ground rules when working on the game:
 7. **Trumping:** a void player must trump, and must overtrump an opponent's trump if able —
    but if they can't beat it they may play anything. No obligation to trump a partner's trick.
 8. **Words:** pass is بس in round 1 and ولا in round 2 — never جلي.
-9. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+9. **برقية and keeping strength (the player's rules for the AI):** never feed an Ace to a
+   partner who's winning, except as a برقية — an Ace thrown on the partner's trick that means
+   "come back to me in this suit", sent only when every card left is a sure winner. Keep
+   Aces and sure winners in hand as entries; don't throw them away. Read a partner's برقية
+   and lead that suit back.
+10. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.
