@@ -129,6 +129,8 @@ export class TableScene extends Phaser.Scene {
   private dealerChip?: Phaser.GameObjects.Container;
   /** The contract ("حكم ♠" / "صن" / "أشكل") shown beside the buyer's name. */
   private contractChip?: Phaser.GameObjects.Container;
+  /** This hand's المشاريع, said in the first trick and laid down in the second. */
+  private projects?: ProjectsOutcome;
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
@@ -166,6 +168,7 @@ export class TableScene extends Phaser.Scene {
     this.afterSettle = [];
     this.seatLabels = {};
     this.contractChip = undefined;
+    this.projects = undefined;
     this.dealerChip = undefined;
     this.highlightedSeat = null;
     this.revealViews = [];
@@ -313,10 +316,14 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onGoldEarned(e: { amount: number; reason: string }): void {
-    runController.addGold(e.amount);
-    const pop = arabicText(this, CENTER_X, CENTER_Y - 120, `+${e.amount} ذهب 💰`, {
-      fontSize: "34px",
-      color: "#ffd54a",
+    // A cost (المقامر) can't take you below zero.
+    const amount = Math.max(e.amount, -runController.getState().gold);
+    if (amount === 0) return;
+    runController.addGold(amount);
+    const text = amount > 0 ? `+${amount} ذهب 💰 ${e.reason}` : `${amount} ذهب 🎰 ${e.reason}`;
+    const pop = arabicText(this, CENTER_X, CENTER_Y - 120, text, {
+      fontSize: "30px",
+      color: amount > 0 ? "#ffd54a" : "#ff7a7a",
     }).setDepth(30);
     this.tweens.add({
       targets: pop,
@@ -410,6 +417,7 @@ export class TableScene extends Phaser.Scene {
     this.groundLabel?.destroy();
     this.contractChip?.destroy();
     this.contractChip = undefined;
+    this.projects = undefined;
 
     // The deal, as at a real table (the infographic's steps 1–3): counter-clockwise from the
     // dealer's right, three cards each, then two each, then the ground card turned face up.
@@ -840,21 +848,76 @@ export class TableScene extends Phaser.Scene {
   }
 
   /** المشاريع: each seat calls its projects as play starts; only the best team's count. */
+  /**
+   * المشاريع are known the moment play starts, but at the table they're said in the first
+   * trick (each player names theirs as they play) and laid down (فرش) in the second — only
+   * by the side whose projects count. The scene follows that rhythm off the play events.
+   */
   private onProjectsDeclared(e: ProjectsOutcome): void {
-    const bySeat = new Map<Seat, string[]>();
-    for (const p of e.declared) bySeat.set(p.seat, [...(bySeat.get(p.seat) ?? []), PROJECT_NAME_AR[p.kind]]);
-    let delay = 900;
-    for (const [seat, names] of bySeat) {
-      const text = names.join(" + ");
-      const counts = e.winner !== undefined && teamOf(seat) === e.winner;
-      this.time.delayedCall(delay, () => this.showSeatBubble(seat, text, counts ? 0x5ad469 : 0x8aa79a));
-      this.log(`${SEAT_LABEL_AR[seat]}: ${text}${counts ? "" : " (ما تنحسب)"}`);
-      delay += 500;
+    this.projects = e;
+  }
+
+  /** Which trick (0-based) the card `seat` just played belongs to. */
+  private trickIndexOf(seat: Seat): number {
+    const round = this.controller.getRound();
+    return round.currentTrick?.order.includes(seat) ? round.tricks.length : round.tricks.length - 1;
+  }
+
+  private projectMoment(seat: Seat): void {
+    const e = this.projects;
+    if (!e) return;
+    const mine = e.declared.filter((p) => p.seat === seat);
+    if (mine.length === 0) return;
+    const trick = this.trickIndexOf(seat);
+    const names = mine.map((p) => PROJECT_NAME_AR[p.kind]).join(" + ");
+    const counts = e.winner !== undefined && teamOf(seat) === e.winner;
+    if (trick === 0) {
+      // First trick: the call.
+      this.time.delayedCall(250, () => this.showSeatBubble(seat, names, 0xffd54a));
+      this.log(`${SEAT_LABEL_AR[seat]}: ${names}`);
+    } else if (trick === 1) {
+      // Second trick: the winning side lays its projects down; the other side's don't count.
+      if (!counts) {
+        this.log(`${SEAT_LABEL_AR[seat]}: ${names} (ما تنحسب — مشروعهم أكبر)`);
+        return;
+      }
+      const cards = mine.flatMap((p) => p.cards);
+      this.log(`${SEAT_LABEL_AR[seat]} فرش: ${names} — ${cards.map((c) => `${RANK_NAME_AR[c.rank]} ${SUIT_SYMBOL[c.suit]}`).join("، ")}`);
+      this.layDownProjects(seat, names, mine.map((p) => p.cards));
     }
+  }
+
+  /** Shows a seat's projects face up for a few seconds, like cards laid on the table. */
+  private layDownProjects(seat: Seat, label: string, groups: Card[][]): void {
+    const at: Record<Seat, { x: number; y: number }> = {
+      0: { x: CENTER_X, y: 1300 },
+      1: { x: TABLE_RECT.right - 170, y: CENTER_Y + 225 },
+      2: { x: CENTER_X, y: TABLE_RECT.top + 250 },
+      3: { x: TABLE_RECT.left + 170, y: CENTER_Y + 225 },
+    };
+    const pos = at[seat];
+    const panel = this.add.container(pos.x, pos.y).setDepth(14);
+    const cards = groups.flat();
+    const step = 44;
+    const width = (cards.length - 1) * step + CARD_W * WIDGET_CARD_SIZE + 24;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x08201a, 0.9);
+    bg.fillRoundedRect(-width / 2, -92, width, 176, 16);
+    bg.lineStyle(3, 0x5ad469, 1);
+    bg.strokeRoundedRect(-width / 2, -92, width, 176, 16);
+    panel.add(bg);
+    panel.add(arabicText(this, 0, -70, `فرش: ${label}`, { fontSize: "22px", color: "#5ad469" }));
+    cards.forEach((card, i) => {
+      panel.add(new CardView(this, (i - (cards.length - 1) / 2) * step, 18, card, true, WIDGET_CARD_SIZE));
+    });
+    panel.setScale(0.6).setAlpha(0);
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 220, ease: "Back.Out" });
+    this.tweens.add({ targets: panel, alpha: 0, delay: 3400, duration: 400, onComplete: () => panel.destroy() });
   }
 
   private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
     const dest = TRICK_ANCHOR[e.seat];
+    this.projectMoment(e.seat);
     if (e.akka) {
       this.showSeatBubble(e.seat, "آكه", 0x9cc3ff);
       this.log(`${SEAT_LABEL_AR[e.seat]}: آكه`);
@@ -1233,14 +1296,17 @@ export class TableScene extends Phaser.Scene {
       panel.add(arabicText(this, 0, 48, runTitle, { fontSize: "29px", color: runState.won ? "#5ad469" : "#d45a5a" }));
     }
 
+    // A won match (not the last one) opens the spoils; otherwise straight back to the map.
+    const spoils = won && !!runState.pendingRewards;
     const btn = makeButton(
       this,
       0,
       150,
-      "المتابعة للخريطة",
+      spoils ? "الغنائم 🎁" : "المتابعة للخريطة",
       () => {
         panel.destroy();
-        this.scene.start("map");
+        if (spoils) this.scene.start("reward", { goldEarned });
+        else this.scene.start("map");
       },
       { width: 380, height: 80, fontSize: "28px" },
     );

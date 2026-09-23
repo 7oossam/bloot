@@ -35,6 +35,10 @@ export interface RunState {
   nextMatchBoost: number;
   /** The joker the last تذكرة ترقية levelled up, for the shop to announce. */
   lastTicket?: string;
+  /** Run-long counters some jokers grow (الحصالة). */
+  jokerCounters: Record<string, number>;
+  /** The spoils waiting after a won match: pick one of `items`, or skip for `skipGold`. */
+  pendingRewards?: { items: string[]; skipGold: number; elite: boolean };
   /** Gold the treasury joker paid on entering the current shop, for the shop to show. */
   lastInterest?: number;
   /** Each one absorbs the life a lost match would cost. */

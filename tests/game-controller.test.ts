@@ -356,3 +356,34 @@ describe("the shop-rework jokers in play", () => {
     expect(projectBonus).toBe(ourProjects); // ×2 = the same again on top
   });
 });
+
+describe("build-maker effects in play", () => {
+  it("win bonuses pay only on hands we win; المقامر costs gold on lost hands; الصراف and القطّاع score", () => {
+    const labels: Record<string, number> = {};
+    const gold: Record<string, number> = {};
+    let wonHands = 0, lostHands = 0, bonusHands = 0;
+    const c = new GameController(mulberry32(33), {
+      matchTarget: 999,
+      winBonuses: [{ label: "الحصالة", points: 3 }],
+      gamblerMultiplier: 1.5,
+      lossGoldCost: 4,
+      goldToPoints: { per: 10, cap: 4, startingGold: 45 },
+      ruffBonus: 1,
+    });
+    c.on("gold:earned", (e) => (gold[e.reason] = (gold[e.reason] ?? 0) + e.amount));
+    c.on("hand:complete", (e) => {
+      const won = e.result.gamePoints[0] > e.result.gamePoints[1];
+      if (won) wonHands++;
+      if (e.gained[0] < e.gained[1]) lostHands++;
+      if (e.bonuses.some((b) => b.label === "الحصالة")) bonusHands++;
+      for (const b of e.bonuses) labels[b.label] = (labels[b.label] ?? 0) + b.points;
+    });
+    c.startMatch();
+    autoplay(c, () => false, 6000);
+    expect(bonusHands).toBe(wonHands);
+    expect(gold["المقامر"]).toBe(-4 * lostHands);
+    expect(labels["الصراف"]).toBeGreaterThan(0); // 45 gold at the start = 4 per hand
+    expect(labels["القطّاع"] ?? 0).toBeGreaterThan(0);
+    expect(labels["المقامر"]).toBeGreaterThan(0);
+  });
+});

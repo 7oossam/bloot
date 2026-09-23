@@ -31,6 +31,7 @@ export function generateMap(seed: number): RunState {
     upgrades: {},
     salary: 0,
     nextMatchBoost: 0,
+    jokerCounters: {},
     nodeWon: nodes.map(() => false),
     shields: 0,
     shopStock: [],

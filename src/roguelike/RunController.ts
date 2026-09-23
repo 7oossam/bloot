@@ -9,7 +9,9 @@ import {
   shopDiscount,
   UPGRADE_CATALOG,
   upgradeCost,
+  activeSynergies,
   type Rarity,
+  type ShopItemDef,
 } from "./jokers";
 import { MAX_LIVES, type MapNode, type RunState } from "./types";
 
@@ -21,6 +23,13 @@ const TREASURY_CAP = [5, 8, 12];
 const VIP_DISCOUNT = 0.85;
 /** The دفعة consumable: start the next match this far ahead. */
 const BOOST_POINTS = 10;
+/** Rewards after a match: rarer after the elite. */
+const REWARD_RARITY: Record<"match" | "elite", Record<Rarity, number>> = {
+  match: { common: 55, rare: 35, legendary: 10 },
+  elite: { common: 15, rare: 55, legendary: 30 },
+};
+/** Jokers whose worth comes from the rest of your row. */
+const BUILD_MAKERS = new Set(["wild", "chief", "maestro", "copycat"]);
 
 export interface MatchOutcome {
   /** A shield took the hit, so no life was lost. */
@@ -49,7 +58,7 @@ class RunController {
 
   /** An owned joker's level, or a bought run upgrade's level; 0 if neither. */
   levelOf(itemId: string): number {
-    return this.state.jokerLevels[itemId] ?? this.state.upgrades[itemId] ?? 0;
+    return this.state.jokerLevels[itemId] ?? (this.state.jokerIds.includes(itemId) ? 1 : (this.state.upgrades[itemId] ?? 0));
   }
 
   /** The node the player can currently walk into, or undefined if the run is over / finished. */
@@ -99,9 +108,14 @@ class RunController {
     if (won) {
       goldEarned = node.reward + this.state.salary;
       this.state.gold += goldEarned;
+      // الحصالة grows with every match won.
+      const piggy = this.state.jokerLevels["piggy"];
+      if (piggy) this.state.jokerCounters["piggy"] = (this.state.jokerCounters["piggy"] ?? 0) + piggy;
       if (node.type === "boss") {
         this.state.over = true;
         this.state.won = true;
+      } else {
+        this.rollRewards(node.type === "elite");
       }
     } else if (this.state.shields > 0) {
       this.state.shields--;
@@ -169,11 +183,17 @@ class RunController {
   buyJoker(itemId: string): void {
     const reason = this.whyNot(itemId);
     if (reason) throw new Error(`Cannot buy ${itemId}: ${reason}`);
-    const def = getJokerDef(itemId)!;
     this.state.gold -= this.priceOf(itemId);
+    this.grant(itemId);
+    this.state.shopStock = this.state.shopStock.filter((id) => id !== itemId);
+  }
+
+  /** Gives an item's effect, however it was paid for. */
+  private grant(itemId: string): void {
+    const def = getJokerDef(itemId)!;
     if (def.kind === "joker") {
       const lvl = this.levelOf(itemId);
-      if (lvl === 0) this.state.jokerIds.push(itemId);
+      if (!this.state.jokerIds.includes(itemId)) this.state.jokerIds.push(itemId);
       this.state.jokerLevels[itemId] = lvl + 1;
     } else if (def.kind === "upgrade") {
       this.state.upgrades[itemId] = (this.state.upgrades[itemId] ?? 0) + 1;
@@ -190,7 +210,86 @@ class RunController {
       this.state.jokerLevels[pick] = this.levelOf(pick) + 1;
       this.state.lastTicket = pick;
     }
-    this.state.shopStock = this.state.shopStock.filter((id) => id !== itemId);
+  }
+
+  // ------------------------------------------------------------ rewards
+
+  /** Why a reward can't be taken (a new joker with no free slot, or nothing to upgrade). */
+  whyNotReward(itemId: string): string | undefined {
+    const def = getJokerDef(itemId);
+    if (!def) return "غير موجود";
+    const lvl = this.levelOf(itemId);
+    if (def.kind === "joker" && lvl === 0 && this.state.jokerIds.length >= this.state.maxJokers) return "الخانات مليانة — بِع جوكر أول";
+    if ((def.kind === "joker" || def.kind === "upgrade") && lvl >= maxLevel(def)) return "أعلى مستوى";
+    if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
+    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك جوكر يترقى";
+    return undefined;
+  }
+
+  /** Takes one of the spoils for free. */
+  takeReward(itemId: string): void {
+    const pending = this.state.pendingRewards;
+    if (!pending?.items.includes(itemId)) throw new Error(`${itemId} isn't on offer`);
+    const reason = this.whyNotReward(itemId);
+    if (reason) throw new Error(`Cannot take ${itemId}: ${reason}`);
+    this.grant(itemId);
+    this.state.pendingRewards = undefined;
+  }
+
+  /** Leaves the spoils for some gold instead. */
+  skipReward(): void {
+    const pending = this.state.pendingRewards;
+    if (!pending) return;
+    this.state.gold += pending.skipGold;
+    this.state.pendingRewards = undefined;
+  }
+
+  /**
+   * Why a reward suits the current run, if it does: it shares a family with jokers you own,
+   * levels one of yours, or is a build-maker that pays for what you've gathered.
+   */
+  rewardHint(itemId: string): string | undefined {
+    const def = getJokerDef(itemId);
+    if (!def || def.kind !== "joker") return undefined;
+    if (this.levelOf(itemId) > 0) return `ترقية لجوكرك`;
+    const owned = new Set(this.state.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
+    const shared = def.tags.filter((t) => owned.has(t));
+    if (shared.length) return `يناسب بناءك: ${shared.join("، ")}`;
+    if (BUILD_MAKERS.has(itemId) && this.state.jokerIds.length >= 2) return "يكبر مع صفّك";
+    return undefined;
+  }
+
+  /**
+   * Three spoils, leaning towards the run you're building: jokers sharing a family with
+   * yours count triple, levels for your own double, build-makers once you have a row.
+   */
+  private rollRewards(elite: boolean): void {
+    const s = this.state;
+    const rand = mulberry32(s.seed * 31 + s.currentIndex * 1009 + s.gold);
+    const rarity = REWARD_RARITY[elite ? "elite" : "match"];
+    const ownedTags = new Set(s.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
+    const weight = (def: ShopItemDef): number => {
+      if (this.whyNotReward(def.id)) return 0;
+      let w = def.kind === "joker" ? rarity[def.rarity] : def.kind === "upgrade" ? 14 : 10;
+      if (def.kind === "joker") {
+        if (this.levelOf(def.id) > 0) w *= 2;
+        else if (def.tags.some((t) => ownedTags.has(t))) w *= 3;
+        if (BUILD_MAKERS.has(def.id) && s.jokerIds.length >= 2) w *= 2;
+        // A build-maker is worth more once your families are growing.
+        if (def.id === "maestro" && activeSynergies(s.jokerIds).some((x) => x.tier)) w *= 2;
+      }
+      return w;
+    };
+    const pool = [...JOKER_CATALOG, ...UPGRADE_CATALOG, ...CONSUMABLE_CATALOG].map((def) => ({ def, w: weight(def) })).filter((x) => x.w > 0);
+    const items: string[] = [];
+    while (items.length < 3 && pool.length > 0) {
+      const total = pool.reduce((n, x) => n + x.w, 0);
+      let roll = rand() * total;
+      const i = pool.findIndex((x) => (roll -= x.w) < 0);
+      const [picked] = pool.splice(i === -1 ? pool.length - 1 : i, 1);
+      items.push(picked.def.id);
+    }
+    s.pendingRewards = { items, skipGold: elite ? 15 : 8, elite };
   }
 
   private applyUpgrade(itemId: string): void {
@@ -227,6 +326,15 @@ class RunController {
     this.state.gold += value;
     this.state.jokerIds = this.state.jokerIds.filter((id) => id !== jokerId);
     delete this.state.jokerLevels[jokerId];
+  }
+
+  /** Moves an owned joker one place along the row (−1 = to the right). Order matters to النسخة. */
+  moveJoker(jokerId: string, delta: -1 | 1): void {
+    const ids = this.state.jokerIds;
+    const i = ids.indexOf(jokerId);
+    const j = i + delta;
+    if (i === -1 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
   }
 
   shopOffering(): string[] {

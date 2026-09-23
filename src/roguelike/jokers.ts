@@ -262,6 +262,91 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     rarity: "rare",
     tags: [],
   }),
+  // ---- build-makers: jokers whose value depends on the rest of your row
+  joker({
+    id: "wild",
+    name: "الوايلد",
+    icon: "🌈",
+    levels: ["يُحسب من كل عائلة عندك فيها جوكر — يقرّبك من كل تآزر."],
+    cost: 24,
+    rarity: "rare",
+    tags: [],
+  }),
+  joker({
+    id: "chief",
+    name: "شيخ القبيلة",
+    icon: "🧔",
+    levels: ["كل يد تكسبونها: +1 بنط لكل جوكر في أكبر عائلة عندك.", "+2 لكل جوكر في أكبر عائلة."],
+    cost: 26,
+    rarity: "rare",
+    tags: [],
+  }),
+  joker({
+    id: "maestro",
+    name: "المايسترو",
+    icon: "🎼",
+    levels: ["كل يد تكسبونها: +2 بنط لكل تآزر مفعّل عندك.", "+3 لكل تآزر مفعّل."],
+    cost: 36,
+    rarity: "legendary",
+    tags: [],
+  }),
+  joker({
+    id: "piggy",
+    name: "الحصالة",
+    icon: "🐷",
+    levels: [
+      "تكبر: كل صكة تفوزها بعد ما تشتريها = +1 بنط زيادة في كل يد تكسبونها.",
+      "تكبر بـ 2 مع كل صكة.",
+    ],
+    cost: 12,
+    rarity: "common",
+    tags: [],
+  }),
+  joker({
+    id: "money-changer",
+    name: "الصراف",
+    icon: "💱",
+    levels: ["آخر كل يد: +1 بنط لكل 10 ذهب معك (حد 4).", "الحد 6.", "الحد 8."],
+    cost: 22,
+    rarity: "rare",
+    tags: ["ذهب"],
+  }),
+  joker({
+    id: "copycat",
+    name: "النسخة",
+    icon: "📜",
+    levels: ["تنسخ مفعول الجوكر اللي على يمينها في صفّك — ترتيبك يفرق."],
+    cost: 38,
+    rarity: "legendary",
+    tags: [],
+  }),
+  joker({
+    id: "cutter",
+    name: "القطّاع",
+    icon: "✂️",
+    levels: ["في الحكم: كل أكلة تاخذونها بالقطع = +1 بنط.", "+2 لكل قطعة.", "+3 لكل قطعة."],
+    cost: 12,
+    rarity: "common",
+    tags: ["حكم"],
+  }),
+  joker({
+    id: "gambler",
+    name: "المقامر",
+    icon: "🎰",
+    levels: ["نتيجتكم في كل يد ×1.3 — بس كل يد تخسرونها تدفع 4 ذهب.", "×1.5 ونفس الثمن."],
+    cost: 20,
+    rarity: "rare",
+    tags: ["ذهب"],
+  }),
+  joker({
+    id: "ledger",
+    name: "دفتر المشاريع",
+    icon: "📒",
+    levels: ["كل مشروع تسجلونه يعطيكم ذهب بقدر أبناطه.", "ذهب ×2."],
+    cost: 12,
+    rarity: "common",
+    tags: ["مشروع", "ذهب"],
+  }),
 ];
 
 export const CONSUMABLE_CATALOG: ShopItemDef[] = [
@@ -399,10 +484,16 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
     { count: 2, text: "كل أكلة بولد +1 بنط" },
     { count: 3, text: "كل أكلة بولد +2، ويجيك ولد مضمون" },
   ],
-  ذهب: [{ count: 2, text: "خصم ٢٠٪ على أسعار المتجر" }],
+  ذهب: [
+    { count: 2, text: "خصم ٢٠٪ على أسعار المتجر" },
+    { count: 4, text: "وكل يد تكسبونها +2 ذهب" },
+  ],
   عين: [{ count: 2, text: "الجاسوس يكشف ورقة زيادة (أو ورقة لو ما عندك جاسوس)" }],
   سرقة: [{ count: 2, text: "الصيد والحرقة يشتغلون كمان لما شريكك ياكل بالولد" }],
-  مشروع: [{ count: 2, text: "كل يد تسجلون فيها مشروع +3 أبناط" }],
+  مشروع: [
+    { count: 2, text: "كل يد تسجلون فيها مشروع +3 أبناط" },
+    { count: 3, text: "مشاريعكم تنحسب حتى لو مشروع الخصم أكبر" },
+  ],
   دفاع: [
     { count: 2, text: "خسرانة الخصم +4 أبناط لكم" },
     { count: 3, text: "خسرانة الخصم +8، وكل يد تخسرونها +2 ذهب" },
@@ -413,6 +504,8 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
 export function activeSynergies(jokerIds: string[]): Array<{ tag: Tag; count: number; tier?: SynergyTier; next?: SynergyTier }> {
   const counts = new Map<Tag, number>();
   for (const id of jokerIds) for (const tag of getJokerDef(id)?.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  // الوايلد joins every family you've already started.
+  if (jokerIds.includes("wild")) for (const [tag, n] of counts) counts.set(tag, n + 1);
   return [...counts.entries()].map(([tag, count]) => {
     const tiers = SYNERGIES[tag];
     const tier = [...tiers].reverse().find((t) => count >= t.count);
@@ -438,7 +531,46 @@ export function shopDiscount(jokerIds: string[]): number {
  * Folds a run's jokers (with their levels) and active synergies into the MatchOptions a
  * node's GameController is built with.
  */
-export function matchOptionsFromJokers(jokerIds: string[], levels: Record<string, number> = {}): MatchOptions {
+export interface RunContext {
+  /** Run-long joker counters (الحصالة's growth). */
+  counters?: Record<string, number>;
+  /** Gold held when the match starts (الصراف counts it). */
+  gold?: number;
+}
+
+export function matchOptionsFromJokers(jokerIds: string[], levels: Record<string, number> = {}, ctx: RunContext = {}): MatchOptions {
+  const own = baseOptions(jokerIds, levels, ctx);
+  // النسخة copies the joker on its right in your row — the one bought just before it.
+  const at = jokerIds.indexOf("copycat");
+  const target = at > 0 ? jokerIds[at - 1] : undefined;
+  if (!target || target === "copycat") return own;
+  const copied = baseOptions([target], levels, ctx);
+  return mergeOptions(own, copied);
+}
+
+/** Numbers add (a multiplier adds its excess over 1), flags OR, nested objects merge the same way. */
+const MULTIPLIERS = new Set(["sunMultiplier", "projectMultiplier", "gamblerMultiplier"]);
+function mergeOptions(a: MatchOptions, b: MatchOptions): MatchOptions {
+  const out: Record<string, unknown> = { ...a };
+  for (const [key, value] of Object.entries(b)) {
+    const mine = out[key];
+    if (mine === undefined) out[key] = value;
+    else if (typeof value === "number" && typeof mine === "number") out[key] = MULTIPLIERS.has(key) ? mine + value - 1 : mine + value;
+    else if (typeof value === "boolean") out[key] = !!mine || value;
+    else if (Array.isArray(value) && Array.isArray(mine)) out[key] = [...mine, ...value];
+    else if (value && typeof value === "object" && mine && typeof mine === "object") {
+      const merged: Record<string, unknown> = { ...(mine as object) };
+      for (const [k, v] of Object.entries(value as object)) {
+        const m = merged[k];
+        merged[k] = typeof v === "number" && typeof m === "number" ? m + v : typeof v === "boolean" ? !!m || v : (m ?? v);
+      }
+      out[key] = merged;
+    }
+  }
+  return out as MatchOptions;
+}
+
+function baseOptions(jokerIds: string[], levels: Record<string, number>, ctx: RunContext): MatchOptions {
   const o: MatchOptions = {};
   const lv = (id: string) => (jokerIds.includes(id) ? (levels[id] ?? 1) : 0);
   const pick = <T>(id: string, values: T[]): T | undefined => (lv(id) ? values[Math.min(lv(id), values.length) - 1] : undefined);
@@ -508,5 +640,35 @@ export function matchOptionsFromJokers(jokerIds: string[], levels: Record<string
   if (patience) o.lossGold = patience;
   const kaboot = pick("golden-kaboot", [15, 25]);
   if (kaboot) o.kabootBonus = { points: kaboot, gold: kaboot };
+
+  // ---- build-makers
+  const winBonuses: Array<{ label: string; points: number }> = [];
+  const chief = pick("chief", [1, 2]);
+  if (chief) {
+    const biggest = Math.max(0, ...activeSynergies(jokerIds).map((x) => x.count));
+    if (biggest) winBonuses.push({ label: "شيخ القبيلة", points: chief * biggest });
+  }
+  const maestro = pick("maestro", [2, 3]);
+  if (maestro) {
+    const tiers = activeSynergies(jokerIds).reduce((n, x) => n + (x.tier ? SYNERGIES[x.tag].indexOf(x.tier) + 1 : 0), 0);
+    if (tiers) winBonuses.push({ label: "المايسترو", points: maestro * tiers });
+  }
+  const piggy = lv("piggy") ? (ctx.counters?.["piggy"] ?? 0) : 0;
+  if (piggy) winBonuses.push({ label: "الحصالة", points: piggy });
+  if (winBonuses.length) o.winBonuses = winBonuses;
+
+  const cap = pick("money-changer", [4, 6, 8]);
+  if (cap) o.goldToPoints = { per: 10, cap, startingGold: ctx.gold ?? 0 };
+  const cut = pick("cutter", [1, 2, 3]);
+  if (cut) o.ruffBonus = cut;
+  const gamble = pick("gambler", [1.3, 1.5]);
+  if (gamble) {
+    o.gamblerMultiplier = gamble;
+    o.lossGoldCost = 4;
+  }
+  const ledger = pick("ledger", [1, 2]);
+  if (ledger) o.projectGold = ledger;
+  if (tierOf(jokerIds, "ذهب") >= 2) o.winGold = 2;
+  if (tierOf(jokerIds, "مشروع") >= 2) o.projectsAlwaysCount = true;
   return o;
 }

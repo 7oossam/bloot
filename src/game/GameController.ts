@@ -7,7 +7,7 @@ import { Round } from "../engine/round";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { nextSeat, teamOf } from "../engine/types";
 import { rankStrength } from "../engine/cards";
-import type { ProjectsOutcome } from "../engine/projects";
+import { PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
 import { isAkka } from "../engine/trick";
 import { Emitter } from "./emitter";
 
@@ -67,6 +67,22 @@ export interface MatchOptions {
   lossGold?: number;
   /** Extra points and gold when your team takes a كبوت. */
   kabootBonus?: { points: number; gold: number };
+  /** Flat bonuses paid on every hand your team wins (شيخ القبيلة، المايسترو، الحصالة). */
+  winBonuses?: Array<{ label: string; points: number }>;
+  /** الصراف: at the end of each hand, +1 point per `per` gold held (gold at the start plus earned), capped. */
+  goldToPoints?: { per: number; cap: number; startingGold: number };
+  /** Points per trick your team takes by trumping (hokum). */
+  ruffBonus?: number;
+  /** المقامر: multiplies your team's hand result... */
+  gamblerMultiplier?: number;
+  /** ...and costs this much gold every hand you lose. */
+  lossGoldCost?: number;
+  /** Gold per game point of projects your team scores (×this). */
+  projectGold?: number;
+  /** Gold for every hand your team wins (the ذهب synergy at 4). */
+  winGold?: number;
+  /** Your team's projects count even when the other side's are bigger (the مشروع synergy at 3). */
+  projectsAlwaysCount?: boolean;
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
@@ -145,6 +161,9 @@ export class GameController extends Emitter<EventMap> {
   /** Per-hand tallies for joker bonuses that pay out at the end of the hand. */
   private jackTricks = 0;
   private sunAceTricks = 0;
+  private ruffTricks = 0;
+  /** Gold this match has paid out so far (for الصراف). */
+  private goldEarned = 0;
 
   constructor(rand: () => number = Math.random, options: MatchOptions = {}) {
     super();
@@ -153,6 +172,12 @@ export class GameController extends Emitter<EventMap> {
     this.matchTarget = options.matchTarget ?? MATCH_TARGET;
     this.headStart = options.headStart ?? {};
     this.lastTrickBonus = options.lastTrickBonus;
+  }
+
+  /** Counts every gold payout, so الصراف can see what's been earned this match. */
+  override emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void {
+    if (event === "gold:earned") this.goldEarned += (payload as { amount: number }).amount;
+    super.emit(event, payload);
   }
 
   getRound(): Round {
@@ -170,6 +195,7 @@ export class GameController extends Emitter<EventMap> {
   startMatch(): void {
     this.matchScore = { 0: this.headStart[0] ?? 0, 1: this.headStart[1] ?? 0 };
     this.matchOver = false;
+    this.goldEarned = 0;
     this.dealer = 0;
     this.dealHand();
   }
@@ -178,6 +204,7 @@ export class GameController extends Emitter<EventMap> {
     this.pendingActions = [];
     this.jackTricks = 0;
     this.sunAceTricks = 0;
+    this.ruffTricks = 0;
     this.round = new Round(this.dealer, this.rand, {
       lastTrickBonus: this.lastTrickBonus,
       guaranteeJackFor: this.options.guaranteedJacks ? HUMAN_SEAT : undefined,
@@ -316,6 +343,8 @@ export class GameController extends Emitter<EventMap> {
     const o = this.options;
 
     if (ours && card.rank === "J") this.jackTricks++;
+    const led = trick.cards[trick.order[0]]!;
+    if (ours && trump && card.suit === trump && led.suit !== trump) this.ruffTricks++;
     if (ours && result.mode === "sun" && Object.values(trick.cards).some((c) => c?.rank === "A")) this.sunAceTricks++;
 
     if (o.goldPerAceTrick && ours) {
@@ -376,6 +405,13 @@ export class GameController extends Emitter<EventMap> {
     const weBought = result.declarerTeam === us;
     const o = this.options;
 
+    if (o.gamblerMultiplier && gained[us] > 0) {
+      const extra = Math.round(gained[us] * (o.gamblerMultiplier - 1));
+      if (extra > 0) {
+        gained[us] += extra;
+        bonuses.push({ label: "المقامر", points: extra });
+      }
+    }
     if (o.sunMultiplier && result.mode === "sun" && weBought && gained[us] > 0) {
       const extra = Math.round(gained[us] * (o.sunMultiplier - 1));
       if (extra > 0) {
@@ -438,7 +474,39 @@ export class GameController extends Emitter<EventMap> {
       bonuses.push({ label: "الكبوت الذهبي", points: o.kabootBonus.points });
       this.emit("gold:earned", { amount: o.kabootBonus.gold, reason: "الكبوت الذهبي" });
     }
+    if (o.ruffBonus && this.ruffTricks > 0) {
+      const pts = o.ruffBonus * this.ruffTricks;
+      gained[us] += pts;
+      bonuses.push({ label: "القطّاع", points: pts });
+    }
+    // مشروع 3: our projects count even when theirs were bigger.
+    const proj = this.round.projects;
+    if (o.projectsAlwaysCount && proj && proj.winner !== undefined && proj.winner !== us) {
+      const ours = proj.declared.filter((p) => teamOf(p.seat) === us).reduce((n, p) => n + PROJECT_VALUE[result.mode][p.kind], 0);
+      if (ours > 0) {
+        gained[us] += ours;
+        bonuses.push({ label: "تآزر المشاريع", points: ours });
+      }
+    }
+    if (o.projectGold && ourProjects > 0) this.emit("gold:earned", { amount: ourProjects * o.projectGold, reason: "دفتر المشاريع" });
+    const handWon = result.gamePoints[us] > result.gamePoints[them];
+    if (handWon) {
+      for (const b of o.winBonuses ?? []) {
+        gained[us] += b.points;
+        bonuses.push(b);
+      }
+      if (o.winGold) this.emit("gold:earned", { amount: o.winGold, reason: "تآزر الذهب" });
+    }
+    if (o.goldToPoints) {
+      const held = o.goldToPoints.startingGold + this.goldEarned;
+      const pts = Math.min(Math.floor(held / o.goldToPoints.per), o.goldToPoints.cap);
+      if (pts > 0) {
+        gained[us] += pts;
+        bonuses.push({ label: "الصراف", points: pts });
+      }
+    }
     if (o.lossGold && gained[us] < gained[them]) this.emit("gold:earned", { amount: o.lossGold, reason: "الصبر مفتاح" });
+    if (o.lossGoldCost && gained[us] < gained[them]) this.emit("gold:earned", { amount: -o.lossGoldCost, reason: "المقامر" });
     if (o.comeback && gained[us] > 0 && this.matchScore[them] - this.matchScore[us] >= o.comeback.deficit) {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });

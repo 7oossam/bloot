@@ -160,7 +160,8 @@ export class MapScene extends Phaser.Scene {
       this.scene.start("shop");
       return;
     }
-    const modifiers = matchOptionsFromJokers(runController.getState().jokerIds, runController.getState().jokerLevels);
+    const run = runController.getState();
+    const modifiers = matchOptionsFromJokers(run.jokerIds, run.jokerLevels, { counters: run.jokerCounters, gold: run.gold });
     // دفعة: a one-off head start for this match, on top of any joker's.
     const boost = runController.takeMatchBoost();
     if (boost) modifiers.headStart = { ...modifiers.headStart, 0: (modifiers.headStart?.[0] ?? 0) + boost };

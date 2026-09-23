@@ -275,7 +275,8 @@ describe("joker levels and synergies", () => {
 
   it("every joker has a match effect at every level (the treasury pays at the shop instead)", () => {
     for (const j of JOKER_CATALOG) {
-      if (j.id === "treasury") continue;
+      // The treasury pays at the shop; الوايلد, النسخة and الحصالة need the rest of a row / a run to do anything.
+      if (["treasury", "wild", "copycat", "piggy", "chief", "maestro"].includes(j.id)) continue;
       for (let lvl = 1; lvl <= maxLevel(j); lvl++) {
         expect(Object.keys(matchOptionsFromJokers([j.id], { [j.id]: lvl })).length, `${j.id} Lv${lvl}`).toBeGreaterThan(0);
       }
@@ -378,5 +379,152 @@ describe("the new jokers", () => {
     const three = matchOptionsFromJokers(["trap", "comeback", "patience"]);
     expect(three.rivalLossBonus).toBe(5 + 8);
     expect(three.lossGold).toBe(3 + 2);
+  });
+});
+
+describe("build-makers: jokers that depend on your row", () => {
+  it("الوايلد joins every family you've started", () => {
+    const hokum = activeSynergies(["hokum-master", "wild"]).find((x) => x.tag === "حكم")!;
+    expect(hokum.count).toBe(2);
+    expect(hokum.tier?.count).toBe(2);
+    expect(activeSynergies(["wild"])).toEqual([]);
+    expect(matchOptionsFromJokers(["hokum-master", "wild"]).hokumSynergyBonus).toBe(3);
+  });
+
+  it("شيخ القبيلة pays for one big family; المايسترو for many active synergies", () => {
+    const mono = matchOptionsFromJokers(["chief", "hokum-master", "forged-jack", "burn"]);
+    expect(mono.winBonuses).toContainEqual({ label: "شيخ القبيلة", points: 3 });
+    const wide = matchOptionsFromJokers(["maestro", "hokum-master", "royal-baloot", "trap", "comeback"], {}, {});
+    // حكم 2 (tier 1), دفاع 2 (tier 1), مشروع 1 (none) → 2 tiers × 2.
+    expect(wide.winBonuses).toContainEqual({ label: "المايسترو", points: 4 });
+  });
+
+  it("النسخة copies the joker on its right — the one before it in the row", () => {
+    const o = matchOptionsFromJokers(["hokum-master", "copycat"], { "hokum-master": 2 });
+    expect(o.hokumMadeBonus).toBe(20);
+    const sun = matchOptionsFromJokers(["royal-sun", "copycat"]);
+    expect(sun.sunMultiplier).toBeCloseTo(2); // 1.5 + its 0.5 again
+    // On the far right it has nothing to copy; order matters.
+    expect(matchOptionsFromJokers(["copycat", "hokum-master"]).hokumMadeBonus).toBe(5);
+    runController.startNewRun(1);
+    runController.addGold(500);
+    runController.buyJoker("hokum-master");
+    runController.buyJoker("copycat");
+    runController.moveJoker("copycat", -1);
+    expect(runController.getState().jokerIds).toEqual(["copycat", "hokum-master"]);
+  });
+
+  it("الحصالة grows with every match won and pays on every hand won", () => {
+    runController.startNewRun(2);
+    runController.addGold(100);
+    runController.buyJoker("piggy");
+    for (let i = 0; i < 2; i++) {
+      const node = runController.getAvailableNode()!;
+      runController.enterNode(node.id);
+      runController.resolveMatchNode(true);
+      runController.skipReward();
+    }
+    const s = runController.getState();
+    expect(s.jokerCounters["piggy"]).toBe(2);
+    expect(matchOptionsFromJokers(s.jokerIds, s.jokerLevels, { counters: s.jokerCounters }).winBonuses).toContainEqual({
+      label: "الحصالة",
+      points: 2,
+    });
+  });
+
+  it("الصراف, المقامر and دفتر المشاريع turn into their options", () => {
+    expect(matchOptionsFromJokers(["money-changer"], {}, { gold: 57 }).goldToPoints).toEqual({ per: 10, cap: 4, startingGold: 57 });
+    const g = matchOptionsFromJokers(["gambler"], { gambler: 2 });
+    expect(g.gamblerMultiplier).toBe(1.5);
+    expect(g.lossGoldCost).toBe(4);
+    expect(matchOptionsFromJokers(["ledger"]).projectGold).toBe(1);
+    expect(matchOptionsFromJokers(["cutter"], { cutter: 3 }).ruffBonus).toBe(3);
+    // ذهب at 4 pays gold per hand won; مشروع at 3 makes your projects always count.
+    expect(matchOptionsFromJokers(["golden-touch", "treasury", "ledger", "gambler"]).winGold).toBe(2);
+    expect(matchOptionsFromJokers(["project-engineer", "royal-baloot", "ledger"]).projectsAlwaysCount).toBe(true);
+  });
+});
+
+describe("غنائم الصكة — rewards after every match won", () => {
+  beforeEach(() => runController.startNewRun(11));
+  const winNext = () => {
+    const node = runController.getAvailableNode()!;
+    runController.enterNode(node.id);
+    return runController.resolveMatchNode(true);
+  };
+
+  it("a won match offers three free spoils; a lost one offers none", () => {
+    winNext();
+    const r = runController.getState().pendingRewards!;
+    expect(r.items).toHaveLength(3);
+    expect(new Set(r.items).size).toBe(3);
+    const id = r.items.find((x) => !runController.whyNotReward(x))!;
+    const gold = runController.getState().gold;
+    runController.takeReward(id);
+    expect(runController.getState().gold).toBe(gold); // free
+    expect(runController.getState().pendingRewards).toBeUndefined();
+    const node = runController.getAvailableNode()!;
+    runController.enterNode(node.id);
+    runController.resolveMatchNode(false);
+    expect(runController.getState().pendingRewards).toBeUndefined();
+  });
+
+  it("skipping pays a little gold instead", () => {
+    winNext();
+    const gold = runController.getState().gold;
+    runController.skipReward();
+    expect(runController.getState().gold).toBe(gold + 8);
+  });
+
+  it("offers lean towards your build: jokers sharing your families show up far more", () => {
+    let aligned = 0, total = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      runController.startNewRun(seed);
+      runController.addGold(200);
+      runController.buyJoker("hokum-master");
+      runController.buyJoker("cutter");
+      winNext();
+      for (const id of runController.getState().pendingRewards!.items) {
+        const def = getJokerDef(id)!;
+        total++;
+        if (def.kind === "joker" && (def.tags.includes("حكم") || ["hokum-master", "cutter"].includes(id))) aligned++;
+      }
+    }
+    // حكم jokers are ~7 of 33 jokers; weighted, they fill well over a quarter of the offers.
+    expect(aligned / total).toBeGreaterThan(0.3);
+  });
+
+  it("the elite's spoils are rarer, and the boss ends the run without any", () => {
+    let rare = 0, count = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      runController.startNewRun(seed);
+      for (;;) {
+        const node = runController.getAvailableNode()!;
+        runController.enterNode(node.id);
+        if (node.type === "shop") { runController.leaveShopNode(); continue; }
+        runController.resolveMatchNode(true);
+        if (node.type === "elite") break;
+        runController.skipReward();
+      }
+      const r = runController.getState().pendingRewards!;
+      expect(r.elite).toBe(true);
+      for (const id of r.items) {
+        const def = getJokerDef(id)!;
+        if (def.kind !== "joker") continue;
+        count++;
+        if (def.rarity !== "common") rare++;
+      }
+    }
+    expect(rare / count).toBeGreaterThan(0.6);
+    runController.skipReward();
+    let node = runController.getAvailableNode();
+    while (node) {
+      runController.enterNode(node.id);
+      if (node.type === "shop") runController.leaveShopNode();
+      else { runController.resolveMatchNode(true); runController.skipReward(); }
+      node = runController.getAvailableNode();
+    }
+    expect(runController.getState().won).toBe(true);
+    expect(runController.getState().pendingRewards).toBeUndefined();
   });
 });

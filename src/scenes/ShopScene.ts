@@ -96,7 +96,7 @@ export class ShopScene extends Phaser.Scene {
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
     this.ownedText.setText(
-      (state.jokerIds.length ? "اضغط جوكر عشان تبيعه" : "ما عندك جوكرز للحين") + (synergies ? `  —  تآزر: ${synergies}` : ""),
+      (state.jokerIds.length ? "اضغط جوكر: بيع أو ترتيب" : "ما عندك جوكرز للحين") + (synergies ? `  —  تآزر: ${synergies}` : ""),
     );
 
     const offering = runController.shopOffering();
@@ -206,9 +206,9 @@ export class ShopScene extends Phaser.Scene {
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.55).setInteractive();
     const g = this.add.graphics();
     g.fillStyle(0x241a3f, 1);
-    g.fillRoundedRect(-w / 2, -170, w, 340, 26);
+    g.fillRoundedRect(-w / 2, -170, w, 420, 26);
     g.lineStyle(4, 0xffd54a, 1);
-    g.strokeRoundedRect(-w / 2, -170, w, 340, 26);
+    g.strokeRoundedRect(-w / 2, -170, w, 420, 26);
     panel.add([shade, g]);
     panel.add(this.add.text(0, -100, def.icon, { fontSize: "64px" }).setOrigin(0.5));
     panel.add(arabicText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
@@ -225,6 +225,15 @@ export class ShopScene extends Phaser.Scene {
     }, { width: 220, height: 76, color: 0x8a3a3a });
     const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76 });
     panel.add([sell.container, keep.container]);
+    // The row's order matters to النسخة (it copies the joker on its right).
+    if (runController.getState().jokerIds.indexOf(id) > 0) {
+      const move = makeButton(this, 0, 205, "➡️ حرّكه يمين", () => {
+        runController.moveJoker(id, -1);
+        close();
+        this.refresh();
+      }, { width: 300, height: 66, fontSize: "24px", color: 0x5a3d99 });
+      panel.add(move.container);
+    }
     this.dialog = panel;
   }
 
