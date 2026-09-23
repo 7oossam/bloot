@@ -7,7 +7,8 @@ export const SUIT_COLOR_HEX: Record<Suit, string> = {
   H: "#b3261e",
   D: "#b3261e",
 };
-export const SUIT_NAME_AR: Record<Suit, string> = { S: "بستوني", H: "هرت", D: "دينار", C: "كلاوي" };
+/** The player's names for the suits (docs/baloot-guide.md §1). */
+export const SUIT_NAME_AR: Record<Suit, string> = { S: "سبيت", H: "هاص", D: "ديمن", C: "شرية" };
 
 /** What Baloot players call each rank. */
 export const RANK_NAME_AR: Record<Rank, string> = {

@@ -25,7 +25,8 @@ export type Mode = "hokum" | "sun";
 
 export interface Bid {
   seat: Seat;
-  call: "hokum" | "sun" | "pass";
+  /** "ashkal" (أشكل): the dealer's partner hands the ground card to the dealer as a forced sun. */
+  call: "hokum" | "sun" | "pass" | "ashkal";
   suit?: Suit; // present when call === "hokum"
 }
 
@@ -35,6 +36,8 @@ export interface BiddingResult {
   declarer: Seat;
   declarerTeam: Team;
   history: Bid[];
+  /** Set when the contract came from أشكل: who called it and which suits it asks the dealer to play. */
+  ashkal?: { caller: Seat; signalSuits: Suit[] };
 }
 
 export interface Trick {
@@ -53,4 +56,8 @@ export interface HandResult {
   /** Game points ("abnat") — what a match is played to: a hokum hand is worth 16, a sun hand 26. */
   gamePoints: Record<Team, number>;
   tricksWon: Record<Team, number>;
+  /** Game points from المشاريع (projects) and بلوت, already included in `gamePoints`. */
+  projectPoints?: Record<Team, number>;
+  /** Which seat scored بلوت this hand, if anyone did. */
+  baloot?: Seat;
 }

@@ -1,38 +1,50 @@
-import { legalCalls, type BiddingState } from "../engine/bidding";
-import type { Bid, Card, Seat } from "../engine/types";
-import { bestHokumOption, sunStrength } from "./evaluate";
+import { dealerPartner, legalCalls, type BiddingState } from "../engine/bidding";
+import { nextSeat, type Bid, type Card, type Seat } from "../engine/types";
+import { bestHokumOption, meetsHokumCriteria, meetsSunCriteria, sunStrength } from "./evaluate";
 
 /**
- * Buy thresholds, calibrated against the actual score distribution over sampled
- * 5-card bidding hands (hokum median ~36, sun median ~27). Together these buy on
- * roughly a quarter of hands, so the auction genuinely travels around the table
- * instead of the first seat sweeping it every time.
+ * Buy thresholds, calibrated against sampled 5-card hands (plus the ground card, which the
+ * buyer takes). With the guide's criteria as gates, about 86% of deals get bought (the
+ * rest are redealt) — split roughly evenly between hokum and sun —
+ * and the auction still travels round the table.
  *
- * Hokum scores run systematically higher than sun scores, so the two are never
- * compared raw — `decideBid` compares each one's margin over its own threshold.
+ * Hokum scores run systematically higher than sun scores, so the two are never compared
+ * raw — `decideBid` compares each one's margin over its own threshold.
  */
-export const HOKUM_BUY_THRESHOLD = 50;
-export const SUN_BUY_THRESHOLD = 42;
+export const HOKUM_BUY_THRESHOLD = 48;
+export const SUN_BUY_THRESHOLD = 40;
+/** معامل الحلة (§3): the seat that leads first values its hand 15–20% higher. */
+export const HILLA_FACTOR = 1.18;
 
 /**
- * Decides one seat's bid from its own 5-card hand only — bidding is
- * imperfect information, so this never looks at other hands.
+ * Decides one seat's bid from its own 5-card hand and the face-up ground card only —
+ * bidding is imperfect information, so this never looks at other hands.
  */
 export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
   const options = legalCalls(state);
+  const hasHilla = seat === nextSeat(state.dealer);
+  const factor = hasHilla ? HILLA_FACTOR : 1;
+  // Whoever buys takes the ground card, so judge the hand we'd actually play.
+  const withGround = [...hand, state.groundCard];
+
   const hokumSuits = options.filter((o) => o.call === "hokum").map((o) => o.suit!);
+  const hokum = hokumSuits.length > 0 ? bestHokumOption(withGround, hokumSuits) : undefined;
+  const hokumOk = !!hokum && meetsHokumCriteria(withGround, hokum.suit);
+  const sunOk = options.some((o) => o.call === "sun") && meetsSunCriteria(withGround, hasHilla);
 
-  const hokum = hokumSuits.length > 0 ? bestHokumOption(hand, hokumSuits) : undefined;
-  const sun = sunStrength(hand);
+  const hokumMargin = hokumOk ? hokum!.score * factor - HOKUM_BUY_THRESHOLD : -Infinity;
+  const sunMargin = sunOk ? sunStrength(withGround) * factor - SUN_BUY_THRESHOLD : -Infinity;
 
-  const hokumMargin = hokum ? hokum.score - HOKUM_BUY_THRESHOLD : -Infinity;
-  const sunMargin = sun - SUN_BUY_THRESHOLD;
+  if (hokumMargin >= 0 && hokumMargin >= sunMargin) return { seat, call: "hokum", suit: hokum!.suit };
+  if (sunMargin >= 0) return { seat, call: "sun" };
 
-  if (hokumMargin >= 0 && hokumMargin >= sunMargin) {
-    return { seat, call: "hokum", suit: hokum!.suit };
-  }
-  if (sunMargin >= 0) {
-    return { seat, call: "sun" };
+  // أشكل (§3): the dealer's partner with a decent sun hand, when the ground card is strong
+  // for sun — hand it to the dealer rather than buy alone.
+  if (options.some((o) => o.call === "ashkal") && seat === dealerPartner(state.dealer)) {
+    const strongGround = state.groundCard.rank === "A" || state.groundCard.rank === "10";
+    if (strongGround && hand.some((c) => c.rank === "A") && sunStrength(hand) >= SUN_BUY_THRESHOLD * 0.55) {
+      return { seat, call: "ashkal" };
+    }
   }
   return { seat, call: "pass" };
 }

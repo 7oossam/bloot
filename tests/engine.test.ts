@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildDeck } from "../src/engine/deck";
 import { dealInitial, finalizeDeal } from "../src/engine/deck";
-import { legalCalls, startBidding, submitBid } from "../src/engine/bidding";
-import { legalMoves, resolveTrick } from "../src/engine/trick";
+import { ashkalSignal, legalCalls, startBidding, submitBid } from "../src/engine/bidding";
+import { findProjects, resolveProjects } from "../src/engine/projects";
+import { isAkka, legalMoves, resolveTrick } from "../src/engine/trick";
 import { rankStrength, cardId, cardPoints } from "../src/engine/cards";
 import { scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
@@ -338,21 +339,24 @@ describe("Round: full hand end-to-end with simple always-first-legal bots", () =
   });
 });
 
-describe("toGamePoints (abnat)", () => {
-  it("a hokum hand is worth 16 and a hokum 5 rounds down", () => {
-    expect(toGamePoints({ 0: 85, 1: 77 })).toEqual({ 0: 8, 1: 8 });
-    expect(toGamePoints({ 0: 162, 1: 0 })).toEqual({ 0: 16, 1: 0 });
+describe("toGamePoints (القيد) — docs/baloot-guide.md §2", () => {
+  it("hokum: ÷10, a remainder of 1–5 drops and 6–9 rounds up", () => {
+    expect(toGamePoints({ 0: 85, 1: 77 }, "hokum", 0)).toEqual({ 0: 8, 1: 8 }); // 85 → 8 (5 drops)
+    expect(toGamePoints({ 0: 86, 1: 76 }, "hokum", 0)).toEqual({ 0: 9, 1: 7 }); // 86 → 9
+    expect(toGamePoints({ 0: 81, 1: 81 }, "hokum", 1)).toEqual({ 0: 8, 1: 8 });
+    expect(toGamePoints({ 0: 162, 1: 0 }, "hokum", 0)).toEqual({ 0: 16, 1: 0 });
   });
 
-  it("keeps the hand's total exact where rounding each side would not", () => {
-    // 8.6 + 7.6 rounded separately is 9 + 8 = 17, one more than a hokum hand is worth.
-    const g = toGamePoints({ 0: 86, 1: 76 });
-    expect(g[0] + g[1]).toBe(16);
+  it("the buyer is rounded by the rule and the other side takes the rest, so it never adds to 17", () => {
+    // 86/76 rounded independently would be 9 + 8 = 17.
+    const g = toGamePoints({ 0: 86, 1: 76 }, "hokum", 1);
+    expect(g).toEqual({ 0: 8, 1: 8 }); // buyer 76 → 8, the other side gets 16 − 8
   });
 
-  it("a sun hand is worth 26", () => {
-    expect(toGamePoints({ 0: 126, 1: 134 })).toEqual({ 0: 13, 1: 13 });
-    expect(toGamePoints({ 0: 260, 1: 0 })).toEqual({ 0: 26, 1: 0 });
+  it("sun: ÷5, a remainder of 1–2 drops and 3–4 rounds up", () => {
+    expect(toGamePoints({ 0: 63, 1: 67 }, "sun", 0)).toEqual({ 0: 13, 1: 13 }); // 63 → 13 (3 rounds up)
+    expect(toGamePoints({ 0: 62, 1: 68 }, "sun", 0)).toEqual({ 0: 12, 1: 14 }); // 62 → 12 (2 drops)
+    expect(toGamePoints({ 0: 130, 1: 0 }, "sun", 0)).toEqual({ 0: 26, 1: 0 });
   });
 
   it("every played hand converts to exactly 16 (hokum) or 26 (sun)", () => {
@@ -370,14 +374,16 @@ describe("toGamePoints (abnat)", () => {
         const seat = round.turnSeat!;
         round.playCard(seat, round.legalMovesFor(seat)[0]);
       }
+      // Card points alone are worth exactly the hand's value; projects come on top.
       const g = round.result!.gamePoints;
-      expect(g[0] + g[1]).toBe(round.result!.mode === "hokum" ? 16 : 26);
+      const p = round.result!.projectPoints!;
+      expect(g[0] - p[0] + g[1] - p[1]).toBe(round.result!.mode === "hokum" ? 16 : 26);
     }
   });
 
   it("a raised last-trick bonus (joker) raises the hand's value", () => {
-    // 152 card points + a 20-point last trick = 172 -> 17 abnat.
-    const g = toGamePoints({ 0: 100, 1: 72 });
+    // 152 card points + a 20-point الأرض = 172 → 17.
+    const g = toGamePoints({ 0: 100, 1: 72 }, "hokum", 0);
     expect(g[0] + g[1]).toBe(17);
   });
 });
@@ -436,5 +442,136 @@ describe("hand-editing effects", () => {
     other = submitBid(other, { seat: 1, call: "hokum", suit: "H" });
     expect(other.result).toBeUndefined();
     expect(other.challengers).toEqual([2, 3, 0]);
+  });
+});
+
+const C = (s: string): Card => ({ suit: s.slice(-1) as Card["suit"], rank: s.slice(0, -1) as Card["rank"] });
+const hand = (...cards: string[]) => cards.map(C);
+const kinds = (h: Card[], mode: "hokum" | "sun") => findProjects(h, mode, 0).map((p) => p.kind).sort();
+
+describe("المشاريع (projects) — docs/baloot-guide.md §1", () => {
+  it("سرا, خمسين, مئة from sequences in the natural 7..A order", () => {
+    expect(kinds(hand("7S", "8S", "9S", "KH", "AD", "2C".replace("2", "7"), "8C", "QD"), "hokum")).toEqual(["sira"]);
+    expect(kinds(hand("9H", "10H", "JH", "QH", "7S", "8D", "KC", "AC"), "sun")).toEqual(["khamsin"]);
+    expect(kinds(hand("10D", "JD", "QD", "KD", "AD", "7S", "8S", "7H"), "hokum")).toEqual(["miya"]);
+    // 10 → J is a sequence (natural order), unlike trump strength.
+    expect(kinds(hand("9C", "10C", "JC", "7H", "8H", "AS", "KD", "QD"), "sun")).toEqual(["sira"]);
+  });
+
+  it("four of a kind: Aces are أربعمئة in sun but مئة in hokum; Jacks count in hokum only", () => {
+    const aces = hand("AS", "AH", "AD", "AC", "7S", "8H", "9D", "QC");
+    expect(kinds(aces, "sun")).toEqual(["arbaamiya"]);
+    expect(kinds(aces, "hokum")).toEqual(["miya"]);
+    const jacks = hand("JS", "JH", "JD", "JC", "7S", "9H", "8D", "QC");
+    expect(kinds(jacks, "hokum")).toEqual(["miya"]);
+    expect(kinds(jacks, "sun")).toEqual([]);
+    expect(kinds(hand("KS", "KH", "KD", "KC", "7S", "9H", "8D", "7C"), "sun")).toEqual(["miya"]);
+    // Four 9s, 8s or 7s are nothing.
+    expect(kinds(hand("9S", "9H", "9D", "9C", "7S", "8H", "QD", "7C"), "hokum")).toEqual([]);
+  });
+
+  it("a card counts in one project only — the reading worth more wins", () => {
+    // Four Kings plus Q-K-A of spades: using K♠ in the four (مئة) beats using it in a سرا.
+    const h = hand("KS", "KH", "KD", "KC", "QS", "AS", "7D", "8C");
+    expect(kinds(h, "hokum")).toEqual(["miya"]);
+  });
+
+  it("only the team with the best project scores, and it scores all of its projects", () => {
+    const hands = {
+      0: hand("7S", "8S", "9S", "10H", "JH", "QH", "7D", "8D"), // two سرا
+      1: hand("9D", "10D", "JD", "QD", "7C", "8C", "AS", "KS"), // خمسين — beats both
+      2: hand("7H", "8H", "9H", "AD", "KD", "AC", "KC", "QC"), // سرا
+      3: hand("JS", "QS", "10S", "9C", "10C", "JC", "8H", "AH"), // two سرا
+    } as Record<0 | 1 | 2 | 3, Card[]>;
+    const out = resolveProjects(hands, "hokum", 1);
+    expect(out.winner).toBe(1);
+    expect(out.points).toEqual({ 0: 0, 1: 5 + 2 + 2 });
+    const sun = resolveProjects(hands, "sun", 1);
+    expect(sun.points).toEqual({ 0: 0, 1: 10 + 4 + 4 });
+  });
+
+  it("an exact tie goes to whoever plays first", () => {
+    const hands = {
+      0: hand("7S", "8S", "9S", "AH", "KD", "7C", "8C", "QD"),
+      1: hand("7H", "8H", "9H", "AS", "KC", "10D", "JD", "10C"),
+      2: hand("QS", "JS", "10S", "7D", "8D", "9D", "AD", "AC"),
+      3: hand("QH", "KH", "10H", "JH", "9C", "JC", "KS", "QC"),
+    } as Record<0 | 1 | 2 | 3, Card[]>;
+    // Seat 0's 7-8-9♠ and seat 1's 7-8-9♥ are identical; seat 1 leads, so team 1 wins
+    // — unless something better exists: seat 3 has 10-J-Q-K♥ (خمسين), so team 1 anyway.
+    expect(resolveProjects(hands, "hokum", 1).winner).toBe(1);
+  });
+
+  it("بلوت: trump K+Q in one hand scores 2 once both are played, and never in sun", () => {
+    let found = 0;
+    for (let seed = 1; seed <= 400 && found < 3; seed++) {
+      const round = new Round((seed % 4) as Seat, mulberry32(seed));
+      while (round.phase === "bidding") {
+        const calls = round.legalBids();
+        const hokum = calls.find((c) => c.call === "hokum");
+        round.bid({ seat: round.bidding.turnSeat, ...(hokum ?? { call: "pass" }) } as Bid);
+      }
+      if (round.phase !== "playing" || round.balootHolder === undefined) continue;
+      const holder = round.balootHolder;
+      while (round.phase === "playing") {
+        const seat = round.turnSeat!;
+        round.playCard(seat, round.legalMovesFor(seat)[0]);
+      }
+      expect(round.result!.baloot).toBe(holder);
+      const team = holder % 2 as 0 | 1;
+      expect(round.result!.projectPoints![team]).toBeGreaterThanOrEqual(2);
+      found++;
+    }
+    expect(found).toBeGreaterThan(0);
+  });
+});
+
+describe("أشكل (Ashkal) — docs/baloot-guide.md §1, §3", () => {
+  it("only the dealer's partner may call it, in either round", () => {
+    const ground: Card = { suit: "H", rank: "A" };
+    let state = startBidding(0, ground);
+    expect(legalCalls(state).some((c) => c.call === "ashkal")).toBe(false); // seat 1
+    state = submitBid(state, { seat: 1, call: "pass" });
+    expect(legalCalls(state).some((c) => c.call === "ashkal")).toBe(true); // seat 2 = dealer's partner
+    expect(() => submitBid(startBidding(0, ground), { seat: 1, call: "ashkal" })).toThrow();
+  });
+
+  it("makes the dealer buy sun, and the dealer takes the ground card", () => {
+    const round = new Round(3, mulberry32(12));
+    const ground = round.groundCard;
+    round.bid({ seat: 0, call: "pass" });
+    round.bid({ seat: 1, call: "ashkal" }); // dealer 3's partner is seat 1
+    expect(round.bidding.result).toMatchObject({ mode: "sun", declarer: 3, declarerTeam: 1 });
+    expect(round.hands[3].some((c) => c.suit === ground.suit && c.rank === ground.rank)).toBe(true);
+  });
+
+  it("round 1 asks for the other suit of the same colour; round 2 for the other colour", () => {
+    expect(ashkalSignal("H", 1)).toEqual(["D"]);
+    expect(ashkalSignal("D", 1)).toEqual(["H"]);
+    expect(ashkalSignal("C", 1)).toEqual(["S"]);
+    expect(ashkalSignal("S", 1)).toEqual(["C"]);
+    expect(ashkalSignal("H", 2)).toEqual(["S", "C"]);
+    expect(ashkalSignal("S", 2)).toEqual(["H", "D"]);
+  });
+
+  it("can also take over a pending hokum", () => {
+    const ground: Card = { suit: "H", rank: "9" };
+    let state = startBidding(0, ground);
+    state = submitBid(state, { seat: 1, call: "hokum", suit: "H" });
+    expect(state.turnSeat).toBe(2);
+    state = submitBid(state, { seat: 2, call: "ashkal" });
+    expect(state.result).toMatchObject({ mode: "sun", declarer: 0 });
+    expect(state.result!.ashkal!.signalSuits).toEqual(["D"]);
+  });
+});
+
+describe("أكي (Akka) — docs/baloot-guide.md §6.1", () => {
+  it("is the highest non-trump card left, in hokum, and never an Ace", () => {
+    expect(isAkka(C("10H"), [C("AH")], "hokum", "S")).toBe(true);
+    expect(isAkka(C("10H"), [], "hokum", "S")).toBe(false); // the Ace is still out
+    expect(isAkka(C("KH"), [C("AH"), C("10H")], "hokum", "S")).toBe(true);
+    expect(isAkka(C("AH"), [], "hokum", "S")).toBe(false);
+    expect(isAkka(C("10H"), [C("AH")], "sun", undefined)).toBe(false);
+    expect(isAkka(C("10S"), [C("AS"), C("JS"), C("9S")], "hokum", "S")).toBe(false); // trump
   });
 });

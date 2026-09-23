@@ -224,7 +224,8 @@ describe("combo jokers", () => {
         }
       }
       const r = c.getRound();
-      if (r.phase !== "playing" || r.bidding.result!.declarer !== HUMAN_SEAT) continue;
+      // A challenger (or أشكل) can turn it into sun — then the joker rightly doesn't fire.
+      if (r.phase !== "playing" || r.bidding.result!.declarer !== HUMAN_SEAT || r.bidding.result!.mode !== "hokum") continue;
       const trump = r.bidding.result!.trumpSuit!;
       const jacksBefore = r.hands[HUMAN_SEAT].filter((x) => x.suit === trump && x.rank === "J").length;
       expect(c.step()).toBe("waiting-human");
@@ -244,7 +245,7 @@ describe("combo jokers", () => {
 
   it("صيد الولد: winning with the trump Jack trades a card with an opponent (a trump at level 2)", () => {
     let swaps = 0, trumpDraws = 0, trumpAvailable = 0;
-    for (let seed = 1; seed <= 120; seed++) {
+    for (let seed = 1; seed <= 400; seed++) {
       const c = new GameController(mulberry32(seed), {
         matchTarget: 999,
         forgedJack: { nine: false, partnerToo: false },
@@ -265,7 +266,7 @@ describe("combo jokers", () => {
         }
       });
       c.startMatch();
-      autoplay(c, () => swaps > 0, 600);
+      autoplay(c, () => swaps > 0, 1500);
       if (swaps >= 6) break;
     }
     expect(swaps).toBeGreaterThan(0);

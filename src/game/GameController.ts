@@ -5,6 +5,8 @@ import { Round } from "../engine/round";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { nextSeat, teamOf } from "../engine/types";
 import { rankStrength } from "../engine/cards";
+import type { ProjectsOutcome } from "../engine/projects";
+import { isAkka } from "../engine/trick";
 import { Emitter } from "./emitter";
 
 export const HUMAN_SEAT: Seat = 0;
@@ -75,7 +77,10 @@ interface EventMap {
   "bidding:bid": { bid: Bid };
   "bidding:resolved": { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> };
   "play:turn": { seat: Seat; legal: Card[] };
-  "play:card": { seat: Seat; card: Card };
+  /** `akka` when the lead is أكي; `baloot` when this card completes بلوت. */
+  "play:card": { seat: Seat; card: Card; akka?: boolean; baloot?: boolean };
+  /** المشاريع, decided the moment play starts. */
+  "projects:declared": ProjectsOutcome;
   "trick:complete": { trick: Trick; winner: Seat };
   "hand:complete": {
     result: HandResult;
@@ -193,13 +198,13 @@ export class GameController extends Emitter<EventMap> {
         this.emit("play:turn", { seat, legal: this.round.legalMovesFor(seat) });
         return "waiting-human";
       }
-      const card = decideCard(
-        this.round.hands[seat],
-        this.round.currentTrick!,
-        this.round.bidding.result!.mode,
-        this.round.bidding.result!.trumpSuit,
-        seat,
-      );
+      const result = this.round.bidding.result!;
+      const card = decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, {
+        tricks: this.round.tricks,
+        declarer: result.declarer,
+        // أشكل is a message to the dealer only (docs/baloot-guide.md §3).
+        ashkalSuits: seat === result.declarer ? result.ashkal?.signalSuits : undefined,
+      });
       this.applyCard(seat, card);
       return "advanced";
     }
@@ -297,6 +302,7 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.bidding.result) {
       const { mode, trumpSuit, declarer } = this.round.bidding.result;
       this.emit("bidding:resolved", { mode, trumpSuit, declarer, hands: this.round.hands });
+      if (this.round.projects) this.emit("projects:declared", this.round.projects);
 
       const forged = this.options.forgedJack;
       const ourBuy = declarer === HUMAN_SEAT || (!!forged?.partnerToo && teamOf(declarer) === teamOf(HUMAN_SEAT));
@@ -355,8 +361,13 @@ export class GameController extends Emitter<EventMap> {
 
   private applyCard(seat: Seat, card: Card): void {
     const tricksBefore = this.round.tricks.length;
+    const { mode, trumpSuit } = this.round.bidding.result!;
+    const leading = this.round.currentTrick!.order.length === 0;
+    const akka = leading && isAkka(card, this.round.tricks.flatMap((t) => Object.values(t.cards) as Card[]), mode, trumpSuit);
+    const balootBefore = this.round.balootDeclared;
     this.round.playCard(seat, card);
-    this.emit("play:card", { seat, card });
+    const baloot = !balootBefore && this.round.balootDeclared;
+    this.emit("play:card", { seat, card, akka: akka || undefined, baloot: baloot || undefined });
 
     if (this.round.tricks.length > tricksBefore) {
       const finishedTrick = this.round.tricks[this.round.tricks.length - 1];

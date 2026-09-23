@@ -26,8 +26,24 @@ export interface BiddingState {
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
 export interface LegalCall {
-  call: "hokum" | "sun" | "pass";
+  call: "hokum" | "sun" | "pass" | "ashkal";
   suit?: Suit;
+}
+
+/** The dealer's partner — the only seat allowed to call أشكل (docs/baloot-guide.md §3). */
+export function dealerPartner(dealer: Seat): Seat {
+  return nextSeat(nextSeat(dealer));
+}
+
+/**
+ * What أشكل asks the dealer to play (docs/baloot-guide.md §3): in the first round the other
+ * suit of the ground card's colour ("عكس الشكل"), in the second both suits of the other
+ * colour ("عكس اللون").
+ */
+export function ashkalSignal(groundSuit: Suit, round: BiddingRound): Suit[] {
+  const red = groundSuit === "H" || groundSuit === "D";
+  if (round === 1) return [({ H: "D", D: "H", S: "C", C: "S" } as Record<Suit, Suit>)[groundSuit]];
+  return red ? ["S", "C"] : ["H", "D"];
 }
 
 export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: Team[] = []): BiddingState {
@@ -44,9 +60,11 @@ export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: T
 /** Round 1: hokum must match the ground card's suit. Round 2: hokum must NOT match it. Sun is always legal. */
 export function legalCalls(state: BiddingState): LegalCall[] {
   if (state.result || state.redeal) return [];
-  // Answering someone else's hokum: sun takes it over, anything else is a pass.
-  if (state.pendingHokum) return [{ call: "pass" }, { call: "sun" }];
+  const canAshkal = state.turnSeat === dealerPartner(state.dealer);
+  // Answering someone else's hokum: sun (or أشكل) takes it over, anything else is a pass.
+  if (state.pendingHokum) return [{ call: "pass" }, { call: "sun" }, ...(canAshkal ? [{ call: "ashkal" } as LegalCall] : [])];
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
+  if (canAshkal) calls.push({ call: "ashkal" });
   if (state.round === 1) {
     calls.push({ call: "hokum", suit: state.groundCard.suit });
   } else {
@@ -66,6 +84,22 @@ export function submitBid(state: BiddingState, bid: Bid): BiddingState {
   const allowed = legalCalls(state).some(
     (c) => c.call === bid.call && (c.call !== "hokum" || c.suit === bid.suit),
   );
+  if (allowed && bid.call === "ashkal") {
+    const history = [...state.history, bid];
+    return {
+      ...state,
+      history,
+      pendingHokum: undefined,
+      challengers: undefined,
+      result: {
+        mode: "sun",
+        declarer: state.dealer,
+        declarerTeam: teamOf(state.dealer),
+        history,
+        ashkal: { caller: bid.seat, signalSuits: ashkalSignal(state.groundCard.suit, state.round) },
+      },
+    };
+  }
   if (!allowed) {
     throw new Error(`Illegal call: ${JSON.stringify(bid)} in round ${state.round}`);
   }

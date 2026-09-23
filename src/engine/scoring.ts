@@ -42,30 +42,27 @@ export function scoreHand(
     1: rawPoints[1] * multiplier,
   };
 
-  return { mode, trumpSuit, declarerTeam, rawPoints, scoredPoints, gamePoints: toGamePoints(scoredPoints), tricksWon };
+  return { mode, trumpSuit, declarerTeam, rawPoints, scoredPoints, gamePoints: toGamePoints(rawPoints, mode, declarerTeam), tricksWon };
 }
 
 /**
- * Converts scored card points to game points ("abnat"), the unit a match target is in.
+ * Converts a hand's raw points (card points + الأرض) to game points ("القيد"), per
+ * docs/baloot-guide.md §2:
  *
- * A hand's points go down by a factor of ten, and the two teams' shares must still add up to
- * the hand's full value (16 for hokum, 26 for sun, more when a joker raises the last-trick
- * bonus). Rounding each side independently can't guarantee that — 86/76 in hokum would give
- * 9 + 8 = 17 — so each team keeps its whole tens and the leftover point goes to the larger
- * remainder. That also reproduces the table rule that a hokum 5 rounds down: 85/77 -> 8/8.
+ * - hokum: ÷10, a remainder of 1–5 is dropped and 6–9 rounds up;
+ * - sun:   ÷5,  a remainder of 1–2 is dropped and 3–4 rounds up.
+ *
+ * Rounding both teams that way can over-count the hand (86/76 in hokum gives 9 + 8 = 17
+ * when a hokum hand is worth 16), so the buyer is rounded by the rule and the other side
+ * takes whatever is left of the hand's value.
  */
-export function toGamePoints(scored: Record<Team, number>): Record<Team, number> {
-  const total = Math.round((scored[0] + scored[1]) / 10);
-  const whole: Record<Team, number> = { 0: Math.floor(scored[0] / 10), 1: Math.floor(scored[1] / 10) };
-  let leftover = total - whole[0] - whole[1];
-  // Larger remainder first; on a tie, the side that took more card points.
-  const byRemainder: Team[] = ([0, 1] as Team[]).sort(
-    (a, b) => scored[b] % 10 - scored[a] % 10 || scored[b] - scored[a],
-  );
-  for (const team of byRemainder) {
-    if (leftover <= 0) break;
-    whole[team]++;
-    leftover--;
-  }
-  return whole;
+export function toGamePoints(raw: Record<Team, number>, mode: Mode, declarerTeam: Team): Record<Team, number> {
+  const divisor = mode === "hokum" ? 10 : 5;
+  const roundUpFrom = mode === "hokum" ? 6 : 3;
+  const round = (points: number) => Math.floor(points / divisor) + (points % divisor >= roundUpFrom ? 1 : 0);
+
+  const total = Math.round((raw[0] + raw[1]) / divisor);
+  const other: Team = declarerTeam === 0 ? 1 : 0;
+  const buyer = Math.min(round(raw[declarerTeam]), total);
+  return { [declarerTeam]: buyer, [other]: total - buyer } as Record<Team, number>;
 }

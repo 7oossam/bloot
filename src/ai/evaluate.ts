@@ -2,9 +2,8 @@ import { cardPoints, rankStrength } from "../engine/cards";
 import { SUITS, type Card, type Suit } from "../engine/types";
 
 /**
- * Utility scoring for bidding decisions (game-ai: "continuous preference
- * evaluation" — we only see our own 5-card hand at bid time, so this is a
- * rough estimate, not a lookahead search).
+ * Bid-time hand evaluation. Only our own 5 cards are known, plus the face-up ground card,
+ * which goes to whoever buys (docs/baloot-guide.md §1) — so every estimate includes it.
  */
 
 /** How strong this hand would be if `suit` were trump. */
@@ -39,6 +38,33 @@ export function sunStrength(hand: Card[]): number {
     if (count >= 3) score += (count - 2) * 2; // a long suit runs once opponents are out
   }
   return score;
+}
+
+/**
+ * معايير شراء الصن (§3): two clear Aces, or an Ace with a سرد suit (4 cards backed by a 10 or
+ * a King) — plus either the lead (الحلة) or a stopper in the other suits.
+ */
+export function meetsSunCriteria(hand: Card[], hasHilla: boolean): boolean {
+  const aces = hand.filter((c) => c.rank === "A").length;
+  const sard = SUITS.some((s) => {
+    const cards = hand.filter((c) => c.suit === s);
+    return cards.length >= 4 && cards.some((c) => c.rank === "10" || c.rank === "K");
+  });
+  if (!(aces >= 2 || (aces >= 1 && sard))) return false;
+  const stoppers = SUITS.filter((s) => hand.some((c) => c.suit === s && (c.rank === "A" || c.rank === "10"))).length;
+  return hasHilla || stoppers >= 2;
+}
+
+/**
+ * معايير شراء الحكم (§3): at least 3 trumps including the Jack or the 9, with an outside Ace
+ * or a clear chance to ruff (a void or a single card in a side suit).
+ */
+export function meetsHokumCriteria(hand: Card[], suit: Suit): boolean {
+  const trumps = hand.filter((c) => c.suit === suit);
+  if (trumps.length < 3 || !trumps.some((c) => c.rank === "J" || c.rank === "9")) return false;
+  const outsideAce = hand.some((c) => c.suit !== suit && c.rank === "A");
+  const shortSide = SUITS.some((s) => s !== suit && hand.filter((c) => c.suit === s).length <= 1);
+  return outsideAce || shortSide;
 }
 
 /** Best hokum suit for this hand and its score, restricted to `allowedSuits`. */

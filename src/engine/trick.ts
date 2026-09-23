@@ -90,3 +90,17 @@ export function legalMoves(
   const overtrumps = trumps.filter((c) => rankStrength(c, mode, trumpSuit) > bestTrumpStrength);
   return overtrumps.length > 0 ? overtrumps : trumps; // must overtrump if able, else any trump
 }
+
+/**
+ * أكي (docs/baloot-guide.md §6.1): in hokum, leading a non-trump card that is now the highest
+ * one left in its suit — every card above it has already been played. It tells the partner
+ * not to trump it. An Ace is left out; it's the top card anyway and nobody announces it.
+ */
+export function isAkka(card: Card, alreadyPlayed: Card[], mode: Mode, trumpSuit: Suit | undefined): boolean {
+  if (mode !== "hokum" || card.suit === trumpSuit || card.rank === "A") return false;
+  const strength = rankStrength(card, mode, trumpSuit);
+  const RANKS_ABOVE = (["7", "8", "9", "J", "Q", "K", "10", "A"] as const).filter(
+    (rank) => rankStrength({ suit: card.suit, rank }, mode, trumpSuit) > strength,
+  );
+  return RANKS_ABOVE.every((rank) => alreadyPlayed.some((c) => c.suit === card.suit && c.rank === rank));
+}

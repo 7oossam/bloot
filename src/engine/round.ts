@@ -4,7 +4,8 @@ import { legalMoves, resolveTrick } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
 import type { Bid, Card, HandResult, Seat, Team, Trick } from "./types";
-import { nextSeat } from "./types";
+import { nextSeat, teamOf } from "./types";
+import { BALOOT_VALUE, resolveProjects, type ProjectsOutcome } from "./projects";
 
 export type RoundPhase = "bidding" | "redeal" | "playing" | "complete";
 
@@ -58,6 +59,13 @@ export class Round {
   tricks: Trick[] = [];
   currentTrick?: Trick;
   result?: HandResult;
+  /** المشاريع, decided as soon as play starts. */
+  projects?: ProjectsOutcome;
+  /** Seat that holds trump K + Q (بلوت) at the start of play, if any. */
+  balootHolder?: Seat;
+  /** Set once that seat has played the second of the pair — بلوت is announced then. */
+  balootDeclared = false;
+  private balootPlayed = 0;
 
   private readonly lastTrickBonus?: number;
 
@@ -97,6 +105,14 @@ export class Round {
       this.phase = "playing";
       const leader = nextSeat(this.dealer);
       this.currentTrick = { leader, cards: {}, order: [] };
+      const { mode, trumpSuit } = this.bidding.result;
+      this.projects = resolveProjects(this.hands, mode, leader);
+      if (mode === "hokum") {
+        const holder = ([0, 1, 2, 3] as Seat[]).find((seat) =>
+          (["K", "Q"] as const).every((rank) => this.hands[seat].some((c) => c.suit === trumpSuit && c.rank === rank)),
+        );
+        this.balootHolder = holder;
+      }
     }
   }
 
@@ -153,6 +169,12 @@ export class Round {
     this.currentTrick.cards[seat] = card;
     this.currentTrick.order.push(seat);
 
+    const trump = this.bidding.result.trumpSuit;
+    if (seat === this.balootHolder && card.suit === trump && (card.rank === "K" || card.rank === "Q")) {
+      this.balootPlayed++;
+      if (this.balootPlayed === 2) this.balootDeclared = true;
+    }
+
     if (this.currentTrick.order.length === 4) {
       const { mode, trumpSuit } = this.bidding.result;
       const winner = resolveTrick(this.currentTrick, mode, trumpSuit);
@@ -160,13 +182,16 @@ export class Round {
       this.tricks.push(this.currentTrick);
 
       if (this.tricks.length === 8) {
-        this.result = scoreHand(
-          this.tricks,
-          mode,
-          trumpSuit,
-          this.bidding.result.declarerTeam,
-          this.lastTrickBonus,
-        );
+        const base = scoreHand(this.tricks, mode, trumpSuit, this.bidding.result.declarerTeam, this.lastTrickBonus);
+        const projectPoints: Record<Team, number> = { ...(this.projects?.points ?? { 0: 0, 1: 0 }) };
+        const baloot = this.balootDeclared ? this.balootHolder : undefined;
+        if (baloot !== undefined) projectPoints[teamOf(baloot)] += BALOOT_VALUE;
+        this.result = {
+          ...base,
+          projectPoints,
+          baloot,
+          gamePoints: { 0: base.gamePoints[0] + projectPoints[0], 1: base.gamePoints[1] + projectPoints[1] },
+        };
         this.phase = "complete";
         this.currentTrick = undefined;
       } else {

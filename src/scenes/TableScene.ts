@@ -16,6 +16,7 @@ import { runController } from "../roguelike/RunController";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
 import { RANK_NAME_AR, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
+import { PROJECT_NAME_AR, type ProjectsOutcome } from "../engine/projects";
 import {
   BID_BUTTON_ROW_GAP,
   BID_BUTTON_ROW_Y,
@@ -219,6 +220,7 @@ export class TableScene extends Phaser.Scene {
     c.on("bidding:turn", (e) => this.onBiddingTurn(e));
     c.on("bidding:bid", (e) => this.onBiddingBid(e));
     c.on("bidding:resolved", (e) => this.onBiddingResolved(e));
+    c.on("projects:declared", (e) => this.onProjectsDeclared(e));
     c.on("gold:earned", (e) => this.onGoldEarned(e));
     c.on("action:turn", (e) => this.onActionTurn(e));
     c.on("hand:changed", (e) => this.onHandChanged(e));
@@ -458,6 +460,7 @@ export class TableScene extends Phaser.Scene {
   private callLabel(call: LegalCall): string {
     if (call.call === "pass") return "جلي";
     if (call.call === "sun") return "صن";
+    if (call.call === "ashkal") return "أشكل";
     return `حكم ${SUIT_SYMBOL[call.suit!]}`;
   }
 
@@ -476,6 +479,10 @@ export class TableScene extends Phaser.Scene {
     } else if (e.bid.call === "sun") {
       this.log(`${who}: صن`);
       this.showSeatBubble(e.bid.seat, "صن", 0xffd54a);
+    } else if (e.bid.call === "ashkal") {
+      const signal = this.controller.getRound().bidding.result?.ashkal?.signalSuits ?? [];
+      this.log(`${who}: أشكل — يطلب ${signal.map((x) => SUIT_NAME_AR[x]).join(" أو ")}`);
+      this.showSeatBubble(e.bid.seat, "أشكل", 0xffb33a);
     } else {
       this.log(`${who}: حكم ${SUIT_SYMBOL[e.bid.suit!]}`);
       this.showSeatBubble(e.bid.seat, `حكم ${SUIT_SYMBOL[e.bid.suit!]}`, 0xffd54a);
@@ -641,8 +648,30 @@ export class TableScene extends Phaser.Scene {
     this.driveAI();
   }
 
-  private onPlayCard(e: { seat: Seat; card: Card }): void {
+  /** المشاريع: each seat calls its projects as play starts; only the best team's count. */
+  private onProjectsDeclared(e: ProjectsOutcome): void {
+    const bySeat = new Map<Seat, string[]>();
+    for (const p of e.declared) bySeat.set(p.seat, [...(bySeat.get(p.seat) ?? []), PROJECT_NAME_AR[p.kind]]);
+    let delay = 900;
+    for (const [seat, names] of bySeat) {
+      const text = names.join(" + ");
+      const counts = e.winner !== undefined && teamOf(seat) === e.winner;
+      this.time.delayedCall(delay, () => this.showSeatBubble(seat, text, counts ? 0x5ad469 : 0x8aa79a));
+      this.log(`${SEAT_LABEL_AR[seat]}: ${text}${counts ? "" : " (ما تنحسب)"}`);
+      delay += 500;
+    }
+  }
+
+  private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
     const dest = TRICK_ANCHOR[e.seat];
+    if (e.akka) {
+      this.showSeatBubble(e.seat, "أكي", 0x9cc3ff);
+      this.log(`${SEAT_LABEL_AR[e.seat]}: أكي`);
+    }
+    if (e.baloot) {
+      this.showSeatBubble(e.seat, "بلوت 👑", 0xffd54a);
+      this.log(`${SEAT_LABEL_AR[e.seat]}: بلوت (+2)`);
+    }
 
     if (e.seat === HUMAN_SEAT) {
       const idx = this.playerHandViews.findIndex((v) => cardId(v.card) === cardId(e.card));
@@ -789,6 +818,14 @@ export class TableScene extends Phaser.Scene {
       { text: `أنتم ${e.gained[0]} — الخصم ${e.gained[1]}  (ورق ${r.scoredPoints[0]} — ${r.scoredPoints[1]})` },
     ];
     if (e.kaboot) lines.push({ text: "كبوت! أكلتوا الثمان أكلات 💥", color: "#ffb33a" });
+    // Projects can land on both sides: one team's المشاريع and the other's بلوت.
+    const pp = r.projectPoints ?? { 0: 0, 1: 0 };
+    ([0, 1] as Team[]).forEach((team) => {
+      if (!pp[team]) return;
+      const who = team === teamOf(HUMAN_SEAT) ? "أنتم" : "الخصم";
+      const baloot = r.baloot !== undefined && teamOf(r.baloot) === team ? " (مع بلوت)" : "";
+      lines.push({ text: `المشاريع${baloot}: ${who} +${pp[team]}`, color: "#5ad469", size: 24 });
+    });
     for (const b of e.bonuses) lines.push({ text: `${b.label}: +${b.points}`, color: "#9cc3ff", size: 24 });
     lines.push({ text: `المجموع: ${e.matchScore[0]} — ${e.matchScore[1]} (هدف ${this.controller.getMatchTarget()})` });
 
