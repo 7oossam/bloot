@@ -15,6 +15,20 @@ export interface RunState {
   lives: number;
   gold: number;
   jokerIds: string[];
+  /** Level of each owned joker (1 when first bought). */
+  jokerLevels: Record<string, number>;
+  /** Joker slots this run (base plus the meta upgrade). */
+  maxJokers: number;
+  /** How many jokers a shop puts on the shelf this run. */
+  shopSlots: number;
+  /** What a reroll costs at the start of each shop visit. */
+  rerollBase: number;
+  /** Parallel to nodes: true once that match node was won. */
+  nodeWon: boolean[];
+  /** Glory banked into الديوانية when this run ended (set once). */
+  gloryEarned?: number;
+  /** Gold the treasury joker paid on entering the current shop, for the shop to show. */
+  lastInterest?: number;
   /** Each one absorbs the life a lost match would cost. */
   shields: number;
   /** What the current shop visit is selling (item ids), fixed until the player rerolls. */

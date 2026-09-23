@@ -1,7 +1,6 @@
 import Phaser from "phaser";
-import { getJokerDef, type Rarity } from "../roguelike/jokers";
+import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
-import { MAX_JOKERS } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton } from "./ui";
 
@@ -11,9 +10,12 @@ const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string
   legendary: { border: 0xffb33a, label: "أسطوري", text: "#ffd27a" },
 };
 
-const CARD_H = 236;
-const CARD_GAP = 22;
-const FIRST_CARD_Y = 262;
+const MAX_CARD_H = 236;
+const CARD_GAP = 20;
+const FIRST_CARD_Y = 292;
+/** Everything on the shelf fits between FIRST_CARD_Y and here, however many items there are. */
+const SHELF_BOTTOM = 1530;
+const REROLL_Y = 1600;
 
 /** A shop node: three random jokers and a consumable, with a reroll that gets pricier each use. */
 export class ShopScene extends Phaser.Scene {
@@ -28,9 +30,9 @@ export class ShopScene extends Phaser.Scene {
 
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x1a1230).setOrigin(0);
-    arabicText(this, WIDTH / 2, 70, "المتجر", { fontSize: "46px" });
-    this.goldText = arabicText(this, WIDTH / 2, 136, "", { fontSize: "27px", color: "#ffd54a" });
-    this.ownedText = arabicText(this, WIDTH / 2, 190, "", {
+    arabicText(this, WIDTH / 2, 58, "المتجر", { fontSize: "44px" });
+    this.goldText = arabicText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: "#ffd54a" });
+    this.ownedText = arabicText(this, WIDTH / 2, 205, "", {
       fontSize: "21px",
       color: "#cfc8e0",
       wordWrap: { width: WIDTH - 80 },
@@ -39,7 +41,7 @@ export class ShopScene extends Phaser.Scene {
 
     this.refresh();
 
-    makeButton(this, WIDTH / 2, HEIGHT - 100, "متابعة الرحلة", () => {
+    makeButton(this, WIDTH / 2, HEIGHT - 95, "متابعة الرحلة", () => {
       runController.leaveShopNode();
       this.scene.start("map");
     });
@@ -51,17 +53,30 @@ export class ShopScene extends Phaser.Scene {
     const state = runController.getState();
 
     const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
-    this.goldText.setText(`💰 ${state.gold}   ❤️ ${state.lives}${shields}   —   جوكرز ${state.jokerIds.length}/${MAX_JOKERS}`);
-    const owned = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id}`).join("   ");
-    this.ownedText.setText(owned ? `معك: ${owned}` : "ما عندك جوكرز للحين");
+    const interest = state.lastInterest ? `   (🏦 +${state.lastInterest} فايدة)` : "";
+    this.goldText.setText(
+      `💰 ${state.gold}${interest}   ❤️ ${state.lives}${shields}   —   جوكرز ${state.jokerIds.length}/${state.maxJokers}`,
+    );
+    const owned = state.jokerIds
+      .map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id} ${levelBadge(runController.levelOf(id))}`)
+      .join("   ");
+    const synergies = activeSynergies(state.jokerIds)
+      .filter((x) => x.tier || x.next)
+      .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
+      .join("  •  ");
+    this.ownedText.setText(
+      (owned ? `معك: ${owned}` : "ما عندك جوكرز للحين") + (synergies ? `\nتآزر: ${synergies}` : ""),
+    );
 
     const offering = runController.shopOffering();
     if (offering.length === 0) {
       this.itemsLayer.add(arabicText(this, WIDTH / 2, 600, "خلصت البضاعة! جرّب تغيّرها 🎲", { fontSize: "30px" }));
     }
-    offering.forEach((id, i) => this.drawItem(id, FIRST_CARD_Y + i * (CARD_H + CARD_GAP) + CARD_H / 2));
+    const slot = Math.min(MAX_CARD_H + CARD_GAP, (SHELF_BOTTOM - FIRST_CARD_Y) / Math.max(offering.length, 1));
+    const cardH = slot - CARD_GAP;
+    offering.forEach((id, i) => this.drawItem(id, FIRST_CARD_Y + i * slot + cardH / 2, cardH));
 
-    const rerollY = FIRST_CARD_Y + 4 * (CARD_H + CARD_GAP) + 50;
+    const rerollY = REROLL_Y;
     const canReroll = runController.canReroll();
     this.rerollBtn = makeButton(
       this,
@@ -78,17 +93,22 @@ export class ShopScene extends Phaser.Scene {
     );
   }
 
-  private drawItem(id: string, y: number): void {
+  private drawItem(id: string, y: number, cardH: number): void {
     const def = getJokerDef(id)!;
     const style = RARITY_STYLE[def.rarity];
     const reason = runController.whyNot(id);
+    const owned = runController.levelOf(id);
+    const isUpgrade = def.kind === "joker" && owned > 0;
+    // A new joker shows what it does; an upgrade shows what the next level adds.
+    const description = def.levels[Math.min(owned, maxLevel(def) - 1)];
+    const price = runController.priceOf(id);
     const cardW = WIDTH - 90;
 
     const bg = this.add.graphics();
     bg.fillStyle(def.kind === "consumable" ? 0x2a1d3a : 0x241a3f, 1);
-    bg.fillRoundedRect(-cardW / 2, -CARD_H / 2, cardW, CARD_H, 24);
+    bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 24);
     bg.lineStyle(def.rarity === "legendary" ? 6 : 4, style.border, reason ? 0.45 : 1);
-    bg.strokeRoundedRect(-cardW / 2, -CARD_H / 2, cardW, CARD_H, 24);
+    bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 24);
     const card = this.add.container(WIDTH / 2, y, [bg]);
 
     // Layout: buy button on the left (RTL reading ends there), icon on the right, text between.
@@ -104,22 +124,25 @@ export class ShopScene extends Phaser.Scene {
     const kindLabel = def.kind === "consumable" ? "يُستخدم مرة" : style.label;
     card.add(arabicText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }));
 
-    card.add(arabicText(this, textX, -72, def.name, { fontSize: "31px" }));
+    // Tags ride on the title, which starts with Arabic, so right-to-left layout keeps them in order.
+    const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
+    const title = isUpgrade ? `${def.name}${tags}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : `${def.name}${tags}`;
+    card.add(arabicText(this, textX, -80, title, { fontSize: "29px", color: isUpgrade ? "#9cc3ff" : "#ffffff" }));
     card.add(
-      arabicText(this, textX, -6, def.description, {
-        fontSize: "22px",
+      arabicText(this, textX, -16, (isUpgrade ? "ترقية: " : "") + description, {
+        fontSize: "21px",
         color: "#d8d1ea",
         align: "center",
         wordWrap: { width: textW },
       }),
     );
-    card.add(arabicText(this, textX, 74, `${def.cost} ذهب`, { fontSize: "25px", color: "#ffd54a" }));
+    card.add(arabicText(this, textX, 76, `${price} ذهب`, { fontSize: "24px", color: "#ffd54a" }));
 
     const btn = makeButton(
       this,
       buttonX,
       reason ? -14 : 0,
-      "شراء",
+      isUpgrade ? "ترقية" : "شراء",
       () => {
         if (runController.whyNot(id)) return;
         runController.buyJoker(id);
@@ -150,4 +173,8 @@ export class ShopScene extends Phaser.Scene {
     });
     this.cameras.main.shake(120, 0.004);
   }
+}
+
+function levelBadge(level: number): string {
+  return level > 0 ? `Lv${level}` : "";
 }

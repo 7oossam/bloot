@@ -3,7 +3,7 @@ import { dealInitial, finalizeDeal, type InitialDeal } from "./deck";
 import { legalMoves, resolveTrick } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
-import type { Bid, Card, HandResult, Seat, Trick } from "./types";
+import type { Bid, Card, HandResult, Seat, Team, Trick } from "./types";
 import { nextSeat } from "./types";
 
 export type RoundPhase = "bidding" | "redeal" | "playing" | "complete";
@@ -13,15 +13,19 @@ export interface RoundOptions {
   lastTrickBonus?: number;
   /** Makes sure this seat's first five cards include a Jack (a joker effect). */
   guaranteeJackFor?: Seat;
+  /** How many Jacks that seat is guaranteed (default 1). */
+  guaranteedJacks?: number;
+  /** Teams whose hokum can't be challenged to sun. */
+  lockedHokumTeams?: Team[];
 }
 
 /**
  * If `seat` was dealt no Jack, swaps one of its cards for a Jack from somewhere else in the
  * deal. The face-up ground card is never touched, so the auction the table sees is unchanged.
  */
-function giveAJack(initial: InitialDeal, seat: Seat, rand: () => number): void {
+function giveAJack(initial: InitialDeal, seat: Seat, rand: () => number, wanted = 1): void {
   const hand = initial.hands[seat];
-  if (hand.some((c) => c.rank === "J")) return;
+  if (hand.filter((c) => c.rank === "J").length >= wanted) return;
 
   const sources: Array<{ list: Card[]; index: number }> = [];
   for (const other of [0, 1, 2, 3] as Seat[]) {
@@ -32,10 +36,12 @@ function giveAJack(initial: InitialDeal, seat: Seat, rand: () => number): void {
   if (sources.length === 0) return; // only possible if the ground card is the last Jack left
 
   const from = sources[Math.floor(rand() * sources.length)];
-  const giveIndex = Math.floor(rand() * hand.length);
+  const nonJacks = hand.map((c, i) => (c.rank === "J" ? -1 : i)).filter((i) => i >= 0);
+  const giveIndex = nonJacks[Math.floor(rand() * nonJacks.length)];
   const jack = from.list[from.index];
   from.list[from.index] = hand[giveIndex];
   hand[giveIndex] = jack;
+  giveAJack(initial, seat, rand, wanted);
 }
 
 /**
@@ -59,8 +65,10 @@ export class Round {
     this.dealer = dealer;
     this.lastTrickBonus = options.lastTrickBonus;
     this.initial = dealInitial(rand);
-    if (options.guaranteeJackFor !== undefined) giveAJack(this.initial, options.guaranteeJackFor, rand);
-    this.bidding = startBidding(dealer, this.initial.stock[0]);
+    if (options.guaranteeJackFor !== undefined) {
+      giveAJack(this.initial, options.guaranteeJackFor, rand, options.guaranteedJacks ?? 1);
+    }
+    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? []);
     this.hands = {
       0: [...this.initial.hands[0]],
       1: [...this.initial.hands[1]],
@@ -90,6 +98,27 @@ export class Round {
       const leader = nextSeat(this.dealer);
       this.currentTrick = { leader, cards: {}, order: [] };
     }
+  }
+
+  /**
+   * Turns one card in a seat's hand into another (a joker effect). The result may duplicate a
+   * card that exists elsewhere — two trump Jacks, say. Tricks cope: between equal cards, the
+   * one played first wins.
+   */
+  replaceCard(seat: Seat, from: Card, to: Card): void {
+    const hand = this.hands[seat];
+    const i = hand.findIndex((c) => cardId(c) === cardId(from));
+    if (i === -1) throw new Error(`Seat ${seat} has no ${cardId(from)} to replace`);
+    hand[i] = { ...to };
+  }
+
+  /** Exchanges one card between two seats' hands. */
+  swapCards(seatA: Seat, cardA: Card, seatB: Seat, cardB: Card): void {
+    const a = this.hands[seatA].findIndex((c) => cardId(c) === cardId(cardA));
+    const b = this.hands[seatB].findIndex((c) => cardId(c) === cardId(cardB));
+    if (a === -1 || b === -1) throw new Error("swapCards: card not in hand");
+    this.hands[seatA][a] = { ...cardB };
+    this.hands[seatB][b] = { ...cardA };
   }
 
   /** The seat whose turn it is to play, or undefined once the hand is complete. */

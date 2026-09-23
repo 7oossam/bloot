@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { MapScene } from "./scenes/MapScene";
+import { MetaScene } from "./scenes/MetaScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { TableScene } from "./scenes/TableScene";
 import { HEIGHT, WIDTH } from "./scenes/layout";
 import { runController } from "./roguelike/RunController";
+import { metaController } from "./roguelike/meta";
 
 function config(type: number): Phaser.Types.Core.GameConfig {
   return {
@@ -24,7 +26,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
       touch: true,
       mouse: true,
     },
-    scene: [MapScene, TableScene, ShopScene],
+    scene: [MapScene, TableScene, ShopScene, MetaScene],
   };
 }
 
@@ -55,3 +57,4 @@ if (vv) {
 (window as unknown as { __blootBooted?: boolean; __blootGame?: Phaser.Game }).__blootBooted = true;
 (window as unknown as { __blootGame?: Phaser.Game }).__blootGame = game;
 (window as unknown as { __blootRun?: typeof runController }).__blootRun = runController;
+(window as unknown as { __blootMeta?: typeof metaController }).__blootMeta = metaController;

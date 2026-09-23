@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
 import { GameController, HUMAN_SEAT, MATCH_TARGET, type MatchOptions } from "../src/game/GameController";
+import { rankStrength } from "../src/engine/cards";
+import { teamOf, type Bid } from "../src/engine/types";
 import { mulberry32 } from "../src/engine/rng";
 
 /** Drives the human seat with the same AI policy, purely to exercise the full loop deterministically. */
@@ -144,11 +146,12 @@ describe("joker effects in a match", () => {
     expect(playHands({}, 12).gold).toBe(0);
   });
 
-  it("الولد المضمون always deals you a Jack in your first five", () => {
+  it("الولد المضمون always deals you a Jack (two at level 2) in your first five", () => {
     for (let seed = 1; seed <= 60; seed++) {
-      const c = new GameController(mulberry32(seed), { guaranteeJack: true });
+      const wanted = seed % 2 === 0 ? 2 : 1;
+      const c = new GameController(mulberry32(seed), { guaranteedJacks: wanted });
       c.startMatch();
-      expect(c.getRound().hands[HUMAN_SEAT].some((card) => card.rank === "J"), `seed ${seed}`).toBe(true);
+      expect(c.getRound().hands[HUMAN_SEAT].filter((card) => card.rank === "J").length, `seed ${seed}`).toBeGreaterThanOrEqual(wanted);
       // Still a proper deck: 32 distinct cards.
       const r = c.getRound();
       const all = [...r.initial.hands[0], ...r.initial.hands[1], ...r.initial.hands[2], ...r.initial.hands[3], ...r.initial.stock];
@@ -180,5 +183,148 @@ describe("joker effects in a match", () => {
       }
     }
     throw new Error("no kaboot found in 400 seeds");
+  });
+});
+
+/** Plays with the AI deciding for the human too, answering joker prompts with the first allowed card. */
+function autoplay(c: GameController, until: (c: GameController) => boolean, maxSteps = 4000): void {
+  for (let i = 0; i < maxSteps && !until(c); i++) {
+    const status = c.step();
+    if (status === "match-complete") return;
+    if (status !== "waiting-human") continue;
+    const round = c.getRound();
+    const action = c.getPendingAction();
+    if (action && round.phase === "playing") {
+      const hand = round.hands[HUMAN_SEAT];
+      const pick = action.kind === "transform" ? hand.find((x) => !(x.suit === action.to.suit && x.rank === action.to.rank))! : hand[0];
+      c.submitPlayerAction(pick);
+    } else if (round.phase === "bidding") {
+      c.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
+    } else {
+      c.submitPlayerCard(decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, round.bidding.result!.mode, round.bidding.result!.trumpSuit, HUMAN_SEAT));
+    }
+  }
+}
+
+describe("combo jokers", () => {
+  it("الولد المزوّر: buying hokum lets you turn a card into the trump Jack — even a second one", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 300 && checked < 5; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, forgedJack: { nine: true, partnerToo: false } });
+      const changes: string[] = [];
+      c.on("hand:changed", (e) => e.kind === "transform" && changes.push(`${e.to.suit}${e.to.rank}`));
+      c.startMatch();
+      // Force the human to buy hokum whenever it's offered.
+      for (let i = 0; i < 60 && c.getRound().phase === "bidding"; i++) {
+        const status = c.step();
+        if (status === "waiting-human") {
+          const r = c.getRound();
+          const hokum = r.legalBids().find((x) => x.call === "hokum");
+          c.submitPlayerBid({ seat: HUMAN_SEAT, ...(hokum ?? { call: "pass" }) } as Bid);
+        }
+      }
+      const r = c.getRound();
+      if (r.phase !== "playing" || r.bidding.result!.declarer !== HUMAN_SEAT) continue;
+      const trump = r.bidding.result!.trumpSuit!;
+      const jacksBefore = r.hands[HUMAN_SEAT].filter((x) => x.suit === trump && x.rank === "J").length;
+      expect(c.step()).toBe("waiting-human");
+      expect(c.getPendingAction()).toEqual({ kind: "transform", to: { suit: trump, rank: "J" } });
+      const victim = r.hands[HUMAN_SEAT].find((x) => !(x.suit === trump && x.rank === "J"))!;
+      c.submitPlayerAction(victim);
+      expect(r.hands[HUMAN_SEAT].filter((x) => x.suit === trump && x.rank === "J").length).toBe(jacksBefore + 1);
+      // Level 2: then the trump 9.
+      expect(c.getPendingAction()).toEqual({ kind: "transform", to: { suit: trump, rank: "9" } });
+      c.submitPlayerAction(r.hands[HUMAN_SEAT].find((x) => !(x.suit === trump && (x.rank === "J" || x.rank === "9")))!);
+      expect(changes).toEqual([`${trump}J`, `${trump}9`]);
+      expect(c.getPendingAction()).toBeUndefined();
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("صيد الولد: winning with the trump Jack trades a card with an opponent (a trump at level 2)", () => {
+    let swaps = 0, trumpDraws = 0, trumpAvailable = 0;
+    for (let seed = 1; seed <= 120; seed++) {
+      const c = new GameController(mulberry32(seed), {
+        matchTarget: 999,
+        forgedJack: { nine: false, partnerToo: false },
+        jackHunt: { preferTrump: true, nineToo: false, partnerToo: false },
+      });
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "swap") return;
+        swaps++;
+        const trump = c.getRound().bidding.result!.trumpSuit!;
+        // Their hand now = before − got + gave, so before the swap they held `got` plus
+        // everything they hold now except (one copy of) what we gave them.
+        const now = [...c.getRound().hands[e.otherSeat]];
+        now.splice(now.findIndex((x) => x.suit === e.gave.suit && x.rank === e.gave.rank), 1);
+        const hadTrump = e.got.suit === trump || now.some((x) => x.suit === trump);
+        if (hadTrump) {
+          trumpAvailable++;
+          if (e.got.suit === trump) trumpDraws++;
+        }
+      });
+      c.startMatch();
+      autoplay(c, () => swaps > 0, 600);
+      if (swaps >= 6) break;
+    }
+    expect(swaps).toBeGreaterThan(0);
+    expect(trumpAvailable).toBeGreaterThan(0);
+    expect(trumpDraws).toBe(trumpAvailable);
+  });
+
+  it("الحرقة: winning with the trump Jack burns an opponent's best trump into a 7", () => {
+    let burns = 0;
+    for (let seed = 1; seed <= 200 && burns === 0; seed++) {
+      const c = new GameController(mulberry32(seed), {
+        matchTarget: 999,
+        forgedJack: { nine: false, partnerToo: false },
+        burn: { bothOpponents: true, partnerToo: true },
+      });
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "burn") return;
+        const trump = c.getRound().bidding.result!.trumpSuit!;
+        expect(e.from.suit).toBe(trump);
+        expect(e.to.rank).toBe("7");
+        expect(e.to.suit).not.toBe(trump);
+        // It was their strongest trump: nothing left in their hand outranks it.
+        const left = c.getRound().hands[e.seat].filter((x) => x.suit === trump);
+        for (const x of left) expect(rankStrength(x, "hokum", trump)).toBeLessThanOrEqual(rankStrength(e.from, "hokum", trump));
+        burns++;
+      });
+      c.startMatch();
+      autoplay(c, () => burns > 0, 800);
+    }
+    expect(burns).toBeGreaterThan(0);
+  });
+
+  it("جامع الأولاد pays per trick your team takes with a Jack", () => {
+    const c = new GameController(mulberry32(21), { matchTarget: 999, jackTrickBonus: 2 });
+    const seen: Array<{ jacks: number; bonus: number }> = [];
+    let jacks = 0;
+    c.on("trick:complete", (e) => { if (teamOf(e.winner) === 0 && e.trick.cards[e.winner]!.rank === "J") jacks++; });
+    c.on("hand:complete", (e) => {
+      seen.push({ jacks, bonus: e.bonuses.find((b) => b.label === "أكلات الأولاد")?.points ?? 0 });
+      jacks = 0;
+    });
+    c.startMatch();
+    autoplay(c, () => seen.length >= 6);
+    for (const h of seen) expect(h.bonus).toBe(h.jacks * 2);
+    expect(seen.some((h) => h.jacks > 0)).toBe(true);
+  });
+
+  it("a locked hokum (حكم synergy) is never taken over as sun", () => {
+    for (let seed = 1; seed <= 80; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, lockedHokum: true });
+      c.on("bidding:turn", (e) => {
+        if (e.challenge) expect(teamOf(e.challenge.seat)).toBe(1);
+      });
+      c.on("bidding:resolved", (e) => {
+        const hokumBids = c.getRound().bidding.history.filter((b) => b.call === "hokum");
+        if (hokumBids.length && teamOf(hokumBids[0].seat) === 0) expect(e.mode).toBe("hokum");
+      });
+      c.startMatch();
+      autoplay(c, (x) => x.getRound().phase === "playing");
+    }
   });
 });

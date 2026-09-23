@@ -1,4 +1,4 @@
-import type { Bid, BiddingResult, Card, Seat, Suit } from "./types";
+import type { Bid, BiddingResult, Card, Seat, Suit, Team } from "./types";
 import { nextSeat, teamOf } from "./types";
 
 export type BiddingRound = 1 | 2;
@@ -20,6 +20,8 @@ export interface BiddingState {
   pendingHokum?: { seat: Seat; suit: Suit };
   /** Seats still to answer the pending hokum, in order. `turnSeat` is always the first. */
   challengers?: Seat[];
+  /** Teams whose hokum can't be taken over as sun (a joker synergy). */
+  lockedHokumTeams?: Team[];
 }
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
@@ -28,13 +30,14 @@ export interface LegalCall {
   suit?: Suit;
 }
 
-export function startBidding(dealer: Seat, groundCard: Card): BiddingState {
+export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: Team[] = []): BiddingState {
   return {
     dealer,
     groundCard,
     round: 1,
     turnSeat: nextSeat(dealer),
     history: [],
+    lockedHokumTeams,
   };
 }
 
@@ -77,6 +80,15 @@ export function submitBid(state: BiddingState, bid: Bid): BiddingState {
       pendingHokum: undefined,
       challengers: undefined,
       result: { mode: "sun", declarer: bid.seat, declarerTeam: teamOf(bid.seat), history },
+    };
+  }
+
+  // A locked team's hokum ("مقفول") stands at once — nobody may take it as sun.
+  if (bid.call === "hokum" && state.lockedHokumTeams?.includes(teamOf(bid.seat))) {
+    return {
+      ...state,
+      history,
+      result: { mode: "hokum", trumpSuit: bid.suit, declarer: bid.seat, declarerTeam: teamOf(bid.seat), history },
     };
   }
 

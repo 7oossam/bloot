@@ -4,6 +4,7 @@ import type { LegalCall } from "../engine/bidding";
 import { Round } from "../engine/round";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { nextSeat, teamOf } from "../engine/types";
+import { rankStrength } from "../engine/cards";
 import { Emitter } from "./emitter";
 
 export const HUMAN_SEAT: Seat = 0;
@@ -18,20 +19,47 @@ export interface MatchOptions {
   lastTrickBonus?: number;
   /** Extra game points for your team when it bought hokum and out-scored the other side. */
   hokumMadeBonus?: number;
+  /** The same, from the حكم synergy rather than a joker (shown as its own line). */
+  hokumSynergyBonus?: number;
   /** Multiplies your team's game points on a hand it bought as sun. */
   sunMultiplier?: number;
   /** While the opponents lead by at least `deficit`, every hand your team scores in gets +`bonus`. */
   comeback?: { deficit: number; bonus: number };
   /** Gold for every trick your team takes that has an Ace in it. */
   goldPerAceTrick?: number;
-  /** Your first five cards always include a Jack. */
-  guaranteeJack?: boolean;
+  /** Your first five cards always include at least this many Jacks. */
+  guaranteedJacks?: number;
   /** Taking all eight tricks in a hand wins the match on the spot. */
   kabootWinsMatch?: boolean;
+  /** Your team's hokum can't be taken over as sun. */
+  lockedHokum?: boolean;
+  /** Extra game points whenever your team buys sun and scores in it. */
+  sunBuyBonus?: number;
+  /** In sun, extra game points per trick your team takes that has an Ace in it. */
+  sunAceBonus?: number;
+  /** Extra game points per trick your team takes with a Jack as the winning card. */
+  jackTrickBonus?: number;
+  /** When you buy hokum, turn one of your cards into the trump Jack (and the 9 at level 2). */
+  forgedJack?: { nine: boolean; partnerToo: boolean };
+  /** Winning a trick with the trump Jack lets you swap a card with a random opponent card. */
+  jackHunt?: { preferTrump: boolean; nineToo: boolean; partnerToo: boolean };
+  /** Winning a trick with the trump Jack burns an opponent's best trump into a 7. */
+  burn?: { bothOpponents: boolean; partnerToo: boolean };
   /** UI-only effects, read by the table scene. */
-  spy?: boolean;
+  spyCards?: number;
   revealPartner?: boolean;
 }
+
+/** Something the human has to decide mid-hand because a joker fired: which card to use. */
+export type PendingAction =
+  | { kind: "transform"; to: Card }
+  | { kind: "swap"; preferTrump: boolean };
+
+/** What a joker just did to someone's hand, for the scene to show. */
+export type HandChange =
+  | { kind: "transform"; seat: Seat; from: Card; to: Card }
+  | { kind: "swap"; seat: Seat; gave: Card; got: Card; otherSeat: Seat }
+  | { kind: "burn"; seat: Seat; from: Card; to: Card };
 
 /** One line in the hand summary for each joker that paid out. */
 export interface HandBonus {
@@ -59,6 +87,8 @@ interface EventMap {
     kaboot: boolean;
   };
   "gold:earned": { amount: number; reason: string };
+  "action:turn": { action: PendingAction };
+  "hand:changed": HandChange;
   "match:complete": { winner: Team; matchScore: Record<Team, number> };
 }
 
@@ -81,6 +111,10 @@ export class GameController extends Emitter<EventMap> {
   private readonly headStart: Partial<Record<Team, number>>;
   private readonly lastTrickBonus: number | undefined;
   private readonly options: MatchOptions;
+  private pendingActions: PendingAction[] = [];
+  /** Per-hand tallies for joker bonuses that pay out at the end of the hand. */
+  private jackTricks = 0;
+  private sunAceTricks = 0;
 
   constructor(rand: () => number = Math.random, options: MatchOptions = {}) {
     super();
@@ -111,9 +145,14 @@ export class GameController extends Emitter<EventMap> {
   }
 
   private dealHand(): void {
+    this.pendingActions = [];
+    this.jackTricks = 0;
+    this.sunAceTricks = 0;
     this.round = new Round(this.dealer, this.rand, {
       lastTrickBonus: this.lastTrickBonus,
-      guaranteeJackFor: this.options.guaranteeJack ? HUMAN_SEAT : undefined,
+      guaranteeJackFor: this.options.guaranteedJacks ? HUMAN_SEAT : undefined,
+      guaranteedJacks: this.options.guaranteedJacks,
+      lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
     });
     this.emit("hand:dealt", {
       dealer: this.dealer,
@@ -141,6 +180,11 @@ export class GameController extends Emitter<EventMap> {
       const bid = decideBid(seat, this.round.hands[seat], this.round.bidding);
       this.applyBid(bid);
       return "advanced";
+    }
+
+    if (this.round.phase === "playing" && this.pendingActions.length > 0) {
+      this.emit("action:turn", { action: this.pendingActions[0] });
+      return "waiting-human";
     }
 
     if (this.round.phase === "playing") {
@@ -177,6 +221,70 @@ export class GameController extends Emitter<EventMap> {
     this.applyCard(HUMAN_SEAT, card);
   }
 
+  /** The card the human picked for the pending joker action (a card from their own hand). */
+  submitPlayerAction(card: Card): void {
+    const action = this.pendingActions.shift();
+    if (!action) throw new Error("No joker action is waiting");
+    if (action.kind === "transform") {
+      this.round.replaceCard(HUMAN_SEAT, card, action.to);
+      this.emit("hand:changed", { kind: "transform", seat: HUMAN_SEAT, from: card, to: action.to });
+      return;
+    }
+    const opponents = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].length > 0);
+    const other = opponents[Math.floor(this.rand() * opponents.length)];
+    const theirHand = this.round.hands[other];
+    const trump = this.round.bidding.result?.trumpSuit;
+    const trumps = action.preferTrump && trump ? theirHand.filter((c) => c.suit === trump) : [];
+    const pool = trumps.length > 0 ? trumps : theirHand;
+    const got = pool[Math.floor(this.rand() * pool.length)];
+    this.round.swapCards(HUMAN_SEAT, card, other, got);
+    this.emit("hand:changed", { kind: "swap", seat: HUMAN_SEAT, gave: card, got, otherSeat: other });
+  }
+
+  getPendingAction(): PendingAction | undefined {
+    return this.pendingActions[0];
+  }
+
+  /** Jokers that fire the moment a trick is decided. */
+  private onTrickDecided(trick: Trick): void {
+    const result = this.round.bidding.result!;
+    const winner = trick.winner!;
+    const us = teamOf(HUMAN_SEAT);
+    const ours = teamOf(winner) === us;
+    const card = trick.cards[winner]!;
+    const trump = result.mode === "hokum" ? result.trumpSuit : undefined;
+    const isTrumpJack = !!trump && card.suit === trump && card.rank === "J";
+    const isTrumpNine = !!trump && card.suit === trump && card.rank === "9";
+    const handOver = this.round.tricks.length === 8;
+    const o = this.options;
+
+    if (ours && card.rank === "J") this.jackTricks++;
+    if (ours && result.mode === "sun" && Object.values(trick.cards).some((c) => c?.rank === "A")) this.sunAceTricks++;
+
+    if (o.goldPerAceTrick && ours) {
+      const aces = Object.values(trick.cards).filter((c) => c?.rank === "A").length;
+      if (aces > 0) this.emit("gold:earned", { amount: o.goldPerAceTrick * aces, reason: "اللمسة الذهبية" });
+    }
+    if (handOver || !ours) return;
+
+    const byMe = winner === HUMAN_SEAT;
+    if (o.burn && isTrumpJack && (byMe || o.burn.partnerToo)) {
+      const targets = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].some((c) => c.suit === trump));
+      const chosen = o.burn.bothOpponents || targets.length <= 1 ? targets : [targets[Math.floor(this.rand() * targets.length)]];
+      for (const seat of chosen) {
+        const best = this.round.hands[seat]
+          .filter((c) => c.suit === trump)
+          .sort((a, b) => rankStrength(b, "hokum", trump) - rankStrength(a, "hokum", trump))[0];
+        const ash: Card = { suit: (["S", "H", "D", "C"] as Suit[]).find((x) => x !== trump)!, rank: "7" };
+        this.round.replaceCard(seat, best, ash);
+        this.emit("hand:changed", { kind: "burn", seat, from: best, to: ash });
+      }
+    }
+    if (o.jackHunt && (isTrumpJack || (o.jackHunt.nineToo && isTrumpNine)) && (byMe || o.jackHunt.partnerToo)) {
+      this.pendingActions.push({ kind: "swap", preferTrump: o.jackHunt.preferTrump });
+    }
+  }
+
   private applyBid(bid: Bid): void {
     this.round.bid(bid);
     this.emit("bidding:bid", { bid });
@@ -189,6 +297,13 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.bidding.result) {
       const { mode, trumpSuit, declarer } = this.round.bidding.result;
       this.emit("bidding:resolved", { mode, trumpSuit, declarer, hands: this.round.hands });
+
+      const forged = this.options.forgedJack;
+      const ourBuy = declarer === HUMAN_SEAT || (!!forged?.partnerToo && teamOf(declarer) === teamOf(HUMAN_SEAT));
+      if (forged && mode === "hokum" && ourBuy) {
+        this.pendingActions.push({ kind: "transform", to: { suit: trumpSuit!, rank: "J" } });
+        if (forged.nine) this.pendingActions.push({ kind: "transform", to: { suit: trumpSuit!, rank: "9" } });
+      }
     }
   }
 
@@ -208,9 +323,28 @@ export class GameController extends Emitter<EventMap> {
         bonuses.push({ label: "الصن الملكي", points: extra });
       }
     }
-    if (o.hokumMadeBonus && result.mode === "hokum" && weBought && result.scoredPoints[us] > result.scoredPoints[them]) {
+    const madeHokum = result.mode === "hokum" && weBought && result.scoredPoints[us] > result.scoredPoints[them];
+    if (madeHokum && o.hokumMadeBonus) {
       gained[us] += o.hokumMadeBonus;
       bonuses.push({ label: "سيد الحكم", points: o.hokumMadeBonus });
+    }
+    if (madeHokum && o.hokumSynergyBonus) {
+      gained[us] += o.hokumSynergyBonus;
+      bonuses.push({ label: "تآزر الحكم", points: o.hokumSynergyBonus });
+    }
+    if (o.sunBuyBonus && result.mode === "sun" && weBought && gained[us] > 0) {
+      gained[us] += o.sunBuyBonus;
+      bonuses.push({ label: "تآزر الصن", points: o.sunBuyBonus });
+    }
+    if (o.sunAceBonus && this.sunAceTricks > 0) {
+      const pts = o.sunAceBonus * this.sunAceTricks;
+      gained[us] += pts;
+      bonuses.push({ label: "إكك الصن", points: pts });
+    }
+    if (o.jackTrickBonus && this.jackTricks > 0) {
+      const pts = o.jackTrickBonus * this.jackTricks;
+      gained[us] += pts;
+      bonuses.push({ label: "أكلات الأولاد", points: pts });
     }
     if (o.comeback && gained[us] > 0 && this.matchScore[them] - this.matchScore[us] >= o.comeback.deficit) {
       gained[us] += o.comeback.bonus;
@@ -227,11 +361,7 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.tricks.length > tricksBefore) {
       const finishedTrick = this.round.tricks[this.round.tricks.length - 1];
       this.emit("trick:complete", { trick: finishedTrick, winner: finishedTrick.winner! });
-      const perAce = this.options.goldPerAceTrick;
-      if (perAce && teamOf(finishedTrick.winner!) === teamOf(HUMAN_SEAT)) {
-        const aces = Object.values(finishedTrick.cards).filter((c) => c?.rank === "A").length;
-        if (aces > 0) this.emit("gold:earned", { amount: perAce * aces, reason: "اللمسة الذهبية" });
-      }
+      this.onTrickDecided(finishedTrick);
     }
 
     if (this.round.phase === "complete") {

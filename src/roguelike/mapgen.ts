@@ -1,5 +1,5 @@
 import type { MapNode, NodeType, RunState } from "./types";
-import { REROLL_BASE_COST, STARTING_LIVES } from "./types";
+import { MAX_JOKERS, REROLL_BASE_COST, SHOP_JOKER_SLOTS, STARTING_LIVES } from "./types";
 
 /** A fixed linear run for the first pass — branching paths are a natural follow-up. */
 const FLOOR_PLAN: NodeType[] = ["match", "match", "shop", "match", "elite", "shop", "boss"];
@@ -22,6 +22,11 @@ export function generateMap(seed: number): RunState {
     lives: STARTING_LIVES,
     gold: 0,
     jokerIds: [],
+    jokerLevels: {},
+    maxJokers: MAX_JOKERS,
+    shopSlots: SHOP_JOKER_SLOTS,
+    rerollBase: REROLL_BASE_COST,
+    nodeWon: nodes.map(() => false),
     shields: 0,
     shopStock: [],
     rerollCost: REROLL_BASE_COST,

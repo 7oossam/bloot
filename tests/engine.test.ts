@@ -3,7 +3,7 @@ import { buildDeck } from "../src/engine/deck";
 import { dealInitial, finalizeDeal } from "../src/engine/deck";
 import { legalCalls, startBidding, submitBid } from "../src/engine/bidding";
 import { legalMoves, resolveTrick } from "../src/engine/trick";
-import { rankStrength, cardId } from "../src/engine/cards";
+import { rankStrength, cardId, cardPoints } from "../src/engine/cards";
 import { scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
@@ -379,5 +379,62 @@ describe("toGamePoints (abnat)", () => {
     // 152 card points + a 20-point last trick = 172 -> 17 abnat.
     const g = toGamePoints({ 0: 100, 1: 72 });
     expect(g[0] + g[1]).toBe(17);
+  });
+});
+
+describe("hand-editing effects", () => {
+  it("between two identical trump Jacks, the one played first wins", () => {
+    const trick: Trick = {
+      leader: 1,
+      order: [1, 2, 3, 0],
+      cards: { 1: { suit: "S", rank: "J" }, 2: { suit: "S", rank: "9" }, 3: { suit: "S", rank: "7" }, 0: { suit: "S", rank: "J" } },
+    };
+    expect(resolveTrick(trick, "hokum", "S")).toBe(1);
+  });
+
+  it("a hand with a duplicated trump Jack still plays out and scores its extra points", () => {
+    const round = new Round(0, mulberry32(77));
+    while (round.phase === "bidding") {
+      const calls = round.legalBids();
+      const buy = round.bidding.turnSeat === 0 ? calls.find((c) => c.call === "hokum") : undefined;
+      round.bid({ seat: round.bidding.turnSeat, ...(buy ?? { call: "pass" }) } as Bid);
+    }
+    if (round.phase !== "playing") return; // redeal on this seed — nothing to check
+    const trump = round.bidding.result!.trumpSuit!;
+    const victim = round.hands[0].find((c) => !(c.suit === trump && c.rank === "J"))!;
+    round.replaceCard(0, victim, { suit: trump, rank: "J" });
+    const jacks = Object.values(round.hands).flat().filter((c) => c.suit === trump && c.rank === "J");
+    expect(jacks.length).toBe(2);
+    while (round.phase === "playing") {
+      const seat = round.turnSeat!;
+      round.playCard(seat, round.legalMovesFor(seat)[0]);
+    }
+    const raw = round.result!.rawPoints[0] + round.result!.rawPoints[1];
+    // 152 + 10 for the last trick, plus a second Jack (20), minus whatever the victim card was worth.
+    expect(raw).toBe(162 + 20 - cardPoints(victim, "hokum", trump));
+  });
+
+  it("swapCards trades one card each way and keeps hand sizes", () => {
+    const round = new Round(1, mulberry32(3));
+    const a = round.hands[0][0];
+    const b = round.hands[3][2];
+    round.swapCards(0, a, 3, b);
+    expect(round.hands[0].some((c) => cardId(c) === cardId(b))).toBe(true);
+    expect(round.hands[3].some((c) => cardId(c) === cardId(a))).toBe(true);
+    expect(round.hands[0]).toHaveLength(5);
+    expect(round.hands[3]).toHaveLength(5);
+  });
+
+  it("a locked team's hokum can't be taken as sun", () => {
+    const ground: Card = { suit: "H", rank: "9" };
+    let state = startBidding(0, ground, [0]);
+    state = submitBid(state, { seat: 1, call: "pass" });
+    state = submitBid(state, { seat: 2, call: "hokum", suit: "H" });
+    expect(state.result).toMatchObject({ mode: "hokum", declarer: 2 });
+    // ...but the other team's hokum still can be.
+    let other = startBidding(0, ground, [0]);
+    other = submitBid(other, { seat: 1, call: "hokum", suit: "H" });
+    expect(other.result).toBeUndefined();
+    expect(other.challengers).toEqual([2, 3, 0]);
   });
 });

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { matchOptionsFromJokers, getJokerDef } from "../roguelike/jokers";
+import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
+import { metaController } from "../roguelike/meta";
 import { runController } from "../roguelike/RunController";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
@@ -39,9 +40,19 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
     arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
-    this.hudText = arabicText(this, WIDTH / 2, 150, "", { fontSize: "25px", color: "#ffd54a" });
+    this.hudText = arabicText(this, WIDTH / 2, 150, "", {
+      fontSize: "23px",
+      color: "#ffd54a",
+      wordWrap: { width: WIDTH - 60 },
+    });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
+    makeButton(this, 150, 262, "🏛️ الديوانية", () => this.scene.start("meta"), {
+      width: 230,
+      height: 64,
+      fontSize: "24px",
+      color: 0x5a3d99,
+    });
   }
 
   private refresh(): void {
@@ -61,9 +72,20 @@ export class MapScene extends Phaser.Scene {
   }
 
   private updateHud(state: RunState): void {
-    const jokerNames = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id}`).join("   ") || "لا يوجد";
+    // Icons with a level digit keep the line short enough not to wrap on a phone.
+    const SUP = ["", "¹", "²", "³"];
+    const jokerNames =
+      state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? id}${SUP[state.jokerLevels[id] ?? 1] ?? ""}`).join("  ") ||
+      "لا يوجد";
     const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
-    this.hudText.setText(`❤️ ${state.lives}   💰 ${state.gold}${shields}\nالجوكرز: ${jokerNames}`);
+    const synergies = activeSynergies(state.jokerIds)
+      .filter((x) => x.tier)
+      .map((x) => `${x.tag} ${x.count}✓`)
+      .join("  ");
+    this.hudText.setText(
+      `❤️ ${state.lives}   💰 ${state.gold}${shields}   🏆 ${metaController.getProfile().glory} مجد\nالجوكرز: ${jokerNames}` +
+        (synergies ? `\nتآزر: ${synergies}` : ""),
+    );
   }
 
   private drawPath(state: RunState): void {
@@ -148,7 +170,7 @@ export class MapScene extends Phaser.Scene {
     const data: TableSceneData = {
       nodeType: node.type,
       matchTarget: node.matchTarget!,
-      modifiers: matchOptionsFromJokers(runController.getState().jokerIds),
+      modifiers: matchOptionsFromJokers(runController.getState().jokerIds, runController.getState().jokerLevels),
     };
     this.scene.start("table", data);
   }
@@ -168,15 +190,23 @@ export class MapScene extends Phaser.Scene {
 
     panel.add(arabicText(this, 0, -120, won ? "أكملتم الرن! 🏆" : "انتهى الرن 💀", { fontSize: "42px" }));
     panel.add(
-      arabicText(this, 0, -30, `جمعت ${state.gold} ذهب وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
+      arabicText(this, 0, -50, `جمعت ${state.gold} ذهب وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
         fontSize: "27px",
       }),
     );
+    panel.add(
+      arabicText(this, 0, 5, `🏆 +${state.gloryEarned ?? 0} مجد للديوانية`, { fontSize: "30px", color: "#ffd54a" }),
+    );
 
-    const btn: ButtonHandle = makeButton(this, 0, 110, "ابدأ رن جديد", () => {
+    const btn: ButtonHandle = makeButton(this, -150, 120, "ابدأ رن جديد", () => {
       runController.startNewRun();
-      this.refresh();
-    });
+      this.scene.restart();
+    }, { width: 260 });
     panel.add(btn.container);
+    const meta: ButtonHandle = makeButton(this, 150, 120, "🏛️ الديوانية", () => this.scene.start("meta"), {
+      width: 260,
+      color: 0x5a3d99,
+    });
+    panel.add(meta.container);
   }
 }

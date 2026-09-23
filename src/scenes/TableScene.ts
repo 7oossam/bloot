@@ -3,12 +3,19 @@ import { cardId } from "../engine/cards";
 import type { LegalCall } from "../engine/bidding";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { teamOf } from "../engine/types";
-import { GameController, HUMAN_SEAT, type HandBonus, type MatchOptions } from "../game/GameController";
+import {
+  GameController,
+  HUMAN_SEAT,
+  type HandBonus,
+  type HandChange,
+  type MatchOptions,
+  type PendingAction,
+} from "../game/GameController";
 import { mulberry32 } from "../engine/rng";
 import { runController } from "../roguelike/RunController";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
-import { SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
+import { RANK_NAME_AR, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
 import {
   BID_BUTTON_ROW_GAP,
   BID_BUTTON_ROW_Y,
@@ -110,7 +117,8 @@ export class TableScene extends Phaser.Scene {
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
   /** Which of each opponent's cards the spy joker is showing this hand. */
-  private spied: Partial<Record<Seat, string>> = {};
+  private spied: Partial<Record<Seat, string[]>> = {};
+  private actionPrompt?: Phaser.GameObjects.Text;
 
   constructor() {
     super("table");
@@ -142,6 +150,7 @@ export class TableScene extends Phaser.Scene {
     this.highlightedSeat = null;
     this.revealViews = [];
     this.spied = {};
+    this.actionPrompt = undefined;
   }
 
   create(): void {
@@ -211,6 +220,8 @@ export class TableScene extends Phaser.Scene {
     c.on("bidding:bid", (e) => this.onBiddingBid(e));
     c.on("bidding:resolved", (e) => this.onBiddingResolved(e));
     c.on("gold:earned", (e) => this.onGoldEarned(e));
+    c.on("action:turn", (e) => this.onActionTurn(e));
+    c.on("hand:changed", (e) => this.onHandChanged(e));
     c.on("play:turn", (e) => this.onPlayTurn(e));
     c.on("play:card", (e) => this.onPlayCard(e));
     c.on("trick:complete", (e) => this.onTrickComplete(e));
@@ -240,7 +251,7 @@ export class TableScene extends Phaser.Scene {
     for (const v of this.revealViews) v.destroy();
     this.revealViews = [];
     const mods = this.nodeData.modifiers;
-    if (!mods.spy && !mods.revealPartner) return;
+    if (!mods.spyCards && !mods.revealPartner) return;
     const hands = this.controller?.getRound()?.hands;
     if (!hands) return;
 
@@ -255,18 +266,24 @@ export class TableScene extends Phaser.Scene {
       this.opponentWidget[2]?.back.setVisible(false);
     }
 
-    if (mods.spy) {
+    const spyCount = mods.spyCards ?? 0;
+    if (spyCount > 0) {
       for (const seat of [1, 3] as Seat[]) {
         const hand = hands[seat];
         if (hand.length === 0) continue;
-        let id = this.spied[seat];
-        if (!id || !hand.some((c) => cardId(c) === id)) {
-          id = cardId(hand[Math.floor(Math.random() * hand.length)]);
-          this.spied[seat] = id;
+        // Keep showing the same cards while they're still held; top up from the rest.
+        const shown = (this.spied[seat] ?? []).filter((id) => hand.some((c) => cardId(c) === id));
+        const rest = hand.map(cardId).filter((id) => !shown.includes(id));
+        while (shown.length < Math.min(spyCount, hand.length) && rest.length > 0) {
+          shown.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
         }
-        const card = hand.find((c) => cardId(c) === id)!;
+        this.spied[seat] = shown;
         const anchor = HAND_ANCHOR[seat];
-        this.revealViews.push(new CardView(this, anchor.x, anchor.y, card, true, WIDGET_CARD_SIZE).setDepth(4));
+        shown.forEach((id, i) => {
+          const card = hand.find((c) => cardId(c) === id)!;
+          const y = anchor.y + (i - (shown.length - 1) / 2) * 46;
+          this.revealViews.push(new CardView(this, anchor.x, y, card, true, WIDGET_CARD_SIZE).setDepth(4 + i * 0.01));
+        });
         this.opponentWidget[seat]?.back.setVisible(false);
       }
     }
@@ -519,6 +536,98 @@ export class TableScene extends Phaser.Scene {
         view.once("pointerdown", () => this.onHumanCardClick(view));
       }
     }
+  }
+
+  /** A joker needs you to pick one of your cards (to transform, or to trade away). */
+  private onActionTurn(e: { action: PendingAction }): void {
+    const a = e.action;
+    const text =
+      a.kind === "transform"
+        ? `🎭 اختر ورقة تتحول إلى ${RANK_NAME_AR[a.to.rank]} ${SUIT_SYMBOL[a.to.suit]}`
+        : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
+    this.actionPrompt?.destroy();
+    this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 190, text, {
+      fontSize: "27px",
+      color: "#ffd54a",
+      backgroundColor: "#0a2318",
+      padding: { x: 18, y: 10 },
+    }).setDepth(12);
+
+    for (const view of this.playerHandViews) {
+      view.off("pointerdown");
+      view.disableInteractive();
+      view.setHighlighted(false);
+      // Turning the trump Jack into itself would waste the joker.
+      const pointless = a.kind === "transform" && cardId(view.card) === cardId(a.to);
+      view.setDimmed(pointless);
+      if (pointless) continue;
+      setBoxHitArea(view, view.displayW, view.displayH);
+      view.input!.cursor = "pointer";
+      view.once("pointerdown", () => this.onActionCardClick(view));
+    }
+  }
+
+  private onActionCardClick(view: CardView): void {
+    if (!this.controller.getPendingAction()) return;
+    for (const v of this.playerHandViews) {
+      v.off("pointerdown");
+      v.disableInteractive();
+      v.setDimmed(false);
+    }
+    this.actionPrompt?.destroy();
+    this.actionPrompt = undefined;
+    this.controller.submitPlayerAction(view.card);
+    this.time.delayedCall(900, () => this.driveAI());
+  }
+
+  /** A joker changed someone's hand: redraw it and say what happened. */
+  private onHandChanged(e: HandChange): void {
+    const label = (c: Card) => `${RANK_NAME_AR[c.rank]} ${SUIT_SYMBOL[c.suit]}`;
+    let note: string;
+    if (e.kind === "transform") {
+      note = `🎭 ${label(e.from)} صارت ${label(e.to)}`;
+    } else if (e.kind === "swap") {
+      note = `🪝 أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
+    } else {
+      note = `🧨 احترقت ${label(e.from)} عند ${SEAT_LABEL_AR[e.seat]}`;
+    }
+    this.log(note);
+    this.flashNote(note);
+
+    if (e.seat === HUMAN_SEAT || e.kind === "swap") this.redrawHumanHand(e.kind === "transform" ? e.to : e.kind === "swap" ? e.got : undefined);
+    this.refreshReveals();
+  }
+
+  /** Rebuilds the player's hand views from the engine, popping `fresh` so it's easy to spot. */
+  private redrawHumanHand(fresh?: Card): void {
+    for (const view of this.playerHandViews) view.destroy();
+    const trump = this.controller.getRound().bidding.result?.trumpSuit;
+    const cards = sortHandForDisplay(this.controller.getRound().hands[HUMAN_SEAT], trump);
+    const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
+    let popped = false;
+    this.playerHandViews = cards.map((card, i) => {
+      const view = new CardView(this, positions[i].x, positions[i].y, card, true, HAND_CARD_SIZE);
+      if (fresh && !popped && cardId(card) === cardId(fresh)) {
+        popped = true;
+        view.setHighlighted(true);
+        view.y -= 40;
+        this.tweens.add({ targets: view, y: positions[i].y, duration: 700, ease: "Back.Out", delay: 250 });
+        this.time.delayedCall(1600, () => view.active && view.setHighlighted(false));
+      }
+      return view;
+    });
+  }
+
+  private flashNote(text: string): void {
+    const note = arabicText(this, CENTER_X, CENTER_Y + 60, text, {
+      fontSize: "30px",
+      color: "#ffe08a",
+      backgroundColor: "#0a2318",
+      padding: { x: 20, y: 12 },
+    }).setDepth(30);
+    note.setScale(0.7);
+    this.tweens.add({ targets: note, scale: 1, duration: 200, ease: "Back.Out" });
+    this.tweens.add({ targets: note, alpha: 0, delay: 1900, duration: 400, onComplete: () => note.destroy() });
   }
 
   private onHumanCardClick(view: CardView): void {
