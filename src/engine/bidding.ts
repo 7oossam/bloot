@@ -30,20 +30,33 @@ export interface LegalCall {
   suit?: Suit;
 }
 
-/** The dealer's partner — the only seat allowed to call أشكل (docs/baloot-guide.md §3). */
 export function dealerPartner(dealer: Seat): Seat {
   return nextSeat(nextSeat(dealer));
 }
 
+/** The player on the dealer's left — play runs counter-clockwise, so the dealer's right bids first. */
+export function dealerLeft(dealer: Seat): Seat {
+  return nextSeat(dealerPartner(dealer));
+}
+
+/** The only two seats that may call أشكل: the dealer and the player on the dealer's left. */
+export function canCallAshkal(seat: Seat, dealer: Seat): boolean {
+  return seat === dealer || seat === dealerLeft(dealer);
+}
+
 /**
- * What أشكل asks the dealer to play (docs/baloot-guide.md §3): in the first round the other
- * suit of the ground card's colour ("عكس الشكل"), in the second both suits of the other
+ * What أشكل asks the caller's partner to play (docs/baloot-guide.md §3): in the first round the
+ * other suit of the ground card's colour ("عكس الشكل"), in the second both suits of the other
  * colour ("عكس اللون").
  */
 export function ashkalSignal(groundSuit: Suit, round: BiddingRound): Suit[] {
   const red = groundSuit === "H" || groundSuit === "D";
   if (round === 1) return [({ H: "D", D: "H", S: "C", C: "S" } as Record<Suit, Suit>)[groundSuit]];
   return red ? ["S", "C"] : ["H", "D"];
+}
+
+function partnerOf(seat: Seat): Seat {
+  return nextSeat(nextSeat(seat));
 }
 
 export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: Team[] = []): BiddingState {
@@ -57,14 +70,29 @@ export function startBidding(dealer: Seat, groundCard: Card, lockedHokumTeams: T
   };
 }
 
-/** Round 1: hokum must match the ground card's suit. Round 2: hokum must NOT match it. Sun is always legal. */
+/**
+ * Round 1: hokum must match the ground card's suit. Round 2: hokum must NOT match it. Sun is
+ * legal on a seat's own turn.
+ *
+ * While a hokum is pending (the official regulation, البند 4 and 8):
+ * - anyone may take it as sun — unless the ground card is an Ace, when only the dealer's right
+ *   may (4-1);
+ * - أشكل is open only to the dealer and the dealer's left, only over the OTHER team's hokum
+ *   (8-1), and in the second round not to a player who already said ولا (8-2).
+ */
 export function legalCalls(state: BiddingState): LegalCall[] {
   if (state.result || state.redeal) return [];
-  const canAshkal = state.turnSeat === dealerPartner(state.dealer);
-  // Answering someone else's hokum: sun (or أشكل) takes it over, anything else is a pass.
-  if (state.pendingHokum) return [{ call: "pass" }, { call: "sun" }, ...(canAshkal ? [{ call: "ashkal" } as LegalCall] : [])];
+  const seat = state.turnSeat;
+  if (state.pendingHokum) {
+    const aceGround = state.groundCard.rank === "A";
+    if (aceGround && seat !== nextSeat(state.dealer)) return [{ call: "pass" }];
+    const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
+    const opposing = teamOf(state.pendingHokum.seat) !== teamOf(seat);
+    const saidWala = state.round === 2 && passedThisRound(state, seat);
+    if (!aceGround && opposing && !saidWala && canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
+    return calls;
+  }
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
-  if (canAshkal) calls.push({ call: "ashkal" });
   if (state.round === 1) {
     calls.push({ call: "hokum", suit: state.groundCard.suit });
   } else {
@@ -74,6 +102,13 @@ export function legalCalls(state: BiddingState): LegalCall[] {
     for (const suit of otherSuits) calls.push({ call: "hokum", suit });
   }
   return calls;
+}
+
+/** Whether `seat` has passed in the current bidding round. */
+function passedThisRound(state: BiddingState, seat: Seat): boolean {
+  // Round 1 is exactly the first four bids when round 2 is reached (a buy would have ended it).
+  const bids = state.round === 2 ? state.history.slice(4) : state.history;
+  return bids.some((b) => b.seat === seat && b.call === "pass");
 }
 
 /** Applies one seat's bid and returns the next state. Throws on an illegal call. */
@@ -91,12 +126,17 @@ export function submitBid(state: BiddingState, bid: Bid): BiddingState {
       history,
       pendingHokum: undefined,
       challengers: undefined,
+      // The caller is the buyer; the partner takes the ground card (البند 9: "المشكل هو المشتري").
       result: {
         mode: "sun",
-        declarer: state.dealer,
-        declarerTeam: teamOf(state.dealer),
+        declarer: bid.seat,
+        declarerTeam: teamOf(bid.seat),
         history,
-        ashkal: { caller: bid.seat, signalSuits: ashkalSignal(state.groundCard.suit, state.round) },
+        ashkal: {
+          caller: bid.seat,
+          groundTo: partnerOf(bid.seat),
+          signalSuits: ashkalSignal(state.groundCard.suit, state.round),
+        },
       },
     };
   }

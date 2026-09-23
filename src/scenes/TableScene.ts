@@ -80,6 +80,8 @@ type HandCompleteEvent = {
   gained: Record<Team, number>;
   bonuses: HandBonus[];
   kaboot: boolean;
+  /** Filled in by the scene: the contract came from أشكل. */
+  ashkal?: boolean;
 };
 
 export class TableScene extends Phaser.Scene {
@@ -114,6 +116,8 @@ export class TableScene extends Phaser.Scene {
   private afterSettle: Array<() => void> = [];
   private seatLabels: Partial<Record<Seat, Phaser.GameObjects.Text>> = {};
   private dealerChip?: Phaser.GameObjects.Container;
+  /** The contract ("حكم ♠" / "صن" / "أشكل") shown beside the buyer's name. */
+  private contractChip?: Phaser.GameObjects.Container;
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
@@ -147,6 +151,7 @@ export class TableScene extends Phaser.Scene {
     this.trickSettling = false;
     this.afterSettle = [];
     this.seatLabels = {};
+    this.contractChip = undefined;
     this.dealerChip = undefined;
     this.highlightedSeat = null;
     this.revealViews = [];
@@ -382,6 +387,8 @@ export class TableScene extends Phaser.Scene {
     this.trickViews = {};
     this.groundCardView?.destroy();
     this.groundLabel?.destroy();
+    this.contractChip?.destroy();
+    this.contractChip = undefined;
 
     let dealIndex = 0;
     const cards = sortHandForDisplay(e.hands[HUMAN_SEAT]);
@@ -421,9 +428,14 @@ export class TableScene extends Phaser.Scene {
     this.clearBidButtons();
     if (e.seat !== HUMAN_SEAT) return;
 
-    const prompt = e.challenge
-      ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]} — تاخذها صن؟`
-      : `دورك — الجولة ${e.round}`;
+    const bought = e.challenge ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]}` : "";
+    const prompt = !e.challenge
+      ? `دورك — الجولة ${e.round}`
+      : e.calls.length === 1
+        ? `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
+        : e.calls.some((c) => c.call === "ashkal")
+          ? `${bought} — تاخذها صن أو أشكل؟`
+          : `${bought} — تاخذها صن؟`;
     this.bidPrompt = arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 86, prompt, {
       fontSize: "28px",
       color: "#ffd54a",
@@ -522,6 +534,28 @@ export class TableScene extends Phaser.Scene {
       `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`,
     );
     this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
+    const ashkal = !!this.controller.getRound().bidding.result?.ashkal;
+    this.placeContractChip(e.declarer, e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]}` : ashkal ? "أشكل · صن" : "صن");
+  }
+
+  /** Writes the contract beside the buyer's name, so the table always shows who bought what. */
+  private placeContractChip(seat: Seat, label: string): void {
+    this.contractChip?.destroy();
+    const name = this.seatLabels[seat];
+    if (!name) return;
+    const text = arabicText(this, 0, 0, label, { fontSize: "22px", color: "#1b1b1b", fontStyle: "bold" });
+    const w = text.width + 28;
+    const bg = this.add.graphics();
+    bg.fillStyle(0xffd54a, 1);
+    bg.fillRoundedRect(-w / 2, -19, w, 38, 19);
+    // Left of the name for you and your partner (the dealer tag sits on the right); above the
+    // name for the side seats, which sit too close to the screen edge for anything beside them.
+    const side = seat === 1 || seat === 3;
+    const x = side ? name.x : name.x - name.width / 2 - w / 2 - 14;
+    const y = side ? name.y - 44 : name.y;
+    this.contractChip = this.add.container(x, y, [bg, text]).setDepth(6);
+    this.contractChip.setScale(0.6);
+    this.tweens.add({ targets: this.contractChip, scale: 1, duration: 260, ease: "Back.Out" });
   }
 
   private onPlayTurn(e: { seat: Seat; legal: Card[] }): void {
@@ -665,8 +699,8 @@ export class TableScene extends Phaser.Scene {
   private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
     const dest = TRICK_ANCHOR[e.seat];
     if (e.akka) {
-      this.showSeatBubble(e.seat, "أكي", 0x9cc3ff);
-      this.log(`${SEAT_LABEL_AR[e.seat]}: أكي`);
+      this.showSeatBubble(e.seat, "آكه", 0x9cc3ff);
+      this.log(`${SEAT_LABEL_AR[e.seat]}: آكه`);
     }
     if (e.baloot) {
       this.showSeatBubble(e.seat, "بلوت 👑", 0xffd54a);
@@ -803,55 +837,131 @@ export class TableScene extends Phaser.Scene {
 
   private onHandComplete(e: HandCompleteEvent): void {
     this.showingHandSummary = true;
-    const snapshot: HandCompleteEvent = { ...e, matchScore: { ...e.matchScore } };
+    // The controller deals the next hand right after this event, so read the finished
+    // round's contract now.
+    const ashkal = !!this.controller.getRound().bidding.result?.ashkal;
+    const snapshot: HandCompleteEvent = { ...e, matchScore: { ...e.matchScore }, ashkal };
     this.whenTableSettled(() => this.showHandSummary(snapshot));
   }
 
+  /**
+   * النشرة — the score sheet after every hand, laid out like the one real Baloot apps show:
+   * the contract and how the buy went on top, then الأكلات / الأرض / المشاريع / الأبناط /
+   * النتيجة for لنا and لهم, then whatever the run's jokers added.
+   */
   private showHandSummary(e: HandCompleteEvent): void {
     if (this.matchOver) return; // the match-end panel replaces it
     this.updateScoreHud(e.matchScore);
 
     const r = e.result;
-    const modeLabel = r.mode === "hokum" ? `حكم ${SUIT_SYMBOL[r.trumpSuit!]}` : "صن";
-    const lines: Array<{ text: string; color?: string; size?: number }> = [
-      { text: `انتهت اليد (${modeLabel})` },
-      { text: `أنتم ${e.gained[0]} — الخصم ${e.gained[1]}  (ورق ${r.scoredPoints[0]} — ${r.scoredPoints[1]})` },
-    ];
-    if (e.kaboot) lines.push({ text: "كبوت! أكلتوا الثمان أكلات 💥", color: "#ffb33a" });
-    // Projects can land on both sides: one team's المشاريع and the other's بلوت.
-    const pp = r.projectPoints ?? { 0: 0, 1: 0 };
-    ([0, 1] as Team[]).forEach((team) => {
-      if (!pp[team]) return;
-      const who = team === teamOf(HUMAN_SEAT) ? "أنتم" : "الخصم";
-      const baloot = r.baloot !== undefined && teamOf(r.baloot) === team ? " (مع بلوت)" : "";
-      lines.push({ text: `المشاريع${baloot}: ${who} +${pp[team]}`, color: "#5ad469", size: 24 });
-    });
-    for (const b of e.bonuses) lines.push({ text: `${b.label}: +${b.points}`, color: "#9cc3ff", size: 24 });
-    lines.push({ text: `المجموع: ${e.matchScore[0]} — ${e.matchScore[1]} (هدف ${this.controller.getMatchTarget()})` });
+    const sheet = r.sheet!;
+    const us = teamOf(HUMAN_SEAT);
+    const them: Team = us === 0 ? 1 : 0;
+    const INK = "#262626";
 
-    const panelW = WIDTH - 120;
-    const lineH = 54;
-    const panelH = 150 + lines.length * lineH + 110;
-    const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
+    const panel = this.add.container(0, 0).setDepth(20);
     this.handSummaryPanel = panel;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 1);
-    bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
-    bg.lineStyle(4, 0xffd54a, 0.8);
-    bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
-    panel.add(bg);
+    const g = this.add.graphics();
+    panel.add(g);
+    g.fillStyle(0x000000, 0.6);
+    g.fillRect(0, 0, WIDTH, HEIGHT);
+    const put = (x: number, y: number, text: string, style: Phaser.Types.GameObjects.Text.TextStyle, originX = 0.5) => {
+      const t = arabicText(this, x, y, text, { color: INK, ...style }).setOrigin(originX, 0.5);
+      panel.add(t);
+      return t;
+    };
 
-    const top = -panelH / 2 + 80;
-    lines.forEach((line, i) => {
-      panel.add(
-        arabicText(this, 0, top + i * lineH, line.text, { fontSize: `${line.size ?? 27}px`, color: line.color ?? "#ffffff" }),
-      );
+    // ---- header: the contract, who bought it, and how it went
+    const left = 36;
+    const right = WIDTH - 36;
+    let y = 210;
+    g.fillStyle(0xf3f3f3, 1);
+    g.fillRoundedRect(left, y, right - left, 176, 24);
+    g.fillStyle(0xe2e2e2, 1);
+    g.fillRoundedRect(left + 14, y + 14, right - left - 28, 68, 16);
+    g.fillRoundedRect(left + 14, y + 94, right - left - 28, 68, 16);
+    const mode = r.mode === "hokum" ? `حكم ${SUIT_SYMBOL[r.trumpSuit!]} ${SUIT_NAME_AR[r.trumpSuit!]}` : e.ashkal ? "صن (أشكل)" : "صن";
+    put(right - 40, y + 48, `اللعبة: ${mode}`, { fontSize: "26px" }, 1);
+    put(left + 40, y + 48, `المشتري: ${r.declarerTeam === us ? "فريقنا" : "فريقهم"}`, { fontSize: "26px" }, 0);
+    const outcome = { won: ["ربحانة", "#3c9a2e"], lost: ["خسرانة", "#c8322d"], tie: ["متعادلة", "#c07a12"] }[sheet.outcome];
+    const kabootNote = sheet.kaboot !== undefined ? (sheet.kaboot === us ? " — كبوت لنا! 💥" : " — كبوت علينا") : "";
+    put(CENTER_X, y + 128, `نتيجة الشراء: ${outcome[0]}${kabootNote}`, { fontSize: "28px", color: outcome[1], fontStyle: "bold" });
+
+    // ---- the sheet: a label column on the right, then لنا, then لهم
+    y += 206;
+    const labelL = right - 150;
+    const usX = left + (labelL - 12 - left) * 0.75;
+    const themX = left + (labelL - 12 - left) * 0.25;
+    const colMid = left + (labelL - 12 - left) / 2;
+    const rowH = 60;
+    const projectLines = Math.max(1, sheet.projects[us].length, sheet.projects[them].length);
+    const bodyH = 64 + rowH * 2 + projectLines * 50 + 24 + rowH;
+    const resultH = 76;
+
+    put(labelL + 75, y - 2, "النشرة", { fontSize: "32px", color: "#ffffff", fontStyle: "bold" });
+    y += 32;
+    g.fillStyle(0xf3f3f3, 1);
+    g.fillRoundedRect(left, y, labelL - 12 - left, bodyH + resultH + 28, 24);
+    g.fillStyle(0xb9b9b9, 1);
+    g.fillRoundedRect(labelL, y + 64, 150, bodyH - 64, 22);
+    g.lineStyle(2, 0xcfcfcf, 1);
+    g.lineBetween(colMid, y + 10, colMid, y + bodyH);
+    g.lineBetween(left + 10, y + 64, labelL - 22, y + 64);
+    put(usX, y + 34, "لنا", { fontSize: "28px", fontStyle: "bold" });
+    put(themX, y + 34, "لهم", { fontSize: "28px", fontStyle: "bold" });
+
+    const num = (n: number) => (n ? String(n) : "");
+    const row = (label: string, rowY: number, a: string, b: string) => {
+      put(labelL + 75, rowY, label, { fontSize: "26px" });
+      put(usX, rowY, a, { fontSize: "30px" });
+      put(themX, rowY, b, { fontSize: "30px" });
+    };
+    let ry = y + 64 + rowH / 2 + 4;
+    row("الأكلات", ry, String(sheet.cards[us]), String(sheet.cards[them]));
+    ry += rowH;
+    row("الأرض", ry, num(sheet.ground[us]), num(sheet.ground[them]));
+    ry += rowH;
+    put(labelL + 75, ry, "المشاريع", { fontSize: "26px" });
+    ([us, them] as Team[]).forEach((team) => {
+      const cx = team === us ? usX : themX;
+      sheet.projects[team].forEach((p, i) => {
+        put(cx + 50, ry + i * 50, p.name, { fontSize: "25px" });
+        put(cx - 60, ry + i * 50, String(p.raw), { fontSize: "27px" });
+      });
+    });
+    ry += (projectLines - 1) * 50 + 24 + rowH / 2 + 6;
+    g.lineBetween(left + 10, ry - rowH / 2, labelL - 22, ry - rowH / 2);
+    row("الأبناط", ry, String(sheet.abnat[us]), String(sheet.abnat[them]));
+
+    // النتيجة: game points, in the darker strip at the bottom.
+    const resY = y + bodyH + 10;
+    g.fillStyle(0xc9c9c9, 1);
+    g.fillRoundedRect(left + 12, resY, labelL - 36 - left, resultH, 16);
+    g.fillStyle(0xe7b3b3, 1);
+    g.fillRoundedRect(labelL, resY, 150, resultH, 18);
+    put(labelL + 75, resY + resultH / 2, "النتيجة", { fontSize: "27px", color: "#b3261e", fontStyle: "bold" });
+    put(usX, resY + resultH / 2, String(sheet.result[us]), { fontSize: "34px", fontStyle: "bold" });
+    put(themX, resY + resultH / 2, String(sheet.result[them]), { fontSize: "34px", fontStyle: "bold" });
+    y = resY + resultH + 44;
+
+    // ---- the run's jokers, then the match score
+    for (const b of e.bonuses) {
+      put(CENTER_X, y, `🃏 ${b.label}: +${b.points}`, { fontSize: "25px", color: "#9cc3ff" });
+      y += 42;
+    }
+    if (e.bonuses.length > 0) {
+      put(CENTER_X, y, `المكتسب: لنا ${e.gained[us]} — لهم ${e.gained[them]}`, { fontSize: "25px", color: "#ffffff" });
+      y += 42;
+    }
+    put(CENTER_X, y, `المجموع: لنا ${e.matchScore[us]} — لهم ${e.matchScore[them]}  (الهدف ${this.controller.getMatchTarget()})`, {
+      fontSize: "26px",
+      color: "#ffd54a",
     });
 
     const btn = makeButton(
       this,
-      0,
-      panelH / 2 - 80,
+      CENTER_X,
+      y + 100,
       "التالي",
       () => {
         panel.destroy();
@@ -864,7 +974,7 @@ export class TableScene extends Phaser.Scene {
         }
         this.driveAI();
       },
-      { width: 260, height: 80 },
+      { width: right - left, height: 88, color: 0x5d5d5d },
     );
     panel.add(btn.container);
   }

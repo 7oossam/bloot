@@ -1,4 +1,4 @@
-import { dealerPartner, legalCalls, type BiddingState } from "../engine/bidding";
+import { legalCalls, type BiddingState } from "../engine/bidding";
 import { nextSeat, type Bid, type Card, type Seat } from "../engine/types";
 import { bestHokumOption, meetsHokumCriteria, meetsSunCriteria, sunStrength } from "./evaluate";
 
@@ -38,11 +38,11 @@ export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
   if (hokumMargin >= 0 && hokumMargin >= sunMargin) return { seat, call: "hokum", suit: hokum!.suit };
   if (sunMargin >= 0) return { seat, call: "sun" };
 
-  // أشكل (§3): the dealer's partner with a decent sun hand, when the ground card is strong
-  // for sun — hand it to the dealer rather than buy alone.
-  if (options.some((o) => o.call === "ashkal") && seat === dealerPartner(state.dealer)) {
-    const strongGround = state.groundCard.rank === "A" || state.groundCard.rank === "10";
-    if (strongGround && hand.some((c) => c.rank === "A") && sunStrength(hand) >= SUN_BUY_THRESHOLD * 0.55) {
+  // أشكل (البند 8): over the other team's hokum, when the ground card would help the partner
+  // more than us — a 10 on the ground and a hand that's close to a sun buy without it.
+  if (options.some((o) => o.call === "ashkal")) {
+    const strongGround = state.groundCard.rank === "10" || state.groundCard.rank === "K";
+    if (strongGround && hand.some((c) => c.rank === "A") && sunStrength(hand) * factor >= SUN_BUY_THRESHOLD * 0.9) {
       return { seat, call: "ashkal" };
     }
   }

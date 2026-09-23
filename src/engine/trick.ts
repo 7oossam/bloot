@@ -92,7 +92,7 @@ export function legalMoves(
 }
 
 /**
- * أكي (docs/baloot-guide.md §6.1): in hokum, leading a non-trump card that is now the highest
+ * آكه (docs/baloot-guide.md §6.1): in hokum, leading a non-trump card that is now the highest
  * one left in its suit — every card above it has already been played. It tells the partner
  * not to trump it. An Ace is left out; it's the top card anyway and nobody announces it.
  */

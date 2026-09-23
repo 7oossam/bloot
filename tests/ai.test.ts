@@ -170,11 +170,13 @@ describe("buying — معايير الشراء والحلة (§3)", () => {
     expect(withHilla).toBeGreaterThan(without);
   });
 
-  it("the dealer's partner calls أشكل with a good sun hand on a strong ground card", () => {
-    let state = startBidding(0, c("AH"));
-    state = submitBid(state, { seat: 1, call: "pass" });
-    // Not enough to buy sun alone (it would with a second strong suit), but a fair sun hand.
-    const bid = decideBid(2, cards("AS", "KS", "8D", "9C", "7C"), state);
+  it("the dealer calls أشكل over the other team's hokum with a fair sun hand and a 10 on the ground", () => {
+    let state = startBidding(0, c("10H"));
+    state = submitBid(state, { seat: 1, call: "hokum", suit: "H" });
+    state = submitBid(state, { seat: 2, call: "pass" });
+    state = submitBid(state, { seat: 3, call: "pass" });
+    // Not enough to buy sun alone, but a fair sun hand for the partner to take the 10 into.
+    const bid = decideBid(0, cards("AS", "KS", "QS", "10D", "7C"), state);
     expect(bid.call).toBe("ashkal");
   });
 });
@@ -220,7 +222,7 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
     expect(chosen).toEqual(c("JS"));
   });
 
-  it("the dealer plays the suit أشكل asked for", () => {
+  it("the partner who took the ground card plays the suit أشكل asked for", () => {
     const chosen = decideCard(cards("9D", "KD", "8C", "QS", "7H"), trickOf(0), "sun", undefined, 0, {
       tricks: [],
       declarer: 0,

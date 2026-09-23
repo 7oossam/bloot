@@ -25,7 +25,10 @@ export type Mode = "hokum" | "sun";
 
 export interface Bid {
   seat: Seat;
-  /** "ashkal" (أشكل): the dealer's partner hands the ground card to the dealer as a forced sun. */
+  /**
+   * "ashkal" (أشكل): the dealer or the player on the dealer's left takes an opposing hokum as
+   * sun, and the ground card goes to the caller's partner (البند 8).
+   */
   call: "hokum" | "sun" | "pass" | "ashkal";
   suit?: Suit; // present when call === "hokum"
 }
@@ -36,8 +39,11 @@ export interface BiddingResult {
   declarer: Seat;
   declarerTeam: Team;
   history: Bid[];
-  /** Set when the contract came from أشكل: who called it and which suits it asks the dealer to play. */
-  ashkal?: { caller: Seat; signalSuits: Suit[] };
+  /**
+   * Set when the contract came from أشكل: who called it (the buyer, `declarer`), the partner who
+   * takes the ground card, and which suits it asks that partner to play.
+   */
+  ashkal?: { caller: Seat; groundTo: Seat; signalSuits: Suit[] };
 }
 
 export interface Trick {
@@ -60,4 +66,31 @@ export interface HandResult {
   projectPoints?: Record<Team, number>;
   /** Which seat scored بلوت this hand, if anyone did. */
   baloot?: Seat;
+  /** The النشرة: the hand's score sheet, row by row. */
+  sheet?: HandSheet;
+}
+
+export interface SheetProject {
+  name: string;
+  /** Raw points (أبناط) — سرا 20, خمسين 50, مئة 100, أربعمئة 200, بلوت 20. */
+  raw: number;
+  seat: Seat;
+}
+
+/** النشرة — what the score sheet shows after a hand. */
+export interface HandSheet {
+  /** الأكلات: card points won in tricks. */
+  cards: Record<Team, number>;
+  /** الأرض: the last-trick bonus. */
+  ground: Record<Team, number>;
+  /** المشاريع that counted for each side, بلوت included. */
+  projects: Record<Team, SheetProject[]>;
+  /** الأبناط: cards + الأرض + projects, raw. */
+  abnat: Record<Team, number>;
+  /** النتيجة: game points banked (before any joker). */
+  result: Record<Team, number>;
+  /** How the buy went for the buyer: ربحانة / خسرانة / متعادلة. */
+  outcome: "won" | "lost" | "tie";
+  /** The side that took all eight tricks, if one did. */
+  kaboot?: Team;
 }

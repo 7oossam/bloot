@@ -37,7 +37,7 @@ const SEAT_ORDER: readonly Seat[] = [0, 1, 2, 3];
 /**
  * Completes each seat's hand to 8 cards from the 12-card stock. Whoever bought — sun or
  * hokum, first or second round — takes the face-up ground card plus 2 more from the stock;
- * everyone else gets 3.
+ * everyone else gets 3. After أشكل the caller's partner takes the ground card instead.
  */
 export function finalizeDeal(
   initial: InitialDeal,
@@ -49,10 +49,11 @@ export function finalizeDeal(
     2: [...initial.hands[2]],
     3: [...initial.hands[3]],
   };
-  hands[result.declarer].push(initial.stock[0]);
+  const taker = result.ashkal?.groundTo ?? result.declarer;
+  hands[taker].push(initial.stock[0]);
   let i = 1;
   for (const seat of SEAT_ORDER) {
-    const count = seat === result.declarer ? 2 : 3;
+    const count = seat === taker ? 2 : 3;
     for (let n = 0; n < count; n++) hands[seat].push(initial.stock[i++]);
   }
   return hands;

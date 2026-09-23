@@ -77,7 +77,7 @@ interface EventMap {
   "bidding:bid": { bid: Bid };
   "bidding:resolved": { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> };
   "play:turn": { seat: Seat; legal: Card[] };
-  /** `akka` when the lead is أكي; `baloot` when this card completes بلوت. */
+  /** `akka` when the lead is آكه; `baloot` when this card completes بلوت. */
   "play:card": { seat: Seat; card: Card; akka?: boolean; baloot?: boolean };
   /** المشاريع, decided the moment play starts. */
   "projects:declared": ProjectsOutcome;
@@ -202,8 +202,8 @@ export class GameController extends Emitter<EventMap> {
       const card = decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, {
         tricks: this.round.tricks,
         declarer: result.declarer,
-        // أشكل is a message to the dealer only (docs/baloot-guide.md §3).
-        ashkalSuits: seat === result.declarer ? result.ashkal?.signalSuits : undefined,
+        // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
+        ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
       });
       this.applyCard(seat, card);
       return "advanced";
@@ -329,7 +329,7 @@ export class GameController extends Emitter<EventMap> {
         bonuses.push({ label: "الصن الملكي", points: extra });
       }
     }
-    const madeHokum = result.mode === "hokum" && weBought && result.scoredPoints[us] > result.scoredPoints[them];
+    const madeHokum = result.mode === "hokum" && weBought && result.sheet?.outcome === "won";
     if (madeHokum && o.hokumMadeBonus) {
       gained[us] += o.hokumMadeBonus;
       bonuses.push({ label: "سيد الحكم", points: o.hokumMadeBonus });

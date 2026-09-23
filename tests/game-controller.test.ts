@@ -88,7 +88,8 @@ describe("GameController match length", () => {
       playMatchToCompletion(controller);
       expect(hands).toBeGreaterThanOrEqual(2);
       const s = controller.getMatchScore();
-      expect(Math.max(s[0], s[1])).toBeLessThan(41 + 26);
+      // The biggest single hand is a sun كبوت (44) plus projects — nowhere near raw points.
+      expect(Math.max(s[0], s[1])).toBeLessThan(41 + 44 + 60);
     }
   });
 });

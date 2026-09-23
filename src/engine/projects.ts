@@ -2,17 +2,19 @@ import type { Card, Mode, Rank, Seat, Suit, Team } from "./types";
 import { nextSeat, teamOf } from "./types";
 
 /**
- * المشاريع (projects), per docs/baloot-guide.md §1:
+ * المشاريع (projects), per docs/baloot-guide.md §1 and the official regulation (البند 5–6):
  *
  * - سرا:     3 cards in sequence, same suit.
  * - خمسين:   4 in sequence.
- * - مئة:     5 in sequence, or four of a kind — Aces, Kings, Queens, 10s in both modes, and
- *            Jacks in hokum only. (Four Aces in sun is أربعمئة instead.)
- * - أربعمئة: four Aces, sun only.
+ * - مئة:     5 in sequence, or four of a kind of anything but 7/8/9 — Aces, Kings, Queens,
+ *            Jacks, 10s. (Four Aces in sun is أربعمئة instead.)
+ * - أربعمئة: four Aces, sun only — the biggest sun project (5-1).
  * - بلوت:    trump King + Queen in hokum; scored when the second of the two is played
  *            (handled by Round, not here — it isn't compared against the other team).
  *
  * Sequences run in the natural order 7-8-9-10-J-Q-K-A whatever the contract.
+ * Between two مئة, a sequence beats four of a kind (5-2); four of a kind rank A > K > Q > J > 10
+ * (5-3); a full tie goes to the seat nearer the dealer's right (5-7).
  */
 
 export type ProjectKind = "sira" | "khamsin" | "miya" | "arbaamiya";
@@ -31,11 +33,19 @@ export const PROJECT_NAME_AR: Record<ProjectKind | "baloot", string> = {
   baloot: "بلوت",
 };
 
-/** Game points (القيد) each project is worth. Sun values are hokum's ×2 (raw ÷5, not ÷10). */
+/**
+ * Raw points (أبناط) each project adds to its team's count — what the النشرة shows, and what
+ * decides whether the buyer lost (البند 4). بلوت is 20 raw too.
+ */
+export const PROJECT_RAW: Record<ProjectKind, number> = { sira: 20, khamsin: 50, miya: 100, arbaamiya: 200 };
+export const BALOOT_RAW = 20;
+
+/** Game points (القيد) each project is worth (البند 6): raw ÷10 in hokum, ×2 on top in sun. */
 export const PROJECT_VALUE: Record<Mode, Record<ProjectKind, number>> = {
   hokum: { sira: 2, khamsin: 5, miya: 10, arbaamiya: 0 },
   sun: { sira: 4, khamsin: 10, miya: 20, arbaamiya: 40 },
 };
+/** بلوت is 2 in hokum and is never doubled (5-4). */
 export const BALOOT_VALUE = 2;
 
 const SEQUENCE_ORDER: readonly Rank[] = ["7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -53,7 +63,6 @@ function fourOfAKinds(hand: Card[], mode: Mode, seat: Seat): Project[] {
   for (const rank of ["A", "K", "Q", "10", "J"] as Rank[]) {
     const cards = hand.filter((c) => c.rank === rank);
     if (cards.length < 4) continue;
-    if (rank === "J" && mode !== "hokum") continue;
     const kind: ProjectKind = rank === "A" && mode === "sun" ? "arbaamiya" : "miya";
     out.push({ kind, seat, cards: cards.slice(0, 4) });
   }
@@ -96,11 +105,30 @@ export function findProjects(hand: Card[], mode: Mode, seat: Seat): Project[] {
   return best.filter((p) => PROJECT_VALUE[mode][p.kind] > 0);
 }
 
-/** Orders two projects: bigger kind first, then the higher top card. 0 = identical. */
-function compareProjects(a: Project, b: Project): number {
+const isFourOfAKind = (p: Project) => p.cards.length === 4 && p.cards.every((c) => c.rank === p.cards[0].rank);
+
+/**
+ * Orders two projects: bigger kind first; between two مئة a sequence beats four of a kind
+ * (5-2); then the higher top card — which also gives A > K > Q > J > 10 for four of a kind
+ * (5-3). 0 = identical.
+ */
+export function compareProjects(a: Project, b: Project): number {
   if (KIND_RANK[a.kind] !== KIND_RANK[b.kind]) return KIND_RANK[a.kind] - KIND_RANK[b.kind];
+  if (a.kind === "miya" && isFourOfAKind(a) !== isFourOfAKind(b)) return isFourOfAKind(a) ? -1 : 1;
   const top = (p: Project) => Math.max(...p.cards.map((c) => SEQUENCE_ORDER.indexOf(c.rank)));
   return top(a) - top(b);
+}
+
+/** True when a seat's projects include four Kings or four Queens — then بلوت isn't called (5-8). */
+export function hasFourKingsOrQueens(projects: Project[]): boolean {
+  return projects.some((p) => isFourOfAKind(p) && (p.cards[0].rank === "K" || p.cards[0].rank === "Q"));
+}
+
+/** True when one of these projects is a sequence holding both `suit`'s King and Queen (5-6). */
+export function sequenceHoldsKQ(projects: Project[], suit: Suit): boolean {
+  return projects.some(
+    (p) => !isFourOfAKind(p) && p.cards[0].suit === suit && p.cards.some((c) => c.rank === "K") && p.cards.some((c) => c.rank === "Q"),
+  );
 }
 
 export interface ProjectsOutcome {
