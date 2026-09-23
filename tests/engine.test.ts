@@ -4,7 +4,7 @@ import { dealInitial, finalizeDeal } from "../src/engine/deck";
 import { legalCalls, startBidding, submitBid } from "../src/engine/bidding";
 import { legalMoves, resolveTrick } from "../src/engine/trick";
 import { rankStrength, cardId } from "../src/engine/cards";
-import { scoreHand } from "../src/engine/scoring";
+import { scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
 import type { Bid, Card, Seat, Trick } from "../src/engine/types";
@@ -269,5 +269,49 @@ describe("Round: full hand end-to-end with simple always-first-legal bots", () =
     const total = round.result!.rawPoints[0] + round.result!.rawPoints[1];
     const expectedTotal = round.result!.mode === "hokum" ? 162 : 130;
     expect(total).toBe(expectedTotal);
+  });
+});
+
+describe("toGamePoints (abnat)", () => {
+  it("a hokum hand is worth 16 and a hokum 5 rounds down", () => {
+    expect(toGamePoints({ 0: 85, 1: 77 })).toEqual({ 0: 8, 1: 8 });
+    expect(toGamePoints({ 0: 162, 1: 0 })).toEqual({ 0: 16, 1: 0 });
+  });
+
+  it("keeps the hand's total exact where rounding each side would not", () => {
+    // 8.6 + 7.6 rounded separately is 9 + 8 = 17, one more than a hokum hand is worth.
+    const g = toGamePoints({ 0: 86, 1: 76 });
+    expect(g[0] + g[1]).toBe(16);
+  });
+
+  it("a sun hand is worth 26", () => {
+    expect(toGamePoints({ 0: 126, 1: 134 })).toEqual({ 0: 13, 1: 13 });
+    expect(toGamePoints({ 0: 260, 1: 0 })).toEqual({ 0: 26, 1: 0 });
+  });
+
+  it("every played hand converts to exactly 16 (hokum) or 26 (sun)", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const round = new Round(0, mulberry32(seed));
+      // Alternate hokum and sun buys across seeds so both conversions are exercised.
+      const want = seed % 2 === 0 ? "sun" : "hokum";
+      while (round.phase === "bidding") {
+        const calls = round.legalBids();
+        const buy = calls.find((c) => c.call === want) ?? calls.find((c) => c.call !== "pass") ?? calls[0];
+        round.bid({ seat: round.bidding.turnSeat, ...buy } as Bid);
+      }
+      if (round.phase !== "playing") continue;
+      while (round.phase === "playing") {
+        const seat = round.turnSeat!;
+        round.playCard(seat, round.legalMovesFor(seat)[0]);
+      }
+      const g = round.result!.gamePoints;
+      expect(g[0] + g[1]).toBe(round.result!.mode === "hokum" ? 16 : 26);
+    }
+  });
+
+  it("a raised last-trick bonus (joker) raises the hand's value", () => {
+    // 152 card points + a 20-point last trick = 172 -> 17 abnat.
+    const g = toGamePoints({ 0: 100, 1: 72 });
+    expect(g[0] + g[1]).toBe(17);
   });
 });

@@ -73,3 +73,20 @@ describe("GameController", () => {
     for (const count of trickCounts) expect(count).toBe(8);
   });
 });
+
+describe("GameController match length", () => {
+  it("a match to 41 lasts several hands, not one", () => {
+    // Regression: hands used to add raw card points (162 a hokum hand) to a target of 41,
+    // so every match ended on its first hand.
+    for (const seed of [3, 11, 29, 57]) {
+      const controller = new GameController(mulberry32(seed), { matchTarget: 41 });
+      let hands = 0;
+      controller.on("hand:complete", () => hands++);
+      controller.startMatch();
+      playMatchToCompletion(controller);
+      expect(hands).toBeGreaterThanOrEqual(2);
+      const s = controller.getMatchScore();
+      expect(Math.max(s[0], s[1])).toBeLessThan(41 + 26);
+    }
+  });
+});

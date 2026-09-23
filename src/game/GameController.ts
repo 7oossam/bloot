@@ -163,9 +163,11 @@ export class GameController extends Emitter<EventMap> {
 
     if (this.round.phase === "complete") {
       const result = this.round.result!;
+      // Match targets are in game points (abnat), not card points — adding raw card points
+      // (162 a hokum hand) against a target of 41 ended every match on its first hand.
       this.matchScore = {
-        0: this.matchScore[0] + result.scoredPoints[0],
-        1: this.matchScore[1] + result.scoredPoints[1],
+        0: this.matchScore[0] + result.gamePoints[0],
+        1: this.matchScore[1] + result.gamePoints[1],
       };
       this.emit("hand:complete", { result, matchScore: this.matchScore });
 

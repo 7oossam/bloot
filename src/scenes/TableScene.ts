@@ -90,6 +90,23 @@ export class TableScene extends Phaser.Scene {
 
   init(data: TableSceneData): void {
     this.nodeData = data;
+    // Phaser reuses this one scene object for every match, and field initialisers only run
+    // once, at construction. Without this reset the second match inherited `matchOver = true`
+    // from the first, so driveAI() returned immediately and the table froze in bidding — and
+    // the view lists still pointed at objects the previous run had already destroyed.
+    this.playerHandViews = [];
+    this.opponentWidget = {};
+    this.trickViews = {};
+    this.seatBubble = {};
+    this.groundCardView = undefined;
+    this.groundLabel = undefined;
+    this.bidPrompt = undefined;
+    this.bidButtons = [];
+    this.logLines = [];
+    this.showingHandSummary = false;
+    this.handSummaryPanel = undefined;
+    this.pendingDeal = null;
+    this.matchOver = false;
   }
 
   create(): void {
@@ -502,7 +519,7 @@ export class TableScene extends Phaser.Scene {
     const modeLabel = r.mode === "hokum" ? `حكم ${SUIT_SYMBOL[r.trumpSuit!]}` : "صن";
     const lines = [
       `انتهت اليد (${modeLabel})`,
-      `أنتم ${r.scoredPoints[0]} — الخصم ${r.scoredPoints[1]}`,
+      `أنتم ${r.gamePoints[0]} — الخصم ${r.gamePoints[1]}  (ورق ${r.scoredPoints[0]} — ${r.scoredPoints[1]})`,
       `المجموع: ${e.matchScore[0]} — ${e.matchScore[1]} (هدف ${this.controller.getMatchTarget()})`,
     ];
 

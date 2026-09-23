@@ -42,5 +42,30 @@ export function scoreHand(
     1: rawPoints[1] * multiplier,
   };
 
-  return { mode, trumpSuit, declarerTeam, rawPoints, scoredPoints, tricksWon };
+  return { mode, trumpSuit, declarerTeam, rawPoints, scoredPoints, gamePoints: toGamePoints(scoredPoints), tricksWon };
+}
+
+/**
+ * Converts scored card points to game points ("abnat"), the unit a match target is in.
+ *
+ * A hand's points go down by a factor of ten, and the two teams' shares must still add up to
+ * the hand's full value (16 for hokum, 26 for sun, more when a joker raises the last-trick
+ * bonus). Rounding each side independently can't guarantee that — 86/76 in hokum would give
+ * 9 + 8 = 17 — so each team keeps its whole tens and the leftover point goes to the larger
+ * remainder. That also reproduces the table rule that a hokum 5 rounds down: 85/77 -> 8/8.
+ */
+export function toGamePoints(scored: Record<Team, number>): Record<Team, number> {
+  const total = Math.round((scored[0] + scored[1]) / 10);
+  const whole: Record<Team, number> = { 0: Math.floor(scored[0] / 10), 1: Math.floor(scored[1] / 10) };
+  let leftover = total - whole[0] - whole[1];
+  // Larger remainder first; on a tie, the side that took more card points.
+  const byRemainder: Team[] = ([0, 1] as Team[]).sort(
+    (a, b) => scored[b] % 10 - scored[a] % 10 || scored[b] - scored[a],
+  );
+  for (const team of byRemainder) {
+    if (leftover <= 0) break;
+    whole[team]++;
+    leftover--;
+  }
+  return whole;
 }

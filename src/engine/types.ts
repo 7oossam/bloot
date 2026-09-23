@@ -50,5 +50,7 @@ export interface HandResult {
   declarerTeam: Team;
   rawPoints: Record<Team, number>; // card points + last-trick bonus, before mode multiplier
   scoredPoints: Record<Team, number>; // after the sun x2 multiplier
+  /** Game points ("abnat") — what a match is played to: a hokum hand is worth 16, a sun hand 26. */
+  gamePoints: Record<Team, number>;
   tricksWon: Record<Team, number>;
 }
