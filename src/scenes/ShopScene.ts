@@ -56,21 +56,31 @@ export class ShopScene extends Phaser.Scene {
       bg.lineStyle(4, affordable ? 0xffd54a : 0x554a77, 1);
       bg.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 24);
 
+      // The buy button sits on the right; the text column is centred in the space left of it.
+      // (It used to be centred 190px in from the left edge but 480px wide, so it started
+      // 50px outside the card and the first word of each description was cut off.)
+      const buttonW = 150;
+      const buttonX = cardWidth / 2 - 30 - buttonW / 2;
+      const columnLeft = -cardWidth / 2 + 30;
+      const columnRight = buttonX - buttonW / 2 - 30;
+      const textX = (columnLeft + columnRight) / 2;
+      const textW = columnRight - columnLeft;
+
       const card = this.add.container(x, y, [bg]);
-      card.add(arabicText(this, -cardWidth / 2 + 190, -80, def.name, { fontSize: "32px" }));
+      card.add(arabicText(this, textX, -80, def.name, { fontSize: "32px" }));
       card.add(
-        arabicText(this, -cardWidth / 2 + 190, -14, def.description, {
+        arabicText(this, textX, -14, def.description, {
           fontSize: "24px",
           color: "#cfc8e0",
-          align: "right",
-          wordWrap: { width: cardWidth - 260 },
+          align: "center",
+          wordWrap: { width: textW },
         }),
       );
-      card.add(arabicText(this, -cardWidth / 2 + 190, 66, `${def.cost} ذهب`, { fontSize: "26px", color: "#ffd54a" }));
+      card.add(arabicText(this, textX, 66, `${def.cost} ذهب`, { fontSize: "26px", color: "#ffd54a" }));
 
       const btn = makeButton(
         this,
-        cardWidth / 2 - 95,
+        buttonX,
         0,
         "شراء",
         () => {
@@ -78,7 +88,7 @@ export class ShopScene extends Phaser.Scene {
           runController.buyJoker(id);
           this.refresh();
         },
-        { color: affordable ? 0x1f6f43 : 0x3a3a3a, width: 150, height: 74, fontSize: "26px" },
+        { color: affordable ? 0x1f6f43 : 0x3a3a3a, width: buttonW, height: 74, fontSize: "26px" },
       );
       card.add(btn.container);
 

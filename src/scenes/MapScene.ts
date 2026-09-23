@@ -159,7 +159,7 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 0.97);
+    bg.fillStyle(0x0a2318, 1);
     bg.fillRoundedRect(-panelW / 2, -220, panelW, 440, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -220, panelW, 440, 28);

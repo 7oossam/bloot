@@ -195,6 +195,7 @@ export class TableScene extends Phaser.Scene {
     if (!widget) return;
     widget.count.setText(`×${count}`);
     widget.back.setVisible(count > 0);
+    widget.count.setVisible(count > 0);
   }
 
   // ------------------------------------------------------------- AI pacing
@@ -527,7 +528,7 @@ export class TableScene extends Phaser.Scene {
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
     this.handSummaryPanel = panel;
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 0.97);
+    bg.fillStyle(0x0a2318, 1);
     bg.fillRoundedRect(-panelW / 2, -200, panelW, 400, 28);
     bg.lineStyle(4, 0xffd54a, 0.8);
     bg.strokeRoundedRect(-panelW / 2, -200, panelW, 400, 28);
@@ -578,7 +579,7 @@ export class TableScene extends Phaser.Scene {
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 0.98);
+    bg.fillStyle(0x0a2318, 1);
     bg.fillRoundedRect(-panelW / 2, -230, panelW, 460, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -230, panelW, 460, 28);

@@ -18,6 +18,7 @@ export class CardView extends Phaser.GameObjects.Container {
   private faceUp: boolean;
   private readonly sizeScale: number;
   private readonly bg: Phaser.GameObjects.Graphics;
+  private readonly shade: Phaser.GameObjects.Graphics;
   private texts: Phaser.GameObjects.Text[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number, card: Card, faceUp: boolean, sizeScale = 1) {
@@ -29,6 +30,8 @@ export class CardView extends Phaser.GameObjects.Container {
     this.displayH = CARD_H * sizeScale;
     this.bg = scene.add.graphics();
     this.add(this.bg);
+    this.shade = scene.add.graphics().setVisible(false);
+    this.add(this.shade);
     this.setSize(this.displayW, this.displayH);
     this.redraw();
     scene.add.existing(this);
@@ -43,8 +46,19 @@ export class CardView extends Phaser.GameObjects.Container {
     this.redraw(on);
   }
 
+  /**
+   * Greys out an unplayable card with an opaque shade drawn over it. Dimming by alpha made
+   * the card see-through, and in an overlapping hand the card underneath showed through
+   * every greyed card as a pale stripe.
+   */
   setDimmed(on: boolean): void {
-    this.setAlpha(on ? 0.58 : 1);
+    this.shade.clear();
+    if (on) {
+      const w = this.displayW, h = this.displayH;
+      this.shade.fillStyle(0x0b2a1e, 0.45);
+      this.shade.fillRoundedRect(-w / 2, -h / 2, w, h, 16 * this.sizeScale);
+    }
+    this.shade.setVisible(on);
   }
 
   private redraw(highlighted = false): void {
@@ -92,6 +106,7 @@ export class CardView extends Phaser.GameObjects.Container {
 
       this.texts = [rank, cornerSuit, centerSuit];
       this.add(this.texts);
+      this.bringToTop(this.shade);
     } else {
       this.bg.fillStyle(0x000000, 0.28);
       this.bg.fillRoundedRect(-w / 2 + 3 * s, -h / 2 + 5 * s, w, h, r);
