@@ -29,25 +29,27 @@ This knowledge base merges the strict, traditional rules of **Baloot** with the 
 
 ## PART 2: The Baloot Core Engine (The Rules We Break)
 
-To break the rules, we must accurately implement them first.
+To break the rules, we must accurately implement them first. This is a short summary: the official regulation (`docs/baloot-regulation.md`) is the authority, and the `baloot-rules` skill says how the code follows it.
 
 ### 1. Bidding (Meshytar) & Ashkal
 - **Two Rounds:** 1st round (Ground card suit). 2nd round (Any other suit or Sun).
-- **Ashkal:** Exclusive to Player 3. Passes the choice to the Dealer (Player 1) to play **Sun**.
+- **Ashkal (أشكل):** Only the dealer and the player on the dealer's left may call it. The caller buys **Sun**, and the caller's partner takes the ground card.
 
 ### 2. Scoring, Math, and Rounding
-- **Sun (26 Points):** Base 130 + 10 (Last Trick). 11 pts for Ace, 10 for Ten. Rounding: 1-4 down, 5-9 up.
-- **Hokum (16 Points):** Base 152 + 10. Jack is **20 pts**, Nine is **14 pts**. Rounding: 1-5 down, 6-9 up.
+- **Sun (26 Points):** 130 in total (120 in cards + 10 for the last trick). 11 pts for Ace, 10 for Ten. Rounding: 1-4 down, 5-9 up.
+- **Hokum (16 Points):** 162 in total (152 in cards + 10 for the last trick). Jack is **20 pts**, Nine is **14 pts**. Rounding: 1-5 down, 6-9 up.
+- **Counting:** Only the non-buyer is counted; the buyer takes the rest. If the non-buyer's points beat the buyer's, the buyer loses (خسارة) and the other team takes the whole hand.
 - **Kaboot:** Winning all tricks (44 in Sun, 25 in Hokum).
 
 ### 3. Doubling (Gaid / Gahwa)
 - It is a push-your-luck multiplier.
-- **Dabal (x2), Thri (x3), Four (x4).**
-- **Gahwa (152 pts):** Instant win if successful.
+- **Hokum:** Dabal (x2), Thri (x3), Four (x4), then Gahwa.
+- **Sun:** Dabal (x2) only, and only by a team at 100 or less against a team over 100.
+- **Gahwa (قهوة):** Whoever wins the hand wins the whole match.
 
 ### 4. Projects (Mashareea)
 - Declared on trick 1, revealed on trick 2. Only the strongest project wins.
-- **Sira (3-run), Khamsin (4-run), Miya (5-run / 4-of-a-kind), Arbaamiya (4 Aces in Sun).**
+- **Sira (3-run), Khamsin (4-run), Miya (5-run / 4-of-a-kind), Arbaamiya (4 Aces in Sun).** Four Aces in Sun score 400, not 100.
 - **Baloot:** King & Queen of Trump, declared dynamically during play.
 
 ### 5. Tahreeb (The Secret Language)
@@ -66,7 +68,7 @@ Tahreeb is the advanced meta-game of discarding to signal your partner.
 2. **The "Tahreeb" Opportunity:** Since the player controls one seat, we can create Jokers that *force* the AI partner to perfectly understand and execute Tahreeb, or Jokers that trigger massive multipliers when a Tahreeb signal is successfully completed.
 3. **Keep the Math Opaque During Play:** Let the Jokers light up and trigger sound effects sequentially (like Balatro). Don't give the player a flat "You will win this trick" preview. Make them feel the impact of the chain reaction.
 
-# ?? CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ??
+# ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**
 Baloot does NOT have individual player decks. There is exactly ONE shared 32-card deck in the center of the table. 
 1. **The Deal:** All 32 cards are distributed evenly (8 cards per player) across the 4 players (You, Partner, Opponent 1, Opponent 2).
