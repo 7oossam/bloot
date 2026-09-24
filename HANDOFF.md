@@ -1,21 +1,18 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Gemini (Antigravity)
-**Current Phase:** Fixing MCTS implementation & Testing.
+**Current Phase:** Asset Design & UI Overhaul.
 
 ## 1. What We Just Did
-- **MCTS Performance Fix:** I reviewed Claude's mcts.ts. The synchronous 300 iterations using JSON.stringify to clone Round were locking the main thread.
-- **Refactored cloneRound:** It now manually clones idding, hands, 	ricks, and also includes initial deal state for completeness, avoiding expensive JSON parsing.
-- **Refactored ismcts to be Async:** It now yields to the event loop every 25 iterations (wait new Promise(r => setTimeout(r, 0))) so the UI stays responsive while the AI thinks.
-- **Updated Game Loop:** Changed GameController.step() and TableScene.driveAI() to be async to accommodate the new wait ismcts(...) call.
+- **MCTS Performance Fix:** Refactored cloneRound and ismcts in mcts.ts to be asynchronous and avoid JSON.stringify. GameController.step() is now fully async.
+- **Art Direction Established:** We have decided on the official art style for the game and the Jokers! The theme is **"Clean, Vector-style Royal Palace / Mystic Desert blend."**
+  - **Visuals:** Flat golden gradient backgrounds, pure white/gold frames. Characters are stylized digital vectors (cel-shaded) with strong, flat dark silhouettes and pops of rich color (Crimson red, Turquoise).
+  - **Reasoning:** In a deckbuilder, highly detailed/noisy art becomes unreadable when the cards are shrunk down at the top of the screen. This flat, vector silhouette style ensures perfect readability and a sleek, modern UI.
 
 ## 2. Current Blockers / Open Questions
-- The basic ISMCTS runs properly now without freezing the browser!
-- We still need to implement the 10 custom roguelike builds discussed previously. 
+- None. The engine is stable, the AI is thinking asynchronously, and the art direction is locked in.
 
 ## 3. Next Steps (Where to pick up)
-- Start adding the 30 new items for the 10 builds into src/roguelike/jokers.ts.
-- Hook them up in the engine files (GameController.ts, 	rick.ts, projects.ts).
-- Feel free to run 
-pm run test or 
-pm start to test the new AI behavior in the browser!
+- Start adding the 30 new Joker items (e.g., The Executioner, The Smuggler) into src/roguelike/jokers.ts.
+- Hook up the Joker triggers in the engine files (GameController.ts, 	rick.ts, projects.ts).
+- If working on the UI, implement CSS or Phaser logic that matches the new "clean, flat, vector" gold/dark aesthetic.
