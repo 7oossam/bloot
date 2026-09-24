@@ -181,11 +181,11 @@ export class TableScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('bg', 'assets/bg.jpg');
+    
   }
 
   create(): void {
-    this.add.image(0, 0, "bg").setOrigin(0).setDisplaySize(this.scale.width, this.scale.height);
+    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
     this.generateSparkTexture();
     this.drawTable();
     this.buildStaticUI();
