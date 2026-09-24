@@ -225,6 +225,7 @@ export class TableScene extends Phaser.Scene {
     this.buildStaticUI();
     this.controller = new GameController(mulberry32(Date.now() % 2147483647), {
       matchTarget: this.nodeData.matchTarget,
+      searchAI: true,
       ...this.nodeData.modifiers,
     });
     this.wireControllerEvents();
