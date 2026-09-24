@@ -1,5 +1,7 @@
 import { decideBid } from "../ai/bidding-ai";
-import { decideCard } from "../ai/play-ai";
+import { decideCard, type PlayContext } from "../ai/play-ai";
+import { searchCard } from "../ai/mcts";
+import { mulberry32 } from "../engine/rng";
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
 import type { LegalCall } from "../engine/bidding";
@@ -160,6 +162,11 @@ export interface MatchOptions {
   pokerFace?: boolean;
   /** The دبل synergy: points on every doubled hand your team wins. */
   doubleWinPoints?: number;
+  /**
+   * The computer players think ahead (src/ai/mcts.ts): each card is tried against guesses at the
+   * hidden hands and played out. Off, they play the rule-based AI straight. The table turns it on.
+   */
+  searchAI?: boolean;
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
@@ -285,6 +292,8 @@ export class GameController extends Emitter<EventMap> {
   private akkaCuts = 0;
   /** السوا this hand: undefined = not claimed, true = claimed right (you auto-play the rest), false = wrong. */
   private sawaClaim?: boolean;
+  /** The search AI's own random stream, so thinking never shifts the deal's. */
+  private searchRand?: () => number;
 
   constructor(rand: () => number = Math.random, options: MatchOptions = {}) {
     super();
@@ -431,7 +440,7 @@ export class GameController extends Emitter<EventMap> {
         return "waiting-human";
       }
       const result = this.round.bidding.result!;
-      const card = decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, {
+      const ctx: PlayContext = {
         tricks: this.round.tricks,
         declarer: result.declarer,
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
@@ -439,7 +448,13 @@ export class GameController extends Emitter<EventMap> {
         closed: this.round.closed,
         // المترجم: your partner reads every discard of yours as "lead me this suit".
         partnerAsks: this.options.translator && seat === partnerOf(HUMAN_SEAT) ? this.humanAsks : undefined,
-      });
+      };
+      // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
+      const think = this.options.searchAI && seat !== HUMAN_SEAT;
+      if (think && !this.searchRand) this.searchRand = mulberry32(Math.floor(this.rand() * 2147483647));
+      const card = think
+        ? searchCard(this.round, seat, { ctx, rand: this.searchRand, worlds: 40, timeBudgetMs: 150 })
+        : decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, ctx);
       this.applyCard(seat, card);
       return "advanced";
     }

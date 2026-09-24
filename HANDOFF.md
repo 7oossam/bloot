@@ -1,9 +1,10 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Claude Code
-**Current Phase:** The 10 builds are in; the live-site crash is fixed. Next: playtest balance, art (JokerView), and the open design items.
+**Current Phase:** The 10 builds are in, the live-site crash is fixed, and the computer players now think ahead (search AI). Next: playtest balance, art (JokerView), and the open design items.
 
 ## 1. What We Just Did
+- **Search AI (`src/ai/mcts.ts`, `searchCard`) now plays the computer seats in the game** (`searchAI: true`, set by `TableScene`; tests keep the plain rule AI unless they ask). For each legal card it tries 40 guesses at the hidden hands, plays each out with the rule-based `decideCard` in every seat, and scores with the real `scoreHand`; best average game-point margin wins. Guesses respect what the table showed: voids, "couldn't trump" / "couldn't overtrump", the ground card's taker, projects laid down (`inferConstraints`, `sampleWorld`). The player's AI rules stay hard rules (no Ace fed to a winning partner or thrown away bar a برقية; a partner's برقية / المترجم ask is always answered). Measured on the same mirrored deals vs the rule AI: +3.75 game points per hand at 20 guesses, +4.71 at 60 (the old random-rollout MCTS was −0.48). About 27 ms per move on a phone-speed CPU, capped at 150 ms. `tests/mcts.test.ts` covers: never touching the real round, guesses fitting the table, the player's rules, and beating the rule AI.
 - **Live-site crash fixed.** The red "تعذّر تشغيل اللعبة" screen came from `cloneRound` in `src/ai/mcts.ts`: it copied each trick but shared its `order` array, so every simulated card was pushed into the REAL trick. The next `legalMovesFor` then read a seat with no card and threw `Cannot read properties of undefined (reading 'suit')`. The copy is fixed and `tests/mcts.test.ts` guards it (it fails on the old code with that exact error).
 - **Card-play AI is the rule-based `decideCard` again** (`src/ai/play-ai.ts`), not MCTS. MCTS plays random rollouts, so it ignored the player's own AI rules (برقية, keeping Aces, answering أشكل signals — see `.claude/skills/baloot-rules/SKILL.md` §9) and the المترجم joker. `mcts.ts` is kept, fixed and tested, for a future version that uses `decideCard` as its rollout policy. `GameController.step()` is synchronous again; `TableScene.driveAI` still awaits it harmlessly.
 - **Tests are back in the gates:** `tsconfig.json` includes `tests` again, and the deploy workflow runs `npm test` before building. Removing them is how the crash reached the live site.
@@ -14,7 +15,7 @@
 
 ## 2. Current Blockers / Open Questions
 - **Balance:** ثورة الصغار is the strongest Payoff (≈ +6.7 base points per hand on its own; measured table in the design bible PART 5).
-- **MCTS:** worth reviving only with rule-based rollouts, and its backpropagation credits wins to the parent node's player instead of the player who made the move — fix that first.
+- **Search AI next steps:** it doesn't yet read the bidding (who bought, who passed, أشكل) into its guesses, or the partner's تهريب beyond what the rule AI does in the play-outs. Both would make the guesses sharper.
 
 ## 3. Next Steps (Where to pick up)
 - Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`) and regenerate `docs/jokers.md`.
