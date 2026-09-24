@@ -557,11 +557,11 @@ export class GameController extends Emitter<EventMap> {
 
   /** Jokers that fire the moment a trick is decided. */
   private onTrickDecided(trick: Trick): void {
-    const result = this.round.bidding.result!;
     const winner = trick.winner!;
     const us = teamOf(HUMAN_SEAT);
     const ours = teamOf(winner) === us;
     const card = trick.cards[winner]!;
+    const result = this.round.bidding.result!;
     const trump = result.mode === "hokum" ? result.trumpSuit : undefined;
     const isTrumpJack = !!trump && card.suit === trump && card.rank === "J";
     const isTrumpNine = !!trump && card.suit === trump && card.rank === "9";
@@ -977,6 +977,7 @@ function buyerWonEarly(result: HandResult): boolean {
   const sheet = result.sheet;
   return !sheet || (sheet.judgedTeam === result.declarerTeam ? sheet.outcome === "won" : sheet.outcome === "lost");
 }
+
 
 
 

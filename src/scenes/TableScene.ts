@@ -214,8 +214,12 @@ export class TableScene extends Phaser.Scene {
     if (this.handSort === "manual") this.handSort = "suit";
   }
 
+  preload(): void {
+    
+  }
+
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
+    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
     this.generateSparkTexture();
     this.drawTable();
     this.buildStaticUI();
@@ -264,11 +268,11 @@ export class TableScene extends Phaser.Scene {
     const w = right - left;
     const h = bottom - top;
     const gfx = this.add.graphics();
-    gfx.fillStyle(0x0f5132, 1);
+    gfx.fillStyle(0x1c102a, 1);
     gfx.fillRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(10, 0x0a3524, 1);
+    gfx.lineStyle(10, 0xd4af37, 1);
     gfx.strokeRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(4, 0x1c6b45, 0.6);
+    gfx.lineStyle(4, 0xf1c40f, 0.6);
     gfx.strokeRoundedRect(left + 20, top + 20, w - 40, h - 40, 36);
   }
 
@@ -620,13 +624,13 @@ export class TableScene extends Phaser.Scene {
 
   // ------------------------------------------------------------- AI pacing
 
-  private driveAI(): void {
+  private async driveAI(): Promise<void> {
     if (this.dealing) {
       this.resumeAfterDeal = true;
       return;
     }
     if (this.trickSettling || this.showingHandSummary || this.matchOver) return;
-    const status = this.controller.step();
+    const status = await this.controller.step();
     if (this.showingHandSummary || this.matchOver) return;
     if (status === "advanced") {
       const phase = this.controller.getRound().phase;
