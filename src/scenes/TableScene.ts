@@ -180,8 +180,12 @@ export class TableScene extends Phaser.Scene {
     this.actionPrompt = undefined;
   }
 
+  preload(): void {
+    this.load.image('bg', 'assets/bg.jpg');
+  }
+
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
+    this.add.image(0, 0, "bg").setOrigin(0).setDisplaySize(this.scale.width, this.scale.height);
     this.generateSparkTexture();
     this.drawTable();
     this.buildStaticUI();
@@ -228,11 +232,11 @@ export class TableScene extends Phaser.Scene {
     const w = right - left;
     const h = bottom - top;
     const gfx = this.add.graphics();
-    gfx.fillStyle(0x0f5132, 1);
+    gfx.fillStyle(0x1c102a, 1);
     gfx.fillRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(10, 0x0a3524, 1);
+    gfx.lineStyle(10, 0xd4af37, 1);
     gfx.strokeRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(4, 0x1c6b45, 0.6);
+    gfx.lineStyle(4, 0xf1c40f, 0.6);
     gfx.strokeRoundedRect(left + 20, top + 20, w - 40, h - 40, 36);
   }
 
