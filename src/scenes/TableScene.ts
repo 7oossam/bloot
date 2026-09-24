@@ -94,6 +94,7 @@ export class TableScene extends Phaser.Scene {
   private nodeData!: TableSceneData;
 
   private playerHandViews: CardView[] = [];
+  private selectedCardView: CardView | undefined;
   private opponentWidget: Partial<Record<Seat, OpponentWidget>> = {};
   private trickViews: Partial<Record<Seat, CardView>> = {};
   private seatBubble: Partial<Record<Seat, Phaser.GameObjects.Container>> = {};
@@ -765,7 +766,26 @@ export class TableScene extends Phaser.Scene {
       if (isLegal) {
         setBoxHitArea(view, view.displayW, view.displayH);
         view.input!.cursor = "pointer";
-        view.once("pointerdown", () => this.onHumanCardClick(view));
+        view.on("pointerdown", () => this.onHumanCardClick(view));
+        
+        // Drag-to-play logic
+        this.input.setDraggable(view);
+        view.on("dragstart", () => {
+          this.children.bringToTop(view);
+          if (navigator.vibrate) navigator.vibrate(5);
+        });
+        view.on("drag", (_pointer: any, dragX: number, dragY: number) => {
+          view.x = dragX;
+          view.y = dragY;
+        });
+        view.on("dragend", (_pointer: any, dragX: number, dragY: number) => {
+          // If dragged high enough (e.g. above the hand), play it
+          if (view.y < HAND_ANCHOR[HUMAN_SEAT].y - 100) {
+            this.onHumanCardClick(view, true); // force play
+          } else {
+            this.relayoutHand(); // snap back
+          }
+        });
       }
     }
   }
@@ -835,6 +855,7 @@ export class TableScene extends Phaser.Scene {
   /** Rebuilds the player's hand views from the engine, popping `fresh` so it's easy to spot. */
   private redrawHumanHand(fresh?: Card): void {
     for (const view of this.playerHandViews) view.destroy();
+    this.selectedCardView = undefined;
     const trump = this.controller.getRound().bidding.result?.trumpSuit;
     const cards = sortHandForDisplay(this.controller.getRound().hands[HUMAN_SEAT], trump);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
@@ -864,13 +885,38 @@ export class TableScene extends Phaser.Scene {
     this.tweens.add({ targets: note, alpha: 0, delay: 1900, duration: 400, onComplete: () => note.destroy() });
   }
 
-  private onHumanCardClick(view: CardView): void {
+  private onHumanCardClick(view: CardView, forcePlay = false): void {
     if (this.controller.getRound().turnSeat !== HUMAN_SEAT) return; // stale click, ignore
+    
+    // First tap: Select the card
+    if (!forcePlay && this.selectedCardView !== view) {
+      if (this.selectedCardView) {
+        // Lower the previously selected card
+        this.selectedCardView.y += 40;
+        this.selectedCardView.setHighlighted(false);
+      }
+      this.selectedCardView = view;
+      view.y -= 40; // Raise it
+      view.setHighlighted(true);
+      if (navigator.vibrate) navigator.vibrate(5);
+      return;
+    }
+
+    // Second tap (or forced drag): Play it
+    this.selectedCardView = undefined;
+    view.setHighlighted(false);
+    if (navigator.vibrate) navigator.vibrate(15);
+    
     for (const v of this.playerHandViews) {
       v.off("pointerdown");
+      v.off("dragstart");
+      v.off("drag");
+      v.off("dragend");
+      if (this.input) this.input.setDraggable(v, false);
       v.disableInteractive();
       v.setDimmed(false);
     }
+    
     this.controller.submitPlayerCard(view.card);
     this.driveAI();
   }
@@ -966,8 +1012,8 @@ export class TableScene extends Phaser.Scene {
         x: dest.x,
         y: dest.y,
         scale: TRICK_CARD_SIZE / HAND_CARD_SIZE,
-        duration: CARD_MOVE_TWEEN_MS,
-        ease: "Cubic.Out",
+        duration: CARD_MOVE_TWEEN_MS + 50,
+        ease: "Back.Out",
       });
     } else {
       this.setOpponentCount(e.seat, this.controller.getRound().hands[e.seat].length);
@@ -975,7 +1021,7 @@ export class TableScene extends Phaser.Scene {
       const anchor = HAND_ANCHOR[e.seat];
       const view = new CardView(this, anchor.x, anchor.y, e.card, true, TRICK_CARD_SIZE);
       this.trickViews[e.seat] = view;
-      this.tweens.add({ targets: view, x: dest.x, y: dest.y, duration: CARD_MOVE_TWEEN_MS, ease: "Cubic.Out" });
+      this.tweens.add({ targets: view, x: dest.x, y: dest.y, duration: CARD_MOVE_TWEEN_MS + 50, ease: "Back.Out" });
     }
   }
 
@@ -1032,6 +1078,10 @@ export class TableScene extends Phaser.Scene {
   }
 
   private relayoutHand(): void {
+    if (this.selectedCardView) {
+      this.selectedCardView.setHighlighted(false);
+      this.selectedCardView = undefined;
+    }
     const positions = handPositions(HUMAN_SEAT, this.playerHandViews.length, CARD_W);
     this.playerHandViews.forEach((view, i) => {
       this.tweens.add({ targets: view, x: positions[i].x, y: positions[i].y, duration: 180, ease: "Cubic.Out" });
