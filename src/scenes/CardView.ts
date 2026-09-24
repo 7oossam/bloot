@@ -35,6 +35,13 @@ export class CardView extends Phaser.GameObjects.Container {
     this.setSize(this.displayW, this.displayH);
     this.redraw();
     scene.add.existing(this);
+
+    this.on('pointerover', () => {
+      this.scene.tweens.add({ targets: this, scaleX: 1.08, scaleY: 1.08, angle: (Math.random() - 0.5) * 4, duration: 150, ease: 'Back.Out' });
+    });
+    this.on('pointerout', () => {
+      this.scene.tweens.add({ targets: this, scaleX: 1, scaleY: 1, angle: 0, duration: 150, ease: 'Cubic.Out' });
+    });
   }
 
   setFaceUp(faceUp: boolean): void {
@@ -111,11 +118,11 @@ export class CardView extends Phaser.GameObjects.Container {
       this.bg.fillStyle(0x000000, 0.28);
       this.bg.fillRoundedRect(-w / 2 + 3 * s, -h / 2 + 5 * s, w, h, r);
 
-      this.bg.fillStyle(0x1d4f8a, 1);
+      this.bg.fillStyle(0x1c102a, 1);
       this.bg.fillRoundedRect(-w / 2, -h / 2, w, h, r);
-      this.bg.lineStyle(2 * s, 0x0b2a52, 1);
+      this.bg.lineStyle(3 * s, 0xd4af37, 1);
       this.bg.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
-      this.bg.lineStyle(4 * s, 0x3a6fb5, 1);
+      this.bg.lineStyle(4 * s, 0xf1c40f, 0.7);
       this.bg.strokeRoundedRect(-w / 2 + 12 * s, -h / 2 + 12 * s, w - 24 * s, h - 24 * s, r * 0.7);
     }
   }

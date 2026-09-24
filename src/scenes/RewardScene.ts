@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton } from "./ui";
+import { arabicText, makeButton, setBoxHitArea } from "./ui";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },
@@ -42,7 +42,7 @@ export class RewardScene extends Phaser.Scene {
       this.scene.start("map");
       return;
     }
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x1d1433).setOrigin(0);
+    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
     arabicText(this, WIDTH / 2, 86, pending.elite ? "غنائم النخبة 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
     arabicText(this, WIDTH / 2, 156, `+${this.goldEarned} ذهب  —  معك ${state.gold} 💰`, { fontSize: "27px", color: "#ffd54a" });
 
@@ -86,6 +86,9 @@ export class RewardScene extends Phaser.Scene {
     bg.lineStyle(def.rarity === "legendary" ? 6 : 4, style.border, 1);
     bg.strokeRoundedRect(-cardW / 2, -CARD_H / 2, cardW, CARD_H, 26);
     const card = this.add.container(WIDTH / 2, y, [bg]);
+      setBoxHitArea(card, cardW, CARD_H);
+      card.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.02, duration: 150 }));
+      card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 150 }));
 
     const iconX = cardW / 2 - 80;
     card.add(this.add.text(iconX, -40, def.icon, { fontSize: "78px" }).setOrigin(0.5));

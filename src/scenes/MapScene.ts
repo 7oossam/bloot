@@ -93,7 +93,7 @@ export class MapScene extends Phaser.Scene {
     const lineGfx = this.add.graphics();
     for (let i = 0; i < n - 1; i++) {
       const cleared = state.cleared[i];
-      lineGfx.lineStyle(8, cleared ? 0x5ad469 : 0x2c6b4a, 1);
+      lineGfx.lineStyle(8, cleared ? THEME_GOLD : 0x1c102a, cleared ? 1 : 0.5);
       lineGfx.lineBetween(xFor(i), yFor(i), xFor(i + 1), yFor(i + 1));
     }
     this.nodeLayer.add(lineGfx);
@@ -115,8 +115,13 @@ export class MapScene extends Phaser.Scene {
     state: { isCurrent: boolean; isCleared: boolean; isAvailable: boolean },
   ): Phaser.GameObjects.Container {
     const radius = RADIUS;
+<<<<<<< HEAD
     const color = state.isCleared ? 0x1f6f43 : state.isAvailable ? 0x2f8f5b : THEME_NODE;
     const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0x5ad469 : 0x55665c;
+=======
+    const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_NODE;
+    const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0xf1c40f : 0x3a2a4a;
+>>>>>>> bbec28e (feat: add massive UI juice (card hover tweens, floating score text, trick screen shake, button glows, dark royal colors) without asset generation)
 
     const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
     const icon = this.add.text(0, -6, NODE_TYPE_ICON[node.type], { fontSize: "36px" }).setOrigin(0.5);
@@ -140,8 +145,8 @@ export class MapScene extends Phaser.Scene {
     if (state.isAvailable) {
       setBoxHitArea(container, radius * 2, radius * 2);
       container.input!.cursor = "pointer";
-      container.on("pointerover", () => circle.setScale(1.08));
-      container.on("pointerout", () => circle.setScale(1));
+      container.on('pointerover', () => this.tweens.add({ targets: circle, scale: 1.15, duration: 150, ease: 'Back.Out' }));
+      container.on('pointerout', () => this.tweens.add({ targets: circle, scale: 1, duration: 150, ease: 'Cubic.Out' }));
       container.on("pointerdown", () => this.enterNode(node));
 
       this.tweens.add({
