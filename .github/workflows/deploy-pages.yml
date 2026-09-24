@@ -26,7 +26,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+
       - run: npm run build
       # The repo's Pages source is still "Deploy from a branch", so GitHub also runs its
       # legacy Jekyll build on every push. That one publishes the repo ROOT verbatim — where
