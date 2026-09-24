@@ -52,7 +52,7 @@ export interface TrickRules {
   personalTrump?: { seat: Seat; suit: Suit };
   /** This seat's card counts as the top card of its suit (الورقة الأخيرة). */
   topCard?: Seat;
-  /** This team's 7s and 8s beat everything else in their tier (Underdog). The deck is shared, so it never helps the other side. */
+  /** This team's 7s and 8s outside the trump suit beat the rest of their suit (ثورة الصغار). The deck is shared, so it never helps the other side. */
   trashBeatsAce?: Team;
 }
 

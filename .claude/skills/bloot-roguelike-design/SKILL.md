@@ -101,81 +101,80 @@ The **Jack (الولد) family** is the model package the rest should copy: ال
 
 ---
 
-## PART 5: The Build Catalog (10 target builds)
+## PART 5: The Build Catalog (10 builds, all in the game)
 
-✅ = exists in the game. 🆕 = to be made. Builds 6–10 are **skill builds**: they pay for things a strong regular Baloot player already does well (defending, signalling, counting, running tricks, reading a double), so real Baloot skill is a valid way to win a run.
+Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists their exact numbers per level. Each family's **tier 3 synergy hands over its rule-breaker for free**, so committing to a package is always rewarded. Builds 6–10 are **skill builds**: they pay for what a strong regular Baloot player already does well (defending, signalling, counting, running tricks, reading a double), so real Baloot skill is a valid way to win a run.
 
-### 1. الزبالة الذهبية — the 7s and 8s build
-- ✅ **Underdog**, *Payoff*: your team's 7s and 8s beat Aces.
-- 🆕 **الحظ الواطي**, *Supply*: you're always dealt an 8 in your first five cards (level 2: two 8s; level 3: any four 7s/8s become more likely).
-- 🆕 **المنزّل**, *Forge*: once a hand, turn one card in your hand into the 8 of its suit.
-- 🆕 **ثأر الصغار**, *Reward*: every trick your team wins with a 7 or 8: +3 / +5 / +8.
-- ✅ **الأربع الصغار**, *Bonus payoff*: four 7s or 8s make مئة. The Supply makes this reachable.
+### 1. الصغار — the 7s and 8s build
+- **ثورة الصغار** (Payoff): your team's 7s and 8s outside the trump suit beat the Ace of their suit. Opponents' stay weak (Shared Deck Law). A trump 7 is still a 7, so the trump Jack isn't trivialised.
+- **الحظ الواطي** (Supply): 1 / 2 / 3 sevens or eights guaranteed in your first five, pulled from the shared deck.
+- **المنزّل** (Forge): after the buy, pick 1 / 2 cards to become the 8 of their suit (optional; pointless picks are greyed out).
+- **ثأر الصغار** (Reward): +2 / +3 / +5 per trick your team takes with a 7 or 8.
+- **الأربع الصغار** (bonus payoff): four 7s/8s/9s are a مئة; the Supply makes it reachable.
+- Synergy: 2 = +1 per 7/8 trick; 3 = ثورة الصغار free.
 
 ### 2. الولد — the Jack build (the model package)
-- ✅ **الولد المضمون**, *Supply*: always dealt a Jack.
-- ✅ **الولد المزوّر**, *Forge*: a card becomes the trump Jack when you buy Hokum.
-- ✅ **جامع الأولاد**, *Reward*: points per trick won with a Jack.
-- ✅ **صيد الولد** / **الحرقة**, *Payoffs*: winning with the trump Jack steals a card or burns the opponents' best trump.
+الولد المضمون (Supply), الولد المزوّر (Forge), جامع الأولاد (Reward), صيد الولد / الحرقة (Payoffs).
 
-### 3. ملك السبيت — the spade build
-- ✅ **ملك السبيت**, *Payoff*: your spades count as trump, even in Sun.
-- ✅ **سارق السبيت**, *Supply*: swap a card for an opponent's spade each hand.
-- 🆕 **الصبّاغ**, *Forge*: once a hand, one card in your hand becomes a spade of the same rank (if that spade isn't in your hand already).
-- ✅ **كنز السبيت**, *Reward*: points per trick won with a spade.
-- ✅ **سبيت دايم**: buy spade Hokum in any round.
+### 3. السبيت — the spade build
+ملك السبيت (Payoff), سارق السبيت (Supply), **الصبّاغ** (Forge: after the buy, 1 / 2 cards become the spade of the same rank), كنز السبيت (Reward), سبيت دايم.
 
-### 4. المهندس — the projects build
-- ✅ **نص سرا** / **Phantom Card**, *Payoff*: shorter runs count as bigger projects.
-- 🆕 **المرتّب**, *Supply*: at the deal, if you're one card away from a سرا, you're dealt that card (from the shared deck).
-- ✅ **صانع السرا**, *Reward*: points and gold per سرا.
-- ✅ **مهندس المشاريع**: projects ×2 / ×2.5 / ×3.
-- ✅ **الصوت العالي**: your projects always count, even under a bigger rival project.
+### 4. المشاريع — the projects build
+نص سرا / **الورقة الشبح** (Payoffs: projects count one size up), **المرتّب** (Supply: at the deal, two in a row get their third; level 2 also three get their fourth), صانع السرا (Reward), مهندس المشاريع, الصوت العالي.
 
-### 5. سيد الأرض — the last-trick build
-- ✅ **سيد الأرض**, *Payoff*: take the last trick and you take the whole hand.
-- ✅ **الورقة الأخيرة**, *Forge*: your card in the last trick is the top of its suit.
-- ✅ **الأرض الذهبية**, *Reward*: the last trick is worth 20 / 30 / 40.
-- ✅ **المخلّي**: points for ducking a trick you could have won (saving strength for the end).
-- *Skill angle:* a good player already plans the last trick; this build turns that planning into the win condition.
+### 5. الأرض — the last-trick build
+سيد الأرض (Payoff), الورقة الأخيرة (Forge), الأرض الذهبية (Reward), المخلّي (pays for saving strength). A good player already plans the last trick; this build makes it the win condition.
 
-### 6. الحصن — the defender (skill build)
-Rewards what good defenders do: making the buyer lose without buying yourself.
-- ✅ **الفخ**: when the opponents buy and lose (خسرانة): +6 / +10 / +15.
-- 🆕 **الكاسر**: when the opponents buy **Sun** and lose, your result ×2.
-- 🆕 **الصبر**: every hand you pass on (don't buy) and your team still scores more than the buyer: +4 gold.
-- ✅ **القهوجي**: win a doubled hand, +50% / +100%. A defender who doubles at the right moment cashes in.
+### 6. الدفاع — the defender (skill build)
+- الفخ: +6 / +10 / +15 when the opponents buy and lose.
+- **الكاسر**: the opponents buy **Sun** and lose → your result ×2 / ×3. Rare, big (fires on ~9% of hands).
+- **الصبر**: +3 / +5 / +8 gold every hand the opponents buy and you out-score them.
+- القهوجي: winning a doubled hand pays +50% / +100%.
 
-### 7. المهرّب — the Tahreeb build (skill build)
-Rewards correct signalling to your partner (PART 2.5).
-- 🆕 **المترجم**, *Payoff*: your partner always reads your discard signal correctly and leads that suit back.
-- 🆕 **الإشارة الذهبية**, *Reward*: when your partner answers your signal and wins that trick, your points for the hand ×1.5.
-- 🆕 **البرقية المضمونة**, *Forge*: a برقية is allowed even when you can't promise every trick after it.
-- ✅ **عين الشريك**: see your partner's cards, so you know what to ask for.
-- *Tier 3 rule-breaker:* once a hand, you choose the suit your partner leads.
+### 7. التهريب — signalling (skill build)
+- **المترجم** (Payoff): your partner reads every discard of yours (a card from another suit when you can't follow, not a ruff) as "lead me this suit" and answers it the first time they lead.
+- **الإشارة الذهبية** (Reward): a hand where your partner led a suit you asked for and your team took that trick is ×1.5 / ×2.
+- **المرسال** (Forge): after the buy, give your partner a card; they give you their best card of that suit. (Replaces the planned "البرقية المضمونة": a swap is clearer to use and builds long suits for signalling.)
+- عين الشريك: see your partner's cards, so you know what to ask for.
+- Synergy: 2 = +2 per answered signal trick; 3 = المترجم free.
 
-### 8. العدّاد — the card counter (skill build)
-Rewards remembering what's been played.
-- ✅ **ملك الآكه**, *Reward*: points for every trick won with a card you called آكه on.
-- 🆕 **الذاكرة**: shows how many cards of each suit are still out (what a counting player keeps in their head).
-- 🆕 **الآكه الذهبية**: every correct آكه call pays 2 gold; a wrong call (someone beats it) costs 3 points. Real push-your-luck.
-- ✅ **الجاسوس**: see cards from each opponent's hand; counting gets exact.
+### 8. العين — the card counter (skill build)
+- **الذاكرة**: a line under your jokers showing how many cards of each suit you haven't seen; level 2 also lists the Aces and 10s still out.
+- **الآكه الذهبية**: every آكه your team leads that takes its trick pays +2 / +4 gold; every one that gets cut costs 3 points. The risk is real: leading a آكه into a void opponent in hokum.
+- ملك الآكه (Reward), الجاسوس (see opponents' cards).
 
 ### 9. الكبوت — run every trick (skill build)
-Rewards squeezing the most out of a strong hand, including a real سوا.
-- ✅ **ملك الكبوت**, *Payoff*: a كبوت wins the match on the spot.
-- 🆕 **السوا**, *Reward*: declare سوا (you lay your cards down, sure of every remaining trick). If it's right: +5 / +8 / +12 and the tricks are counted. If it's wrong, the opponents take the rest.
-- 🆕 **الزحف**, *Reward*: +1 point per trick in a row your team wins, growing each trick, resetting when you lose one.
-- ✅ **صاحب الحلة**: you always lead the first trick; kaboots start with the lead.
+- **السوا**: on your lead, a "سوا ✋" button. It's right when every card in your hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody else to hold a trump). Right = +6 / +10 / +15 and the rest plays itself; wrong = −6. Knowing when is the skill.
+- **الزحف**: from the third trick in a row, each trick pays 1, 1, 2, 2, 3, 3 (level 2: 1, 2, 3, 4, 5, 6).
+- ملك الكبوت (Payoff): a كبوت wins the match. صاحب الحلة helps start a run.
+- Synergy: 2 = +10 per كبوت; 3 = ملك الكبوت free.
 
-### 10. المقامر — the doubling build (push-your-luck)
-Makes الدبل / الثري / الفور / القهوة the heart of the run.
-- ✅ **القهوجي**, *Reward*: winning a doubled hand pays +50% / +100%.
-- 🆕 **الجريء**, *Payoff*: your team may double in Sun without the 100-points condition.
-- 🆕 **رأس المال**, *Reward*: every doubled hand you win pays gold equal to the double level × 5.
-- 🆕 **الوجه البارد**, *Supply for bluffs*: the AI can't see your doubles coming. It never doubles back against you after you raise.
-- ⚠️ *Anti-synergy:* الحكم المقفول stops anyone doubling against you, which also removes the doubled hands this build feeds on.
+### 10. الدبل — the doubling build (push-your-luck)
+- **الجريء** (Payoff): your team may double the opponents' Sun at any score.
+- **رأس المال** (Reward): every doubled hand you win pays (double level × 4 / × 7) gold.
+- **الوجه البارد**: once your team raises, the opponents never raise back.
+- القهوجي: +50% / +100% on doubled hands won.
+- ⚠️ Anti-synergy (stated in its text): الحكم المقفول stops anyone doubling you, which removes the doubled hands this build feeds on.
+- Synergy: 2 = +5 per doubled hand won; 3 = الجريء free.
 
+### Measured balance (300 simulated hands, AI playing your seat)
+| Jokers | Bonus / hand | Fires on |
+|---|---|---|
+| جامع الأولاد (existing common, for scale) | +0.7 | 32% |
+| ثأر الصغار alone | +0.4 | 20% |
+| ثأر الصغار + ثورة الصغار | +6.7 (and base score 12.9 → 19.6) | 93% |
+| الزحف | +1.7 | 51% |
+| الكاسر | +2.9 | 9% |
+| المرتّب + صانع السرا | +3.7 and 1 gold | 57% |
+
+ثورة الصغار is the strongest Payoff in the game; watch it if runs get too easy.
+
+## PART 6: Feedback the table gives (so the player always knows what their jokers are doing)
+- **The joker row** above the table: tap a joker to read what it does at its level and its family.
+- **It lights up when it pays**: a pulse and the amount floating off it, the moment the trick is won (and a log line).
+- **The hand summary counts the jokers up one at a time**, each lighting its joker, before the match total appears (Mandate 3).
+- **Your hand**: a "🔀 ترتيب" button cycles suit / strongest first / alternating colours, and dragging a card sideways reorders it by hand.
+- **Every joker pick is optional** (a تخطّي button), and picks that would change nothing are greyed out.
 
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**

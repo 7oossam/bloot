@@ -48,7 +48,7 @@ export const PROJECT_VALUE: Record<Mode, Record<ProjectKind, number>> = {
 /** بلوت is 2 in hokum and is never doubled (5-4). */
 export const BALOOT_VALUE = 2;
 
-const SEQUENCE_ORDER: readonly Rank[] = ["7", "8", "9", "10", "J", "Q", "K", "A"];
+export const SEQUENCE_ORDER: readonly Rank[] = ["7", "8", "9", "10", "J", "Q", "K", "A"];
 const KIND_RANK: Record<ProjectKind, number> = { sira: 1, khamsin: 2, miya: 3, arbaamiya: 4 };
 
 /** Joker rules that bend what counts as a project for one seat. */

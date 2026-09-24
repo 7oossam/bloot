@@ -895,6 +895,9 @@ describe("joker rules that bend the game", () => {
     // Off-suit it still can't win.
     ours.cards[0] = C("7S");
     expect(resolveTrick(ours, "sun")).toBe(1);
+    // Inside the trump suit a 7 stays a 7: the trump Jack keeps its trick.
+    const trump: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: C("JH"), 2: C("KS"), 3: C("QS"), 0: C("7H") }, rules: { trashBeatsAce: 0 } };
+    expect(resolveTrick(trump, "hokum", "H")).toBe(1);
   });
 
   it("the AI sees the bent rules too: it won't waste a card on a trick your spade already has", () => {
