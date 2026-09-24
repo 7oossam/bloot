@@ -808,7 +808,7 @@ export class TableScene extends Phaser.Scene {
           view.x = dragX;
           view.y = dragY;
         });
-        view.on("dragend", (_pointer: any, dragX: number, dragY: number) => {
+        view.on("dragend", () => {
           // If dragged high enough (e.g. above the hand), play it
           if (view.y < HAND_ANCHOR[HUMAN_SEAT].y - 100) {
             this.onHumanCardClick(view, true); // force play
