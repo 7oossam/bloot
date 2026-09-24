@@ -1,18 +1,21 @@
 import Phaser from "phaser";
-import { cardId } from "../engine/cards";
+import { cardId, rankStrength } from "../engine/cards";
 import type { LegalCall } from "../engine/bidding";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
-import { teamOf } from "../engine/types";
+import { SUITS, teamOf } from "../engine/types";
 import {
   GameController,
   HUMAN_SEAT,
+  actionTarget,
   type HandBonus,
+  type JokerFired,
   type HandChange,
   type MatchOptions,
   type PendingAction,
 } from "../game/GameController";
 import { mulberry32 } from "../engine/rng";
 import { runController } from "../roguelike/RunController";
+import { getJokerDef, jokersBehind } from "../roguelike/jokers";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
 import { RANK_NAME_AR, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
@@ -58,6 +61,20 @@ const TRICK_CARD_SIZE = 0.95;
 const WIDGET_CARD_SIZE = 0.62;
 
 const OPPONENT_SEATS: Seat[] = [1, 2, 3];
+/** The run's jokers, in a row above the table: tap one to read it, and it lights up when it pays. */
+const JOKER_ROW_Y = 158;
+const JOKER_ICON = 66;
+const JOKER_GAP = 80;
+/** How the hand is ordered; the sort button cycles through them and a sideways drag makes it "manual". */
+type HandSort = "suit" | "strength" | "color" | "manual";
+const SORT_LABEL_AR: Record<HandSort, string> = {
+  suit: "ترتيب: حسب الشكل",
+  strength: "ترتيب: الأقوى أول",
+  color: "ترتيب: الألوان متناوبة",
+  manual: "ترتيب: يدوي",
+};
+/** Pause between one joker line and the next in the hand summary's count-up. */
+const BONUS_STEP_MS = 520;
 const SEAT_LABEL_COLOR = "#cfe0d6";
 const TURN_LABEL_COLOR = "#ffd54a";
 
@@ -140,6 +157,15 @@ export class TableScene extends Phaser.Scene {
   /** Which of each opponent's cards the spy joker is showing this hand. */
   private spied: Partial<Record<Seat, string[]>> = {};
   private actionPrompt?: Phaser.GameObjects.Text;
+  private actionSkip?: ButtonHandle;
+  /** Each owned joker's icon in the row above the table, by id. */
+  private jokerIcons = new Map<string, Phaser.GameObjects.Container>();
+  private jokerTip?: Phaser.GameObjects.Container;
+  private handSort: HandSort = "suit";
+  /** The order you dragged your cards into (card ids), while `handSort` is "manual". */
+  private manualOrder: string[] = [];
+  private memoryText?: Phaser.GameObjects.Text;
+  private sawaButton?: ButtonHandle;
 
   constructor() {
     super("table");
@@ -178,6 +204,14 @@ export class TableScene extends Phaser.Scene {
     this.revealViews = [];
     this.spied = {};
     this.actionPrompt = undefined;
+    this.actionSkip = undefined;
+    this.jokerIcons = new Map();
+    this.jokerTip = undefined;
+    this.manualOrder = [];
+    this.memoryText = undefined;
+    this.sawaButton = undefined;
+    // The sort you picked sticks from match to match.
+    if (this.handSort === "manual") this.handSort = "suit";
   }
 
   preload(): void {
@@ -194,6 +228,8 @@ export class TableScene extends Phaser.Scene {
       ...this.nodeData.modifiers,
     });
     this.wireControllerEvents();
+    this.buildJokerRow();
+    this.buildHandTools();
     this.controller.startMatch();
   }
 
@@ -291,6 +327,8 @@ export class TableScene extends Phaser.Scene {
     c.on("trick:complete", (e) => this.onTrickComplete(e));
     c.on("hand:complete", (e) => this.onHandComplete(e));
     c.on("match:complete", (e) => this.onMatchComplete(e));
+    c.on("joker:fired", (e) => this.onJokerFired(e));
+    c.on("sawa", (e) => this.onSawa(e));
   }
 
   // -------------------------------------------------------------- logging
@@ -358,6 +396,7 @@ export class TableScene extends Phaser.Scene {
     const amount = Math.max(e.amount, -runController.getState().gold);
     if (amount === 0) return;
     runController.addGold(amount);
+    this.pulseJokers(e.reason);
     const text = amount > 0 ? `+${amount} ذهب 💰 ${e.reason}` : `${amount} ذهب 🎰 ${e.reason}`;
     const pop = arabicText(this, CENTER_X, CENTER_Y - 120, text, {
       fontSize: "30px",
@@ -372,6 +411,215 @@ export class TableScene extends Phaser.Scene {
       ease: "Cubic.Out",
       onComplete: () => pop.destroy(),
     });
+  }
+
+  // --------------------------------------------------------- the joker row
+
+  /** Your jokers in a row above the table. Tap one to read what it does right now. */
+  private buildJokerRow(): void {
+    const state = runController.getState();
+    const ids = state.jokerIds;
+    const startX = CENTER_X - ((ids.length - 1) * JOKER_GAP) / 2;
+    ids.forEach((id, i) => {
+      const def = getJokerDef(id);
+      if (!def) return;
+      const level = state.jokerLevels[id] ?? 1;
+      const bg = this.add.graphics();
+      bg.fillStyle(0x08201a, 0.95);
+      bg.fillRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
+      bg.lineStyle(3, def.rarity === "legendary" ? 0xffb33a : def.rarity === "rare" ? 0x9cc3ff : 0x8aa79a, 1);
+      bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
+      const icon = this.add.text(0, -2, def.icon, { fontSize: "36px" }).setOrigin(0.5);
+      const parts: Phaser.GameObjects.GameObject[] = [bg, icon];
+      if (def.levels.length > 1) {
+        parts.push(arabicText(this, JOKER_ICON / 2 - 12, JOKER_ICON / 2 - 12, String(level), { fontSize: "18px", color: "#ffd54a", fontStyle: "bold" }));
+      }
+      const box = this.add.container(startX + i * JOKER_GAP, JOKER_ROW_Y, parts).setDepth(21);
+      setBoxHitArea(box, JOKER_ICON, JOKER_ICON);
+      box.input!.cursor = "pointer";
+      box.on("pointerdown", () => this.toggleJokerTip(id));
+      this.jokerIcons.set(id, box);
+    });
+  }
+
+  /** A card under the row saying what a joker does at its current level (tap again to close). */
+  private toggleJokerTip(id: string): void {
+    const same = this.jokerTip?.getData("id") === id;
+    this.jokerTip?.destroy();
+    this.jokerTip = undefined;
+    if (same) return;
+    const def = getJokerDef(id);
+    const box = this.jokerIcons.get(id);
+    if (!def || !box) return;
+    const level = runController.getState().jokerLevels[id] ?? 1;
+    const lines = [`${def.icon} ${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
+    if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
+    if (def.tags.length) lines.push(`العائلة: ${def.tags.join("، ")}`);
+    const w = WIDTH - 80;
+    const text = arabicText(this, 0, 0, lines.join("\n"), {
+      fontSize: "24px",
+      wordWrap: { width: w - 40, useAdvancedWrap: true },
+      lineSpacing: 6,
+    });
+    const h = text.height + 36;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0a2318, 0.97);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
+    bg.lineStyle(3, 0xffd54a, 0.9);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
+    const tip = this.add.container(CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 16 + h / 2, [bg, text]).setDepth(40);
+    tip.setData("id", id);
+    setBoxHitArea(tip, w, h);
+    tip.on("pointerdown", () => this.toggleJokerTip(id));
+    this.jokerTip = tip;
+    this.time.delayedCall(5000, () => {
+      if (this.jokerTip === tip) {
+        tip.destroy();
+        this.jokerTip = undefined;
+      }
+    });
+  }
+
+  /** Lights up the jokers behind a payout, with the amount floating off them. */
+  private pulseJokers(label: string, amount?: string): void {
+    const ids = jokersBehind(label, runController.getState().jokerIds);
+    for (const id of ids) {
+      const box = this.jokerIcons.get(id);
+      if (!box) continue;
+      this.tweens.killTweensOf(box);
+      box.setScale(1);
+      this.tweens.add({ targets: box, scale: 1.35, duration: 130, yoyo: true, ease: "Quad.Out" });
+      if (!amount) continue;
+      const pop = arabicText(this, box.x, box.y + JOKER_ICON / 2 + 18, amount, {
+        fontSize: "24px",
+        color: amount.startsWith("-") ? "#ff7a7a" : "#ffd54a",
+        fontStyle: "bold",
+      }).setDepth(41);
+      this.tweens.add({ targets: pop, y: pop.y + 40, alpha: 0, delay: 450, duration: 700, onComplete: () => pop.destroy() });
+    }
+  }
+
+  private onJokerFired(e: JokerFired): void {
+    const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} 💰` : undefined;
+    this.pulseJokers(e.label, amount);
+    if (amount) this.log(`🃏 ${e.label}: ${amount}`);
+  }
+
+  // ------------------------------------------------------- your hand's tools
+
+  /** The sort button beside your name, and (with الذاكرة) the cards-still-out line. */
+  private buildHandTools(): void {
+    const y = HAND_ANCHOR[HUMAN_SEAT].y - 128;
+    const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
+    btn.container.setDepth(6);
+    if (this.nodeData.modifiers.memory) {
+      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
+    }
+  }
+
+  private cycleSort(): void {
+    const order: HandSort[] = ["suit", "strength", "color"];
+    this.handSort = order[(order.indexOf(this.handSort) + 1) % order.length];
+    this.flashNote(SORT_LABEL_AR[this.handSort]);
+    this.applyHandOrder();
+  }
+
+  /** Your cards in the order you've chosen. */
+  private orderHand(cards: Card[], trump?: Suit): Card[] {
+    const bySuit = sortHandForDisplay(cards, trump);
+    if (this.handSort === "suit") return bySuit;
+    if (this.handSort === "manual") {
+      const at = (c: Card) => {
+        const i = this.manualOrder.indexOf(cardId(c));
+        return i === -1 ? 100 + bySuit.indexOf(c) : i;
+      };
+      return [...cards].sort((a, b) => at(a) - at(b));
+    }
+    const res = this.controller.getRound()?.bidding.result;
+    const mode = res?.mode ?? "sun";
+    const t = res?.trumpSuit ?? trump;
+    if (this.handSort === "strength") {
+      // Trumps first, then the rest strongest-first.
+      const score = (c: Card) => (mode === "hokum" && c.suit === t ? 100 : 0) + rankStrength(c, mode, t);
+      return [...cards].sort((a, b) => score(b) - score(a) || SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit));
+    }
+    // Colours alternating (♠ ♥ ♣ ♦) so two red or two black suits never sit side by side.
+    const colorOrder: Suit[] = ["S", "H", "C", "D"];
+    return [...bySuit].sort((a, b) => colorOrder.indexOf(a.suit) - colorOrder.indexOf(b.suit));
+  }
+
+  /** Re-lays the hand views in the chosen order. */
+  private applyHandOrder(): void {
+    const round = this.controller.getRound();
+    const ordered = this.orderHand(this.playerHandViews.map((v) => v.card), round.bidding.result?.trumpSuit);
+    const ids = ordered.map(cardId);
+    this.playerHandViews.sort((a, b) => ids.indexOf(cardId(a.card)) - ids.indexOf(cardId(b.card)));
+    for (const v of this.playerHandViews) this.children.bringToTop(v);
+    this.relayoutHand();
+  }
+
+  /** A sideways drag drops the card where your finger let go. */
+  private dropInHand(view: CardView): void {
+    const others = this.playerHandViews.filter((v) => v !== view);
+    const index = others.filter((v) => v.x < view.x).length;
+    others.splice(index, 0, view);
+    this.playerHandViews = others;
+    this.handSort = "manual";
+    this.manualOrder = others.map((v) => cardId(v.card));
+    for (const v of this.playerHandViews) this.children.bringToTop(v);
+    this.relayoutHand();
+  }
+
+  /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
+  private refreshMemory(): void {
+    if (!this.memoryText) return;
+    const round = this.controller.getRound();
+    if (!round || round.phase === "bidding") {
+      this.memoryText.setText("");
+      return;
+    }
+    const seen = new Set([...round.hands[HUMAN_SEAT], ...round.tricks.flatMap((t) => Object.values(t.cards) as Card[]), ...(Object.values(round.currentTrick?.cards ?? {}) as Card[])].map(cardId));
+    const out = SUITS.flatMap((suit) => (["7", "8", "9", "10", "J", "Q", "K", "A"] as const).map((rank) => ({ suit, rank }))).filter((c) => !seen.has(cardId(c)));
+    let line = "🧠 باقي: " + SUITS.map((s) => `${SUIT_SYMBOL[s]}${out.filter((c) => c.suit === s).length}`).join("  ");
+    if ((this.nodeData.modifiers.memory ?? 0) >= 2) {
+      const big = out.filter((c) => c.rank === "A" || c.rank === "10").map((c) => `${RANK_NAME_AR[c.rank]}${SUIT_SYMBOL[c.suit]}`);
+      line += big.length ? `\nكبار باقية: ${big.join(" ")}` : "\nما بقى إكك ولا عشرات";
+    }
+    this.memoryText.setText(line);
+  }
+
+  // ---------------------------------------------------------------- السوا
+
+  private showSawaButton(): void {
+    this.sawaButton?.destroy();
+    this.sawaButton = undefined;
+    if (!this.controller.canClaimSawa()) return;
+    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
+      this.sawaButton?.destroy();
+      this.sawaButton = undefined;
+      const ok = this.controller.claimSawa();
+      if (!ok) return; // still your turn: play a card as usual
+      for (const v of this.playerHandViews) {
+        v.off("pointerdown");
+        v.off("dragstart");
+        v.off("drag");
+        v.off("dragend");
+        if (v.input) {
+          this.input.setDraggable(v, false);
+          v.disableInteractive();
+        }
+        v.setDimmed(false);
+      }
+      this.driveAI();
+    }, { width: 170, height: 58, fontSize: "25px", color: 0x8a5a12 });
+    this.sawaButton.container.setDepth(6);
+  }
+
+  private onSawa(e: { ok: boolean }): void {
+    this.showSeatBubble(HUMAN_SEAT, e.ok ? "سوا ✋" : "سوا غلط", e.ok ? 0xffd54a : 0xd45a5a);
+    this.flashNote(e.ok ? "✋ سوا! الباقي كله لكم" : "✋ سوا غلط — فيه ورقة أكبر من ورقتك");
+    this.pulseJokers("السوا", e.ok ? undefined : "-");
+    this.log(e.ok ? "أنت: سوا ✋" : "أنت: سوا غلط");
   }
 
   // ------------------------------------------------------------- AI pacing
@@ -459,7 +707,8 @@ export class TableScene extends Phaser.Scene {
 
     // The deal, as at a real table (the infographic's steps 1–3): counter-clockwise from the
     // dealer's right, three cards each, then two each, then the ground card turned face up.
-    const cards = sortHandForDisplay(e.hands[HUMAN_SEAT]);
+    this.manualOrder = [];
+    const cards = this.orderHand(e.hands[HUMAN_SEAT]);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
     const from = this.dealerPoint(e.dealer);
     const counts: Record<Seat, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
@@ -496,6 +745,7 @@ export class TableScene extends Phaser.Scene {
     this.placeDealerChip(e.dealer);
     this.spied = {};
     this.refreshReveals();
+    this.refreshMemory();
     this.updateScoreHud();
   }
 
@@ -504,11 +754,15 @@ export class TableScene extends Phaser.Scene {
     if (e.seat !== HUMAN_SEAT) return;
 
     const bought = e.challenge ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]}` : "";
+    const canSun = e.calls.some((c) => c.call === "sun");
+    const canAshkal = e.calls.some((c) => c.call === "ashkal");
     const prompt = !e.challenge
       ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
-      : e.calls.length === 1
-        ? `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
-        : e.calls.some((c) => c.call === "ashkal")
+      : !canSun
+        ? canAshkal
+          ? `${bought} على إكة — الصن لليمين الموزع بس، لكن تقدر تشكّل`
+          : `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
+        : canAshkal
           ? `${bought} — تاخذها صن أو أشكل؟`
           : `${bought} — تاخذها صن؟`;
     this.showChoices(
@@ -689,7 +943,7 @@ export class TableScene extends Phaser.Scene {
     this.groundCardView = undefined;
 
     const alreadyHeld = new Set(this.playerHandViews.map((v) => cardId(v.card)));
-    const cards = sortHandForDisplay(e.hands[HUMAN_SEAT], e.trumpSuit);
+    const cards = this.orderHand(e.hands[HUMAN_SEAT], e.trumpSuit);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
     const counts: Record<Seat, number> = { 0: 5, 1: 5, 2: 5, 3: 5 };
     for (const seat of OPPONENT_SEATS) this.setOpponentCount(seat, 5);
@@ -762,6 +1016,7 @@ export class TableScene extends Phaser.Scene {
     );
     this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
     this.placeContractChip(e.declarer, this.contractLabel());
+    this.refreshMemory();
   }
 
   /** Writes the contract beside the buyer's name, so the table always shows who bought what. */
@@ -786,6 +1041,7 @@ export class TableScene extends Phaser.Scene {
 
   private onPlayTurn(e: { seat: Seat; legal: Card[] }): void {
     if (e.seat !== HUMAN_SEAT) return;
+    this.showSawaButton();
     const legalIds = new Set(e.legal.map(cardId));
     for (const view of this.playerHandViews) {
       // A card can stay in hand, legal-but-unclicked, across more than one of our turns
@@ -804,7 +1060,9 @@ export class TableScene extends Phaser.Scene {
         
         // Drag-to-play logic
         this.input.setDraggable(view);
+        let startX = view.x;
         view.on("dragstart", () => {
+          startX = view.x;
           this.children.bringToTop(view);
           if (navigator.vibrate) navigator.vibrate(5);
         });
@@ -816,6 +1074,8 @@ export class TableScene extends Phaser.Scene {
           // If dragged high enough (e.g. above the hand), play it
           if (view.y < HAND_ANCHOR[HUMAN_SEAT].y - 100) {
             this.onHumanCardClick(view, true); // force play
+          } else if (Math.abs(view.x - startX) > CARD_W / 3) {
+            this.dropInHand(view); // dragged sideways: reorder your hand
           } else {
             this.relayoutHand(); // snap back
           }
@@ -830,23 +1090,40 @@ export class TableScene extends Phaser.Scene {
     const text =
       a.kind === "transform"
         ? `🎭 اختر ورقة تتحول إلى ${RANK_NAME_AR[a.to.rank]} ${SUIT_SYMBOL[a.to.suit]}`
-        : a.suit
-          ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
-          : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
+        : a.kind === "lower"
+          ? "⬇️ المنزّل: اختر ورقة تصير الثمانية من شكلها"
+          : a.kind === "dye"
+            ? "🖌️ الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
+            : a.kind === "partner"
+              ? "✉️ المرسال: اختر ورقة لشريكك — ويعطيك أكبر ورقة عنده من شكلها"
+              : a.suit
+                ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
+                : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
     this.actionPrompt?.destroy();
     this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 190, text, {
       fontSize: "27px",
       color: "#ffd54a",
       backgroundColor: "#0a2318",
       padding: { x: 18, y: 10 },
+      wordWrap: { width: WIDTH - 80, useAdvancedWrap: true },
     }).setDepth(12);
+    // Every joker pick is optional.
+    this.actionSkip?.destroy();
+    this.actionSkip = makeButton(this, CENTER_X, HAND_ANCHOR[0].y - 285, "تخطّي", () => this.onActionSkip(), {
+      width: 170,
+      height: 60,
+      fontSize: "24px",
+      color: 0x5d5d5d,
+    });
+    this.actionSkip.container.setDepth(12);
 
+    const hand = this.controller.getRound().hands[HUMAN_SEAT];
     for (const view of this.playerHandViews) {
       view.off("pointerdown");
       view.disableInteractive();
       view.setHighlighted(false);
-      // Turning the trump Jack into itself would waste the joker.
-      const pointless = a.kind === "transform" && cardId(view.card) === cardId(a.to);
+      // A pick that would change nothing (the trump Jack into itself, an 8 into an 8) wastes the joker.
+      const pointless = (a.kind === "transform" || a.kind === "lower" || a.kind === "dye") && !actionTarget(a, view.card, hand);
       view.setDimmed(pointless);
       if (pointless) continue;
       setBoxHitArea(view, view.displayW, view.displayH);
@@ -864,8 +1141,25 @@ export class TableScene extends Phaser.Scene {
     }
     this.actionPrompt?.destroy();
     this.actionPrompt = undefined;
+    this.actionSkip?.destroy();
+    this.actionSkip = undefined;
     this.controller.submitPlayerAction(view.card);
     this.time.delayedCall(900, () => this.driveAI());
+  }
+
+  private onActionSkip(): void {
+    if (!this.controller.getPendingAction()) return;
+    for (const v of this.playerHandViews) {
+      v.off("pointerdown");
+      v.disableInteractive();
+      v.setDimmed(false);
+    }
+    this.actionPrompt?.destroy();
+    this.actionPrompt = undefined;
+    this.actionSkip?.destroy();
+    this.actionSkip = undefined;
+    this.controller.skipPlayerAction();
+    this.time.delayedCall(250, () => this.driveAI());
   }
 
   /** A joker changed someone's hand: redraw it and say what happened. */
@@ -884,6 +1178,7 @@ export class TableScene extends Phaser.Scene {
 
     if (e.seat === HUMAN_SEAT || e.kind === "swap") this.redrawHumanHand(e.kind === "transform" ? e.to : e.kind === "swap" ? e.got : undefined);
     this.refreshReveals();
+    this.refreshMemory();
   }
 
   /** Rebuilds the player's hand views from the engine, popping `fresh` so it's easy to spot. */
@@ -891,7 +1186,7 @@ export class TableScene extends Phaser.Scene {
     for (const view of this.playerHandViews) view.destroy();
     this.selectedCardView = undefined;
     const trump = this.controller.getRound().bidding.result?.trumpSuit;
-    const cards = sortHandForDisplay(this.controller.getRound().hands[HUMAN_SEAT], trump);
+    const cards = this.orderHand(this.controller.getRound().hands[HUMAN_SEAT], trump);
     const positions = handPositions(HUMAN_SEAT, cards.length, CARD_W);
     let popped = false;
     this.playerHandViews = cards.map((card, i) => {
@@ -1025,6 +1320,11 @@ export class TableScene extends Phaser.Scene {
 
   private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
     const dest = TRICK_ANCHOR[e.seat];
+    if (e.seat === HUMAN_SEAT) {
+      this.sawaButton?.destroy();
+      this.sawaButton = undefined;
+    }
+    this.time.delayedCall(0, () => this.refreshMemory());
     this.projectMoment(e.seat);
     let juiceColor = 0xffffff;
     let shouldJuice = false;
@@ -1332,19 +1632,44 @@ export class TableScene extends Phaser.Scene {
     put(themX, resY + resultH / 2, String(sheet.result[them]), { fontSize: "34px", fontStyle: "bold" });
     y = resY + resultH + 44;
 
-    // ---- the run's jokers, then the match score
-    for (const b of e.bonuses) {
-      put(CENTER_X, y, `🃏 ${b.label}: +${b.points}`, { fontSize: "25px", color: "#9cc3ff" });
-      y += 42;
-    }
-    if (e.bonuses.length > 0) {
-      put(CENTER_X, y, `المكتسب: لنا ${e.gained[us]} — لهم ${e.gained[them]}`, { fontSize: "25px", color: "#ffffff" });
-      y += 42;
-    }
-    put(CENTER_X, y, `المجموع: لنا ${e.matchScore[us]} — لهم ${e.matchScore[them]}  (الهدف ${this.controller.getMatchTarget()})`, {
+    // ---- the run's jokers, counted up one at a time (the bible: never show the total first)
+    const bonusTotal = e.bonuses.reduce((n, b) => n + b.points, 0);
+    let running = e.gained[us] - bonusTotal;
+    const lines = e.bonuses.map((b, i) =>
+      put(CENTER_X, y + i * 42, `🃏 ${b.label}: ${b.points >= 0 ? "+" : ""}${b.points}`, {
+        fontSize: "25px",
+        color: b.points < 0 ? "#ff9a9a" : "#9cc3ff",
+      }).setAlpha(0),
+    );
+    y += e.bonuses.length * 42;
+    const gainedLine = (n: number) => `المكتسب: لنا ${n} — لهم ${e.gained[them]}`;
+    const gainedText = e.bonuses.length > 0 ? put(CENTER_X, y, gainedLine(running), { fontSize: "27px", color: "#ffffff", fontStyle: "bold" }) : undefined;
+    if (gainedText) y += 46;
+    const totalText = put(CENTER_X, y, `المجموع: لنا ${e.matchScore[us]} — لهم ${e.matchScore[them]}  (الهدف ${this.controller.getMatchTarget()})`, {
       fontSize: "26px",
       color: "#ffd54a",
     });
+    const reveal = 300 + e.bonuses.length * BONUS_STEP_MS;
+    if (e.bonuses.length > 0) totalText.setAlpha(0);
+    lines.forEach((line, i) =>
+      this.time.delayedCall(300 + i * BONUS_STEP_MS, () => {
+        if (!panel.active) return;
+        const b = e.bonuses[i];
+        line.setAlpha(1).setScale(0.6);
+        this.tweens.add({ targets: line, scale: 1, duration: 220, ease: "Back.Out" });
+        running += b.points;
+        gainedText!.setText(gainedLine(running));
+        this.tweens.add({ targets: gainedText, scale: 1.15, duration: 110, yoyo: true });
+        this.pulseJokers(b.label);
+      }),
+    );
+    if (e.bonuses.length > 0) {
+      this.time.delayedCall(reveal, () => {
+        if (!panel.active) return;
+        this.tweens.add({ targets: totalText, alpha: 1, duration: 250 });
+        if (bonusTotal >= 10) this.cameras.main.shake(140, 0.004);
+      });
+    }
 
     const btn = makeButton(
       this,

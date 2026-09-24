@@ -35,7 +35,17 @@ function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined,
 
 function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
   // الورقة الأخيرة: that seat's card counts as the top of its suit.
-  return rankStrength(p.card, mode, trumpSuit) + (rules?.topCard === p.seat ? 100 : 0) + (rules?.trashBeatsAce && (p.card.rank === "7" || p.card.rank === "8") ? 50 : 0);
+  const top = rules?.topCard === p.seat ? 100 : 0;
+  // ثورة الصغار: only the joker holder's team, and only outside the trump suit (a trump 7 over the
+  // trump Jack would make every hokum a walkover).
+  const low =
+    rules?.trashBeatsAce !== undefined &&
+    teamOf(p.seat) === rules.trashBeatsAce &&
+    (p.card.rank === "7" || p.card.rank === "8") &&
+    !isTrumpCard(p.card, mode, trumpSuit)
+      ? 50
+      : 0;
+  return rankStrength(p.card, mode, trumpSuit) + top + low;
 }
 
 function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules): boolean {

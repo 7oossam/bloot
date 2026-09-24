@@ -12,6 +12,11 @@ export interface PlayContext {
   declarer?: Seat;
   /** مقفل: a closed دبل — no leading trumps while holding anything else. */
   closed?: boolean;
+  /**
+   * المترجم: suits the partner signalled (discarded from), latest first. With it this seat reads
+   * every discard as "lead me this suit" and answers before anything else but a برقية.
+   */
+  partnerAsks?: Suit[];
 }
 
 /**
@@ -151,6 +156,10 @@ function chooseLead(
 
   // The partner sent a برقية: they hold the rest — give them the lead in that suit.
   for (const suit of beliefs.barqiya[partner]) {
+    if (by[suit].length > 0) return lowest(by[suit]);
+  }
+  // المترجم: answer the partner's last signal first.
+  for (const suit of ctx?.partnerAsks ?? []) {
     if (by[suit].length > 0) return lowest(by[suit]);
   }
 

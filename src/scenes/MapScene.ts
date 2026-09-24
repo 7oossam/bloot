@@ -40,7 +40,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
+    this.add.rectangle(0, 0, this.scale.width, this.scale.height, THEME_BG).setOrigin(0);
     arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
     this.hudText = arabicText(this, WIDTH / 2, 150, "", {
       fontSize: "23px",
@@ -115,8 +115,8 @@ export class MapScene extends Phaser.Scene {
     state: { isCurrent: boolean; isCleared: boolean; isAvailable: boolean },
   ): Phaser.GameObjects.Container {
     const radius = RADIUS;
-    const color = state.isCleared ? 0x1f6f43 : state.isAvailable ? 0x2f8f5b : 0x33443c;
-    const strokeColor = state.isAvailable ? 0xffd54a : state.isCleared ? 0x5ad469 : 0x55665c;
+    const color = state.isCleared ? 0x1f6f43 : state.isAvailable ? 0x2f8f5b : THEME_NODE;
+    const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0x5ad469 : 0x55665c;
 
     const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
     const icon = this.add.text(0, -6, NODE_TYPE_ICON[node.type], { fontSize: "36px" }).setOrigin(0.5);
@@ -179,7 +179,7 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 1);
+    bg.fillStyle(THEME_NODE, 1);
     bg.fillRoundedRect(-panelW / 2, -220, panelW, 440, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -220, panelW, 440, 28);

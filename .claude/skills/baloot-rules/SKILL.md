@@ -36,6 +36,8 @@ Ground rules when working on the game:
 5. **أشكل** is for the dealer and the dealer's left only — on their own turn in either round
    (the player's call, over the regulation's 8-1), or over the other team's hokum unless
    they already said ولا in round 2. The caller buys sun; the partner takes the ground card.
+   A hokum on an **Ace** ground card (4-1) blocks only the flip to **sun** (except the dealer's
+   right) — أشكل over it stays open to the usual callers.
 6. **الدبل** (`src/engine/doubling.ts`): after the full deal, before the first card. Hokum:
    دبل (open/مقفل) → ثري → فور (open/مقفل) → قهوة (wins the match); sun: دبل only, and only
    by a side ≤100 against a side >100 (scaled to the target). The last raiser is judged as

@@ -42,8 +42,10 @@ function cloneRound(r: Round): Round {
     [...r.hands[2]],
     [...r.hands[3]]
   ] as Record<Seat, Card[]>;
-  c.tricks = r.tricks.map(t => ({ ...t, cards: { ...t.cards } }));
-  c.currentTrick = r.currentTrick ? { ...r.currentTrick, cards: { ...r.currentTrick.cards } } : undefined;
+  // Copy each trick's `order` too: sharing it let every simulated card land in the real
+  // game's trick, which then listed seats with no card and crashed legalMovesFor.
+  c.tricks = r.tricks.map(t => ({ ...t, cards: { ...t.cards }, order: [...t.order] }));
+  c.currentTrick = r.currentTrick ? { ...r.currentTrick, cards: { ...r.currentTrick.cards }, order: [...r.currentTrick.order] } : undefined;
   c.projects = r.projects ? { ...r.projects } : undefined;
   c.balootHolder = r.balootHolder;
   c.balootDeclared = r.balootDeclared;

@@ -52,8 +52,8 @@ export interface TrickRules {
   personalTrump?: { seat: Seat; suit: Suit };
   /** This seat's card counts as the top card of its suit (الورقة الأخيرة). */
   topCard?: Seat;
-  /** 7s and 8s get a +50 strength boost, beating Aces in their tier. */
-  trashBeatsAce?: boolean;
+  /** This team's 7s and 8s outside the trump suit beat the rest of their suit (ثورة الصغار). The deck is shared, so it never helps the other side. */
+  trashBeatsAce?: Team;
 }
 
 export interface Trick {

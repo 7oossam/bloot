@@ -3,8 +3,9 @@ import { dealInitial, finalizeDeal, type InitialDeal } from "./deck";
 import { legalMoves, resolveTrick } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
+import { SEQUENCE_ORDER } from "./projects";
 import type { Bid, Card, HandResult, Seat, Suit, Team, Trick, TrickRules } from "./types";
-import { nextSeat, teamOf } from "./types";
+import { SUITS, nextSeat, teamOf } from "./types";
 import {
   legalDoubles,
   raiserTeam,
@@ -32,6 +33,12 @@ export interface RoundOptions {
   guaranteeJackFor?: Seat;
   /** How many Jacks that seat is guaranteed (default 1). */
   guaranteedJacks?: number;
+  /** الحظ الواطي: this many 7s/8s in `guaranteeJackFor`'s first five. */
+  guaranteedLow?: number;
+  /** المرتّب: at the deal, one card short of a run of this length → that seat gets the card. */
+  completeRunTo?: 3 | 4;
+  /** الجريء: this team may double a sun contract whatever the 100-point rule says. */
+  freeSunDoubleFor?: Team;
   /** Teams whose hokum can't be challenged to sun. */
   lockedHokumTeams?: Team[];
   /**
@@ -54,28 +61,79 @@ export interface RoundOptions {
 }
 
 /**
- * If `seat` was dealt no Jack, swaps one of its cards for a Jack from somewhere else in the
- * deal. The face-up ground card is never touched, so the auction the table sees is unchanged.
+ * Until `seat`'s first five hold `wanted` cards matching `match`, swaps one of its other cards
+ * for a matching card from somewhere else in the deal (never inventing one: the deck is shared,
+ * so the opponents simply don't get it). Cards `keep` protects are never the ones given away.
+ * The face-up ground card is never touched, so the auction the table sees is unchanged.
  */
-function giveAJack(initial: InitialDeal, seat: Seat, rand: () => number, wanted = 1): void {
+function giveCards(
+  initial: InitialDeal,
+  seat: Seat,
+  rand: () => number,
+  wanted: number,
+  match: (c: Card) => boolean,
+  keep: (c: Card) => boolean = () => false,
+): void {
   const hand = initial.hands[seat];
-  if (hand.filter((c) => c.rank === "J").length >= wanted) return;
+  while (hand.filter(match).length < wanted) {
+    const sources = dealSources(initial, seat, match);
+    const spare = hand.map((c, i) => (match(c) || keep(c) ? -1 : i)).filter((i) => i >= 0);
+    // Only possible if the ground card holds the last one, or every card is protected.
+    if (sources.length === 0 || spare.length === 0) return;
+    const from = sources[Math.floor(rand() * sources.length)];
+    const giveIndex = spare[Math.floor(rand() * spare.length)];
+    const got = from.list[from.index];
+    from.list[from.index] = hand[giveIndex];
+    hand[giveIndex] = got;
+  }
+}
 
+/** Where in the deal (other hands, the stock bar the ground card) cards matching `match` sit. */
+function dealSources(initial: InitialDeal, seat: Seat, match: (c: Card) => boolean): Array<{ list: Card[]; index: number }> {
   const sources: Array<{ list: Card[]; index: number }> = [];
   for (const other of [0, 1, 2, 3] as Seat[]) {
     if (other === seat) continue;
-    initial.hands[other].forEach((c, index) => c.rank === "J" && sources.push({ list: initial.hands[other], index }));
+    initial.hands[other].forEach((c, index) => match(c) && sources.push({ list: initial.hands[other], index }));
   }
-  initial.stock.forEach((c, index) => index > 0 && c.rank === "J" && sources.push({ list: initial.stock, index }));
-  if (sources.length === 0) return; // only possible if the ground card is the last Jack left
+  initial.stock.forEach((c, index) => index > 0 && match(c) && sources.push({ list: initial.stock, index }));
+  return sources;
+}
 
-  const from = sources[Math.floor(rand() * sources.length)];
-  const nonJacks = hand.map((c, i) => (c.rank === "J" ? -1 : i)).filter((i) => i >= 0);
-  const giveIndex = nonJacks[Math.floor(rand() * nonJacks.length)];
-  const jack = from.list[from.index];
-  from.list[from.index] = hand[giveIndex];
-  hand[giveIndex] = jack;
-  giveAJack(initial, seat, rand, wanted);
+/**
+ * المرتّب: if `seat`'s first five hold a run one card short of `upTo` (two in a row toward a
+ * سرا, or three toward a خمسين), fetch the missing card from elsewhere in the deal. One card
+ * per deal, and never one of the run's own cards or a protected card given away for it.
+ */
+function completeRun(initial: InitialDeal, seat: Seat, rand: () => number, upTo: 3 | 4, keep: (c: Card) => boolean): void {
+  const hand = initial.hands[seat];
+  const options: Array<{ need: Card; run: Card[] }> = [];
+  for (const suit of SUITS) {
+    const idx = [...new Set(hand.filter((c) => c.suit === suit).map((c) => SEQUENCE_ORDER.indexOf(c.rank)))].sort((a, b) => a - b);
+    let start = 0;
+    for (let i = 1; i <= idx.length; i++) {
+      if (i < idx.length && idx[i] === idx[i - 1] + 1) continue;
+      const run = idx.slice(start, i);
+      start = i;
+      if (run.length < 2 || run.length >= upTo) continue;
+      const cards = run.map((r) => ({ suit, rank: SEQUENCE_ORDER[r] }));
+      for (const end of [run[0] - 1, run[run.length - 1] + 1]) {
+        if (end >= 0 && end < SEQUENCE_ORDER.length) options.push({ need: { suit, rank: SEQUENCE_ORDER[end] }, run: cards });
+      }
+    }
+  }
+  // The longest run first: finishing a خمسين beats starting a سرا.
+  options.sort((a, b) => b.run.length - a.run.length);
+  for (const { need, run } of options) {
+    const sources = dealSources(initial, seat, (c) => cardId(c) === cardId(need));
+    const inRun = (c: Card) => run.some((r) => cardId(r) === cardId(c));
+    const spare = hand.map((c, i) => (inRun(c) || keep(c) ? -1 : i)).filter((i) => i >= 0);
+    if (sources.length === 0 || spare.length === 0) continue;
+    const from = sources[0];
+    const giveIndex = spare[Math.floor(rand() * spare.length)];
+    from.list[from.index] = hand[giveIndex];
+    hand[giveIndex] = { ...need };
+    return;
+  }
 }
 
 /**
@@ -115,8 +173,16 @@ export class Round {
     this.doublingRules = options.doubling;
     this.options = options;
     this.initial = dealInitial(rand);
-    if (options.guaranteeJackFor !== undefined) {
-      giveAJack(this.initial, options.guaranteeJackFor, rand, options.guaranteedJacks ?? 1);
+    const supplied = options.guaranteeJackFor;
+    if (supplied !== undefined) {
+      const isJack = (c: Card) => c.rank === "J";
+      const isLow = (c: Card) => c.rank === "7" || c.rank === "8";
+      const jacks = options.guaranteedJacks ?? (options.guaranteedLow || options.completeRunTo ? 0 : 1);
+      if (jacks) giveCards(this.initial, supplied, rand, jacks, isJack);
+      if (options.guaranteedLow) giveCards(this.initial, supplied, rand, options.guaranteedLow, isLow, (c) => jacks > 0 && isJack(c));
+      if (options.completeRunTo) {
+        completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
+      }
     }
     this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
     this.hands = {
@@ -149,7 +215,9 @@ export class Round {
         const { mode: m, declarer, declarerTeam } = this.bidding.result;
         const allowed =
           !this.options.noDoubleAgainst?.includes(declarerTeam) &&
-          (m === "hokum" || sunDoubleAllowed(declarerTeam, this.doublingRules.matchScore, this.doublingRules.sunLimit));
+          (m === "hokum" ||
+            (this.options.freeSunDoubleFor !== undefined && this.options.freeSunDoubleFor !== declarerTeam) ||
+            sunDoubleAllowed(declarerTeam, this.doublingRules.matchScore, this.doublingRules.sunLimit));
         this.doubling = startDoubling(m, declarer, allowed);
         if (!this.doubling.done) this.phase = "doubling";
       }

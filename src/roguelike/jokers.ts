@@ -4,7 +4,7 @@ import type { Suit } from "../engine/types";
 export type Rarity = "common" | "rare" | "legendary";
 
 /** Synergy families. Owning several jokers of one family switches on a set bonus. */
-export type Tag = "ولد" | "حكم" | "أرض" | "مشروع" | "حلة" | "سبيت" | "عين" | "سرقة" | "دفاع";
+export type Tag = "ولد" | "حكم" | "أرض" | "مشروع" | "حلة" | "سبيت" | "عين" | "سرقة" | "دفاع" | "صغار" | "تهريب" | "كبوت" | "دبل";
 
 export interface ShopItemDef {
   id: string;
@@ -38,23 +38,42 @@ const joker = (d: Omit<ShopItemDef, "kind">): ShopItemDef => ({ kind: "joker", .
  * Prices are tuned to the node rewards (20 / 25 / 35 gold for matches, 50 for the elite).
  */
 export const JOKER_CATALOG: ShopItemDef[] = [
-  joker({
-    id: "phantom-card",
-    name: "Phantom Card",
-    icon: "👻",
-    levels: ["3-card Sira counts as 4. 3-of-a-kind counts as 4-of-a-kind (three Aces in Sun make أربعمئة)."],
-    cost: 35,
-    rarity: "legendary",
-    tags: []
-  }),
+  // ---- الصغار: the 7s and 8s build (Payoff, Supply, Forge, Reward — the bible, PART 4)
   joker({
     id: "trash-beats-ace",
-    name: "Underdog",
+    name: "ثورة الصغار",
     icon: "🐕",
-    levels: ["7s and 8s have a hidden +50 strength boost, beating Aces in their tier!"],
-    cost: 25,
+    levels: ["سبعاتكم وثمانياتكم (من غير الحكم) تاكل الإكة في شكلها. سبعات الخصم وثمانياته تبقى ضعيفة."],
+    cost: 26,
     rarity: "rare",
-    tags: []
+    tags: ["صغار"],
+  }),
+  joker({
+    id: "low-luck",
+    name: "الحظ الواطي",
+    icon: "🍀",
+    levels: ["دايم يجيك سبعة أو ثمانية في أول خمس أوراق.", "دايم يجيك ثنتين.", "دايم يجيك ثلاث."],
+    cost: 10,
+    rarity: "common",
+    tags: ["صغار"],
+  }),
+  joker({
+    id: "lowerer",
+    name: "المنزّل",
+    icon: "⬇️",
+    levels: ["بعد الشراء: اختر ورقة من يدك تصير الثمانية من نفس شكلها.", "ورقتين."],
+    cost: 20,
+    rarity: "rare",
+    tags: ["صغار"],
+  }),
+  joker({
+    id: "low-revenge",
+    name: "ثأر الصغار",
+    icon: "🐜",
+    levels: ["كل أكلة تاخذونها بسبعة أو ثمانية = +2 بنط.", "+3 بنط.", "+5 بنط."],
+    cost: 12,
+    rarity: "common",
+    tags: ["صغار"],
   }),
   // ---- الولد: Jacks, and stealing with them
   joker({
@@ -183,7 +202,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     id: "locked-hokum",
     name: "الحكم المقفول",
     icon: "🔒",
-    levels: ["حكمكم محد ياخذه صن، ومحد يقدر يدبل عليكم."],
+    levels: ["حكمكم محد ياخذه صن، ومحد يقدر يدبل عليكم. (يضر بناء الدبل: محد يدبل = ما فيه يد مدبلة.)"],
     cost: 14,
     rarity: "common",
     tags: ["حكم", "دفاع"],
@@ -223,6 +242,24 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     icon: "🎲",
     levels: ["أربع سبعات أو ثمانيات أو تسعات عندك = مئة."],
     cost: 10,
+    rarity: "common",
+    tags: ["مشروع", "صغار"],
+  }),
+  joker({
+    id: "phantom-card",
+    name: "الورقة الشبح",
+    icon: "👻",
+    levels: ["مشاريعك تكبر درجة: ثلاث متسلسلة = خمسين، أربع = مئة، وثلاث من نوع واحد = أربع (ثلاث إكك في الصن = أربعمئة)."],
+    cost: 35,
+    rarity: "legendary",
+    tags: ["مشروع"],
+  }),
+  joker({
+    id: "arranger",
+    name: "المرتّب",
+    icon: "🗂️",
+    levels: ["إذا عندك ورقتين متسلسلة من شكل في أول خمس، تجيك الثالثة (سرا).", "وإذا عندك ثلاث، تجيك الرابعة (خمسين)."],
+    cost: 12,
     rarity: "common",
     tags: ["مشروع"],
   }),
@@ -324,6 +361,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     rarity: "common",
     tags: ["سبيت"],
   }),
+  joker({
+    id: "dyer",
+    name: "الصبّاغ",
+    icon: "🖌️",
+    levels: ["بعد الشراء: اختر ورقة تصير سبيت بنفس رقمها.", "ورقتين."],
+    cost: 22,
+    rarity: "rare",
+    tags: ["سبيت"],
+  }),
 
   // ---- العين: see what you shouldn't
   joker({
@@ -342,7 +388,54 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     levels: ["ورق شريكك مكشوف لك."],
     cost: 22,
     rarity: "rare",
+    tags: ["عين", "تهريب"],
+  }),
+  joker({
+    id: "memory",
+    name: "الذاكرة",
+    icon: "🧠",
+    levels: ["تشوف كم ورقة باقية ما نزلت من كل شكل.", "وتشوف الإكك والعشرات اللي ما نزلت."],
+    cost: 10,
+    rarity: "common",
     tags: ["عين"],
+  }),
+  joker({
+    id: "golden-akka",
+    name: "الآكه الذهبية",
+    icon: "🪙",
+    levels: ["كل آكه تلعبونها وتاكل = +2 ذهب. وإذا انقطعت = -3 بنط.", "كل آكه تاكل = +4 ذهب."],
+    cost: 18,
+    rarity: "rare",
+    tags: ["عين", "حلة"],
+  }),
+
+  // ---- التهريب: talking to your partner through your discards
+  joker({
+    id: "translator",
+    name: "المترجم",
+    icon: "🗣️",
+    levels: ["شريكك يفهم تهريبك: أي ورقة تهرّبها (وأنت ما عندك من اللون المطلوب)، يلعب لك من شكلها أول ما يمسك اللعب."],
+    cost: 26,
+    rarity: "rare",
+    tags: ["تهريب"],
+  }),
+  joker({
+    id: "golden-signal",
+    name: "الإشارة الذهبية",
+    icon: "📡",
+    levels: ["إذا لعب لك شريكك من شكل طلبته بالتهريب وأكلتوها: نتيجة اليد ×1.5.", "×2."],
+    cost: 24,
+    rarity: "rare",
+    tags: ["تهريب"],
+  }),
+  joker({
+    id: "messenger",
+    name: "المرسال",
+    icon: "✉️",
+    levels: ["بعد الشراء: أعطِ شريكك ورقة، ويعطيك أكبر ورقة عنده من نفس شكلها."],
+    cost: 22,
+    rarity: "rare",
+    tags: ["تهريب"],
   }),
 
   // ---- الدفاع: win on their buys and their doubles
@@ -356,13 +449,84 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["دفاع"],
   }),
   joker({
+    id: "breaker",
+    name: "الكاسر",
+    icon: "🔨",
+    levels: ["الخصم اشترى صن وطلعت خسرانة: نتيجتكم ×2.", "×3."],
+    cost: 24,
+    rarity: "rare",
+    tags: ["دفاع"],
+  }),
+  joker({
+    id: "patience",
+    name: "الصبر",
+    icon: "⏳",
+    levels: ["كل يد يشتري فيها الخصم وتطلعون أكثر منه: +3 ذهب.", "+5 ذهب.", "+8 ذهب."],
+    cost: 10,
+    rarity: "common",
+    tags: ["دفاع"],
+  }),
+  joker({
     id: "qahwaji",
     name: "القهوجي",
     icon: "☕",
     levels: ["تكسبون يد مدبّلة: نتيجتكم +50٪.", "+100٪."],
     cost: 26,
     rarity: "rare",
-    tags: ["دفاع"],
+    tags: ["دفاع", "دبل"],
+  }),
+
+  // ---- الدبل: raising the stakes
+  joker({
+    id: "bold",
+    name: "الجريء",
+    icon: "🦁",
+    levels: ["تقدرون تدبلون على صن الخصم دايم — بدون شرط المئة."],
+    cost: 24,
+    rarity: "rare",
+    tags: ["دبل"],
+  }),
+  joker({
+    id: "capital",
+    name: "رأس المال",
+    icon: "💰",
+    levels: ["كل يد مدبلة تكسبونها: ذهب = مستوى الدبل × 4.", "مستوى الدبل × 7."],
+    cost: 12,
+    rarity: "common",
+    tags: ["دبل"],
+  }),
+  joker({
+    id: "poker-face",
+    name: "الوجه البارد",
+    icon: "😐",
+    levels: ["إذا رفعتوا (دبل، ثري، فور)، الخصم ما يرفع عليكم بعدها."],
+    cost: 20,
+    rarity: "rare",
+    tags: ["دبل"],
+  }),
+
+  // ---- الكبوت: take every trick
+  joker({
+    id: "sawa",
+    name: "السوا",
+    icon: "✋",
+    levels: [
+      "وأنت تبدأ الأكلة: قل سوا إذا كل ورقة في يدك أكبر من كل ورقة باقية عند غيرك. صح = +6 بنط والباقي ينلعب لك. غلط = -6 بنط.",
+      "صح = +10 بنط.",
+      "صح = +15 بنط.",
+    ],
+    cost: 26,
+    rarity: "rare",
+    tags: ["كبوت"],
+  }),
+  joker({
+    id: "crawl",
+    name: "الزحف",
+    icon: "🐍",
+    levels: ["من ثالث أكلة متتالية لكم: كل أكلة تعطي بنط، وتكبر كل أكلتين (1، 1، 2، 2، 3، 3).", "من الثالثة: 1، 2، 3، 4، 5، 6."],
+    cost: 12,
+    rarity: "common",
+    tags: ["كبوت"],
   }),
 
   // ---- build-makers and the rest
@@ -373,7 +537,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     levels: ["إذا أكلتوا الثمان أكلات في يد، تفوزون بالمباراة فوراً."],
     cost: 40,
     rarity: "legendary",
-    tags: [],
+    tags: ["كبوت"],
   }),
   joker({
     id: "wild",
@@ -578,6 +742,22 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
     { count: 2, text: "خسرانة الخصم +4 أبناط لكم" },
     { count: 3, text: "كسر قانون: محد يقدر يدبل عليكم" },
   ],
+  صغار: [
+    { count: 2, text: "كل أكلة بسبعة أو ثمانية +1 بنط" },
+    { count: 3, text: "كسر قانون: سبعاتكم وثمانياتكم تاكل الإكة" },
+  ],
+  تهريب: [
+    { count: 2, text: "كل أكلة يلعبها لك شريكك من شكل طلبته +2 بنط" },
+    { count: 3, text: "كسر قانون: شريكك يفهم تهريبك دايم" },
+  ],
+  كبوت: [
+    { count: 2, text: "كل كبوت لكم +10 أبناط" },
+    { count: 3, text: "كسر قانون: الكبوت يفوز بالمباراة" },
+  ],
+  دبل: [
+    { count: 2, text: "كل يد مدبلة تكسبونها +5 أبناط" },
+    { count: 3, text: "كسر قانون: تدبلون على صن الخصم دايم" },
+  ],
 };
 
 /** Each tag you hold, how many jokers carry it, and the highest tier that's switched on. */
@@ -624,13 +804,16 @@ export function matchOptionsFromJokers(jokerIds: string[], levels: Record<string
 }
 
 /** Numbers add (a multiplier adds its excess over 1), flags OR, nested objects merge the same way. */
-const MULTIPLIERS = new Set(["sunMultiplier", "projectMultiplier", "gamblerMultiplier"]);
+const MULTIPLIERS = new Set(["sunMultiplier", "projectMultiplier", "gamblerMultiplier", "sunBreakMultiplier", "signalMultiplier"]);
+/** Settings where a copy means "the bigger one", not the sum. */
+const LARGEST = new Set(["completeRunTo", "memory"]);
 function mergeOptions(a: MatchOptions, b: MatchOptions): MatchOptions {
   const out: Record<string, unknown> = { ...a };
   for (const [key, value] of Object.entries(b)) {
     const mine = out[key];
     if (mine === undefined) out[key] = value;
-    else if (typeof value === "number" && typeof mine === "number") out[key] = MULTIPLIERS.has(key) ? mine + value - 1 : mine + value;
+    else if (typeof value === "number" && typeof mine === "number")
+      out[key] = LARGEST.has(key) ? Math.max(mine, value) : MULTIPLIERS.has(key) ? mine + value - 1 : mine + value;
     else if (typeof value === "boolean") out[key] = !!mine || value;
     else if (Array.isArray(value) && Array.isArray(mine)) out[key] = [...mine, ...value];
     else if (value && typeof value === "object" && mine && typeof mine === "object") {
@@ -648,10 +831,44 @@ function mergeOptions(a: MatchOptions, b: MatchOptions): MatchOptions {
 function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: RunContext): MatchOptions {
   const o: MatchOptions = {};
   const lv = (id: string) => (jokerIds.includes(id) ? (levels[id] ?? 1) : 0);
-  if (lv("phantom-card")) o.phantomProjects = true;
-  if (lv("trash-beats-ace")) o.trashBeatsAce = true;
   const pick = <T>(id: string, values: T[]): T | undefined => (lv(id) ? values[Math.min(lv(id), values.length) - 1] : undefined);
   const tier = (tag: Tag) => tierOf(jokerIds, tag);
+  if (lv("phantom-card")) o.phantomProjects = true;
+
+  // ---- الصغار
+  const lowTier = tier("صغار");
+  if (lv("trash-beats-ace") || lowTier >= 2) o.trashBeatsAce = true;
+  const low = pick("low-luck", [1, 2, 3]);
+  if (low) o.guaranteedLow = low;
+  const lower = pick("lowerer", [1, 2]);
+  if (lower) o.lowForge = lower;
+  const lowTrick = (pick("low-revenge", [2, 3, 5]) ?? 0) + (lowTier >= 1 ? 1 : 0);
+  if (lowTrick) o.lowTrickBonus = lowTrick;
+
+  // ---- التهريب
+  const signalTier = tier("تهريب");
+  if (lv("translator") || signalTier >= 2) o.translator = true;
+  const signal = pick("golden-signal", [1.5, 2]);
+  if (signal) o.signalMultiplier = signal;
+  if (signalTier >= 1) o.signalTrickBonus = 2;
+  if (lv("messenger")) o.partnerSwap = true;
+
+  // ---- الكبوت
+  const kabootTier = tier("كبوت");
+  const sawa = pick("sawa", [6, 10, 15]);
+  if (sawa) o.sawa = { bonus: sawa, penalty: 6 };
+  const crawl = pick("crawl", [1, 2]);
+  if (crawl) o.streakBonus = crawl;
+  if (kabootTier >= 1) o.kabootBonus = { points: 10, gold: 0 };
+  if (kabootTier >= 2) o.kabootWinsMatch = true;
+
+  // ---- الدبل
+  const doubleTier = tier("دبل");
+  if (lv("bold") || doubleTier >= 2) o.freeSunDouble = true;
+  const capital = pick("capital", [4, 7]);
+  if (capital) o.doubleGold = capital;
+  if (lv("poker-face")) o.pokerFace = true;
+  if (doubleTier >= 1) o.doubleWinPoints = 5;
 
   // ---- الولد
   const jackTier = tier("ولد");
@@ -702,6 +919,8 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   ]);
   if (sira) o.siraBonus = sira;
   if (lv("low-fours")) o.lowFours = true;
+  const arrange = pick("arranger", [3, 4] as const);
+  if (arrange) o.completeRunTo = arrange;
   const projects = pick("project-engineer", [2, 2.5, 3]);
   if (projects) o.projectMultiplier = projects;
   if (lv("loud-voice")) o.projectsAlwaysCount = true;
@@ -721,6 +940,8 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (lv("spade-king") || spadeTier >= 2) o.personalTrump = "S";
   const thief = lv("spade-thief");
   if (thief) o.spadeThief = { best: thief >= 2, twice: thief >= 3 };
+  const dye = pick("dyer", [1, 2]);
+  if (dye) o.dyeForge = dye;
   const treasure = (pick("spade-treasure", [2, 3, 5]) ?? 0) + (spadeTier >= 1 ? 1 : 0);
   if (treasure) o.suitTrickBonus = { suit: "S", points: treasure };
 
@@ -729,6 +950,10 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   const spy = (pick("spy", [1, 2, 3]) ?? 0) + (eyeTier >= 1 ? 1 : 0);
   if (spy) o.spyCards = spy;
   if (lv("partner-eyes")) o.revealPartner = true;
+  const memory = pick("memory", [1, 2]);
+  if (memory) o.memory = memory;
+  const akkaGold = pick("golden-akka", [2, 4]);
+  if (akkaGold) o.akkaGamble = { gold: akkaGold, penalty: 3 };
 
   // ---- الدفاع
   const defenseTier = tier("دفاع");
@@ -737,9 +962,13 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   const qahwa = pick("qahwaji", [0.5, 1]);
   if (qahwa) o.doubleWinBonus = qahwa;
   if (defenseTier >= 2) o.noDoubleAgainst = true;
+  const breaker = pick("breaker", [2, 3]);
+  if (breaker) o.sunBreakMultiplier = breaker;
+  const patience = pick("patience", [3, 5, 8]);
+  if (patience) o.defenseGold = patience;
 
   // ---- the rest
-  if (lv("kaboot-king")) o.kabootWinsMatch = true;
+  if (lv("kaboot-king") || kabootTier >= 2) o.kabootWinsMatch = true;
   const winBonuses: Array<{ label: string; points: number }> = [];
   const chief = pick("chief", [1, 2]);
   if (chief) {
@@ -756,3 +985,52 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
 }
 
 
+// ------------------------------------------------------------------ feedback
+
+/**
+ * Which joker (or, for a synergy, which family) a bonus line or a mid-hand payout comes from,
+ * keyed by the label the match uses. The table lights that joker up when it pays.
+ */
+const PAYOUT_SOURCE: Record<string, string | Tag> = {
+  "أكلات الأولاد": "jack-collector",
+  "ثأر الصغار": "low-revenge",
+  "الزحف": "crawl",
+  "الإشارة الذهبية": "golden-signal",
+  "الآكه الذهبية": "golden-akka",
+  "ملك الآكه": "akka-king",
+  "كنز السبيت": "spade-treasure",
+  "القطّاع": "cutter",
+  "المخلّي": "ducker",
+  "سيد الأرض": "ground-lord",
+  "الحكم الأعزل": "bare-hokum",
+  "مهندس المشاريع": "project-engineer",
+  "الفخ": "trap",
+  "القهوجي": "qahwaji",
+  "الضربة الأولى": "first-strike",
+  "صانع السرا": "sira-maker",
+  "شيخ القبيلة": "chief",
+  "المايسترو": "maestro",
+  "الكاسر": "breaker",
+  "السوا": "sawa",
+  "سوا غلط": "sawa",
+  "الصبر": "patience",
+  "رأس المال": "capital",
+  "الكبوت الذهبي": "كبوت",
+  "تآزر الحكم": "حكم",
+  "تآزر المشاريع": "مشروع",
+  "تآزر التهريب": "تهريب",
+  "تآزر الدبل": "دبل",
+};
+
+/**
+ * The owned jokers behind a payout label: the joker itself if you own it, else the family it
+ * belongs to (a synergy tier can pay the same bonus without the joker).
+ */
+export function jokersBehind(label: string, owned: string[]): string[] {
+  const source = PAYOUT_SOURCE[label];
+  if (!source) return [];
+  if (owned.includes(source)) return [source];
+  const def = getJokerDef(source);
+  const tags: string[] = def ? def.tags : [source];
+  return owned.filter((id) => getJokerDef(id)?.tags.some((t) => tags.includes(t)));
+}
