@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferConstraints, sampleWorld, searchCard } from "../src/ai/mcts";
+import { believableWorlds, inferConstraints, sampleWorld, searchCard, worldLikelihood } from "../src/ai/mcts";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
 import { Round } from "../src/engine/round";
@@ -100,6 +100,30 @@ describe("the search AI", () => {
       }
     }
     expect(checked).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reading the bidding: the real deal looks more believable than a random guess", () => {
+    let beats = 0, n = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const r = playable(seed);
+      if (!r) continue;
+      const me = r.turnSeat!;
+      const rand = mulberry32(seed);
+      const c = inferConstraints(r, me);
+      const truth = worldLikelihood(r, me, r.hands, rand);
+      for (let i = 0; i < 30; i++) {
+        const w = sampleWorld(r, me, c, rand);
+        if (!w) continue;
+        const guess = worldLikelihood(r, me, w, rand);
+        beats += truth > guess ? 1 : truth === guess ? 0.5 : 0;
+        n++;
+      }
+      // The believable guesses are still legal guesses.
+      for (const w of believableWorlds(r, me, c, rand, 10)) {
+        for (const s of [0, 1, 2, 3] as Seat[]) expect(w[s].length).toBe(r.hands[s].length);
+      }
+    }
+    expect(beats / n).toBeGreaterThan(0.6); // 0.5 would mean the bidding tells it nothing
   });
 
   it("out-scores the rule-based AI on the same deals (each side playing both seat pairs)", () => {

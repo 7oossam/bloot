@@ -3,7 +3,11 @@ import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { decideCard, type PlayContext } from "./play-ai";
+import { decideBid } from "./bidding-ai";
+import { decideDouble } from "./doubling-ai";
 import { buildBeliefs } from "./beliefs";
+import { startBidding, submitBid } from "../engine/bidding";
+import { startDoubling, submitDouble } from "../engine/doubling";
 
 /**
  * The search AI: determinized Monte Carlo over the cards this seat may play.
@@ -29,7 +33,22 @@ export interface SearchOptions {
   rand?: () => number;
   /** What the rule-based AI is told for this seat (أشكل signal, المترجم, مقفل…). */
   ctx?: PlayContext;
+  /**
+   * Weigh each guess by how well it explains the bidding, the دبل and the discard signals, and
+   * keep the believable ones. Off by default: measured against the plain search on the same
+   * mirrored deals it placed high cards a little better (36% → 39% in the first trick) but didn't
+   * move results (+0.16 ± 0.73 game points per hand at 40 guesses, 800 hands) and thinks ~50% longer.
+   */
+  readBidding?: boolean;
 }
+
+/** How many cheap guesses are drawn per guess that gets played out, before keeping the believable ones. */
+const OVERSAMPLE = 4;
+/** A bid, دبل or signal the guessed hand wouldn't have produced makes the guess this much less likely. */
+const UNLIKELY_BID = 0.05;
+const UNLIKELY_SIGNAL = 0.4;
+/** How many possible first-five hands are asked per seat when replaying the auction. */
+const FIVES_PER_SEAT = 6;
 
 export const DEFAULT_WORLDS = 20;
 
@@ -49,10 +68,10 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   const constraints = inferConstraints(round, seat);
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
   const started = Date.now();
+  const want = opts.worlds ?? DEFAULT_WORLDS;
+  const guesses = opts.readBidding ? believableWorlds(round, seat, constraints, rand, want) : drawWorlds(round, seat, constraints, rand, want);
   let worlds = 0;
-  for (let w = 0; w < (opts.worlds ?? DEFAULT_WORLDS); w++) {
-    const hands = sampleWorld(round, seat, constraints, rand);
-    if (!hands) continue;
+  for (const hands of guesses) {
     worlds++;
     for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card));
     if (opts.timeBudgetMs !== undefined && Date.now() - started > opts.timeBudgetMs) break;
@@ -208,6 +227,109 @@ export function sampleWorld(round: Round, me: Seat, c: Constraints, rand: () => 
     }
   }
   return undefined;
+}
+
+// ------------------------------------------------------------------ reading the bidding and signals
+
+function drawWorlds(round: Round, me: Seat, c: Constraints, rand: () => number, n: number): Array<Record<Seat, Card[]>> {
+  const out: Array<Record<Seat, Card[]>> = [];
+  for (let i = 0; i < n; i++) {
+    const w = sampleWorld(round, me, c, rand);
+    if (w) out.push(w);
+  }
+  return out;
+}
+
+/**
+ * Draws several times more guesses than it will play out, weighs each by how well it explains
+ * what the other seats did (their bids, their دبل, their discard signals), and keeps `n` of
+ * them in proportion to those weights — so the play-outs spend their time on believable deals.
+ */
+export function believableWorlds(round: Round, me: Seat, c: Constraints, rand: () => number, n: number): Array<Record<Seat, Card[]>> {
+  const pool = drawWorlds(round, me, c, rand, n * OVERSAMPLE);
+  if (pool.length <= n) return pool;
+  const weights = pool.map((w) => worldLikelihood(round, me, w, rand));
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return pool.slice(0, n);
+  // Systematic resampling: one random offset, `n` evenly spaced picks along the weights.
+  const out: Array<Record<Seat, Card[]>> = [];
+  const step = total / n;
+  let at = rand() * step;
+  let acc = 0;
+  let i = 0;
+  for (let k = 0; k < n; k++) {
+    while (acc + weights[i] < at && i < pool.length - 1) acc += weights[i++];
+    out.push(pool[i]);
+    at += step;
+  }
+  return out;
+}
+
+/**
+ * How believable a guessed deal is: replay the auction and the دبل round with the guessed hands
+ * and ask the bidding AI whether each other seat would have said what it said; then check the
+ * discard signals (التهريب): a small discard in sun asks for a suit whose Ace the sender holds,
+ * a bigger one says the suit is weak. Each disagreement makes the guess less likely.
+ */
+export function worldLikelihood(round: Round, me: Seat, world: Record<Seat, Card[]>, rand: () => number): number {
+  let w = 1;
+  const b = round.bidding;
+  const res = b.result!;
+  const played: Record<Seat, Card[]> = { 0: [], 1: [], 2: [], 3: [] };
+  for (const t of [...round.tricks, ...(round.currentTrick ? [round.currentTrick] : [])]) for (const s of t.order) played[s].push(t.cards[s]!);
+  const eight = (s: Seat) => [...world[s], ...played[s]];
+  const ground = cardId(round.groundCard);
+  // The five a seat bid on are its eight minus the three dealt after the buy (the ground card
+  // among them for whoever took it). Which three is unknown, so ask several possible fives:
+  // the share that would have made this bid is how well the guess explains it.
+  const fives: Partial<Record<Seat, Card[][]>> = {};
+  const possibleFives = (s: Seat) => {
+    if (!fives[s]) {
+      const own = eight(s).filter((x) => cardId(x) !== ground);
+      fives[s] = Array.from({ length: FIVES_PER_SEAT }, () => shuffle(own, rand).slice(0, 5));
+    }
+    return fives[s]!;
+  };
+  try {
+    let state = startBidding(round.dealer, round.groundCard, b.lockedHokumTeams, b.extraHokum);
+    for (const bid of b.history) {
+      if (bid.seat !== me) {
+        const all = possibleFives(bid.seat);
+        const agree = all.filter((hand) => {
+          const guess = decideBid(bid.seat, hand, state);
+          return guess.call === bid.call && (bid.call !== "hokum" || guess.suit === bid.suit);
+        }).length;
+        w *= UNLIKELY_BID + (1 - UNLIKELY_BID) * (agree / all.length);
+      }
+      state = submitBid(state, bid);
+    }
+    if (round.doubling && round.doubling.history.length) {
+      let d = startDoubling(res.mode, res.declarer, true);
+      for (const bid of round.doubling.history) {
+        if (bid.seat !== me && !d.done) {
+          const guess = decideDouble(bid.seat, eight(bid.seat), d, res.trumpSuit);
+          if (guess.call !== bid.call) w *= UNLIKELY_BID;
+        }
+        d = submitDouble(d, bid);
+      }
+    }
+  } catch {
+    // A replay the rules refuse (a joker bent the auction): don't judge the guess on it.
+  }
+  // التهريب
+  const beliefs = buildBeliefs(round.tricks, round.currentTrick, res.mode, res.trumpSuit);
+  const gone = new Set(beliefs.played.map(cardId));
+  for (const s of [0, 1, 2, 3] as Seat[]) {
+    if (s === me) continue;
+    const holds = (suit: Suit, rank: Card["rank"]) => world[s].some((x) => x.suit === suit && x.rank === rank);
+    for (const suit of beliefs.wants[s]) {
+      if (!gone.has(`${suit}A`) && !holds(suit, "A")) w *= UNLIKELY_SIGNAL;
+    }
+    for (const suit of beliefs.rejects[s]) {
+      if (holds(suit, "A") || holds(suit, "10")) w *= UNLIKELY_SIGNAL;
+    }
+  }
+  return w;
 }
 
 // ------------------------------------------------------------------ playing a guess out

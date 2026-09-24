@@ -15,7 +15,7 @@
 
 ## 2. Current Blockers / Open Questions
 - **Balance:** ثورة الصغار is the strongest Payoff (≈ +6.7 base points per hand on its own; measured table in the design bible PART 5).
-- **Search AI next steps:** it doesn't yet read the bidding (who bought, who passed, أشكل) into its guesses, or the partner's تهريب beyond what the rule AI does in the play-outs. Both would make the guesses sharper.
+- **Reading the bidding was built and measured, and is off:** `readBidding` in `searchCard` replays the auction and the دبل with each guessed deal (the bidding AI as the model, over several possible first-five hands) and checks the discard signals, then keeps the believable guesses. The real deal outweighs 71% of random guesses, and first-trick high-card placement improves 36% → 39%, but on 800 mirrored hands vs the plain search it gained +0.16 ± 0.73 game points per hand at 40 guesses (+0.57 ± 0.71 at 20) while thinking ~50% longer. Re-measure if human bidding turns out to differ from the AI's; a stronger rollout policy is the more promising lever.
 
 ## 3. Next Steps (Where to pick up)
 - Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`) and regenerate `docs/jokers.md`.
