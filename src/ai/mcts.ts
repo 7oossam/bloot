@@ -1,7 +1,7 @@
 import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
-import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
+import { SUITS, RANKS, teamOf, type Card, type Mode, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { decideCard, type PlayContext } from "./play-ai";
 import { decideBid } from "./bidding-ai";
 import { decideDouble } from "./doubling-ai";
@@ -40,6 +40,18 @@ export interface SearchOptions {
    * move results (+0.16 ± 0.73 game points per hand at 40 guesses, 800 hands) and thinks ~50% longer.
    */
   readBidding?: boolean;
+  /** Who plays the guessed deals out: the rule-based AI by default, or a trained policy. */
+  playout?: PlayoutPolicy;
+}
+
+/** Picks a card the way `decideCard` does — the signature every play-out policy shares. */
+export type PlayoutPolicy = (hand: Card[], trick: Trick, mode: Mode, trumpSuit: Suit | undefined, seat: Seat, ctx: PlayContext) => Card;
+
+/** What the search concluded about one decision: its pick, and (when it searched) each candidate's average margin. */
+export interface SearchVerdict {
+  choice: Card;
+  /** Average game-point margin per candidate card id; absent when there was nothing to search. */
+  scores?: Map<string, number>;
 }
 
 /** How many cheap guesses are drawn per guess that gets played out, before keeping the believable ones. */
@@ -53,17 +65,22 @@ const FIVES_PER_SEAT = 6;
 export const DEFAULT_WORLDS = 20;
 
 export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): Card {
+  return searchVerdict(round, seat, opts).choice;
+}
+
+/** The search's pick plus its per-card margins (the self-play trainer learns from these). */
+export function searchVerdict(round: Round, seat: Seat, opts: SearchOptions = {}): SearchVerdict {
   const rand = opts.rand ?? Math.random;
   const res = round.bidding.result!;
   const ctx: PlayContext = opts.ctx ?? { tricks: round.tricks, declarer: res.declarer, closed: round.closed };
   const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
   const legal = round.legalMovesFor(seat);
-  if (legal.length <= 1) return legal[0] ?? ruleChoice;
+  if (legal.length <= 1) return { choice: legal[0] ?? ruleChoice };
   // A partner's برقية (or المترجم's ask) is a convention, not a calculation: answer it.
-  if (followsConvention(round, seat, ctx)) return ruleChoice;
+  if (followsConvention(round, seat, ctx)) return { choice: ruleChoice };
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
-  if (candidates.length === 1) return candidates[0];
+  if (candidates.length === 1) return { choice: candidates[0] };
 
   const constraints = inferConstraints(round, seat);
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
@@ -73,22 +90,23 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   let worlds = 0;
   for (const hands of guesses) {
     worlds++;
-    for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card));
+    for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card, opts.playout ?? decideCard));
     if (opts.timeBudgetMs !== undefined && Date.now() - started > opts.timeBudgetMs) break;
   }
-  if (worlds === 0) return ruleChoice;
+  if (worlds === 0) return { choice: ruleChoice };
+  const scores = new Map([...totals].map(([id, total]) => [id, total / worlds]));
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
   let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds + 0.25;
   for (const card of candidates) {
-    const score = totals.get(cardId(card))! / worlds;
+    const score = scores.get(cardId(card))!;
     if (score > bestScore) {
       best = card;
       bestScore = score;
     }
   }
-  return best;
+  return { choice: best, scores };
 }
 
 // ------------------------------------------------------------------ the player's rules
@@ -352,13 +370,13 @@ function cloneRound(r: Round, hands: Record<Seat, Card[]>): Round {
 }
 
 /** Plays `card` for `seat` in a copy of the round, lets the rule-based AI finish, and returns the margin. */
-function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Card): number {
+function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Card, policy: PlayoutPolicy): number {
   const sim = cloneRound(round, hands);
   const res = sim.bidding.result!;
   sim.playCard(seat, card);
   while (sim.phase === "playing") {
     const s = sim.turnSeat!;
-    const pick = decideCard(sim.hands[s], sim.currentTrick!, res.mode, res.trumpSuit, s, {
+    const pick = policy(sim.hands[s], sim.currentTrick!, res.mode, res.trumpSuit, s, {
       tricks: sim.tricks,
       declarer: res.declarer,
       ashkalSuits: s === res.ashkal?.groundTo ? res.ashkal.signalSuits : undefined,
