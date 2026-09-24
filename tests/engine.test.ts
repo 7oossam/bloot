@@ -886,6 +886,17 @@ describe("joker rules that bend the game", () => {
     expect(resolveTrick(t, "sun")).toBe(1);
   });
 
+  it("Underdog: only the joker team's 7s and 8s beat the Ace (the deck is shared)", () => {
+    const ours: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: C("AH"), 2: C("10H"), 3: C("KH"), 0: C("7H") }, rules: { trashBeatsAce: 0 } };
+    expect(resolveTrick(ours, "sun")).toBe(0);
+    // The opponents' 8 stays an 8.
+    const theirs: Trick = { leader: 0, order: [0, 1, 2, 3], cards: { 0: C("AH"), 1: C("8H"), 2: C("KH"), 3: C("QH") }, rules: { trashBeatsAce: 0 } };
+    expect(resolveTrick(theirs, "sun")).toBe(0);
+    // Off-suit it still can't win.
+    ours.cards[0] = C("7S");
+    expect(resolveTrick(ours, "sun")).toBe(1);
+  });
+
   it("the AI sees the bent rules too: it won't waste a card on a trick your spade already has", () => {
     const rules = { personalTrump: { seat: 0 as Seat, suit: "S" as const } };
     const t: Trick = { leader: 3, order: [3, 0], cards: { 3: C("KH"), 0: C("7S") }, rules };

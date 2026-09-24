@@ -47,10 +47,10 @@ export interface MatchOptions {
   jackTrickBonus?: number;
   /** When you buy hokum, turn one of your cards into the trump Jack (and the 9 at level 2). */
   forgedJack?: { nine: boolean; partnerToo: boolean };
-    /** 7s and 8s now have higher trick-taking power than Aces in their tier. */
-    trashBeatsAce?: boolean;
-    /** 3-of-a-kind projects count as 4-of-a-kind, and 3-card Sira counts as 4-card. */
-    phantomProjects?: boolean;
+  /** Your team's 7s and 8s beat everything else in their tier (Underdog). */
+  trashBeatsAce?: boolean;
+  /** 3-of-a-kind projects count as 4-of-a-kind, and 3-card Sira counts as 4-card. */
+  phantomProjects?: boolean;
   /** Winning a trick with the trump Jack lets you swap a card with a random opponent card. */
   jackHunt?: { preferTrump: boolean; nineToo: boolean; partnerToo: boolean };
   /** Winning a trick with the trump Jack burns an opponent's best trump into a 7. */
@@ -286,7 +286,7 @@ export class GameController extends Emitter<EventMap> {
     if (o.shortSira || o.lowFours || o.phantomProjects) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours, phantomProjects: o.phantomProjects } };
     if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }
-    if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = true; }
+    if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     return rules;
   }

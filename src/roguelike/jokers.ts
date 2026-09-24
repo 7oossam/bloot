@@ -51,7 +51,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     id: "trash-beats-ace",
     name: "Underdog",
     icon: "🐕",
-    levels: ["7s and 8s have a hidden +50 strength boost, beating Aces in their tier!"],
+    levels: ["Your team's 7s and 8s beat Aces in their suit. The opponents' 7s and 8s stay weak."],
     cost: 25,
     rarity: "rare",
     tags: []
