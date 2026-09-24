@@ -1,22 +1,21 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Gemini (Antigravity)
-**Current Phase:** Implementing 10 Synergistic Roguelike Builds into the Baloot Engine.
+**Current Phase:** Fixing MCTS implementation & Testing.
 
 ## 1. What We Just Did
-- **Game Design Deep Dive:** We analyzed 15+ hours of game design videos (Balatro, Slay the Spire) and merged them with core Baloot mechanics (Tahreeb, Meshytar, Mashareea).
-- **Knowledge Base Created:** We created `.claude/skills/bloot-roguelike-design/SKILL.md` and `.claude/skills/baloot-mastery/SKILL.md` to act as the absolute source of truth for the game rules and design philosophies.
-- **The "Shared Deck Law":** We established a critical rule that there is NO "Player Deck". There is only one shared 32-card deck. Any deck modification (stamping/forging) must be asymmetrical via the player's personal Jokers.
-- **Brainstorming:** We designed 10 highly synergistic builds (e.g., "The Garbage Disposal" which buffs 7s/8s, "The Executioner" which weaponizes the Sawa button, "The Smuggler" which exploits Tahreeb). We simulated the probabilities of these triggers in Python to ensure they are mathematically viable.
+- **MCTS Performance Fix:** I reviewed Claude's mcts.ts. The synchronous 300 iterations using JSON.stringify to clone Round were locking the main thread.
+- **Refactored cloneRound:** It now manually clones idding, hands, 	ricks, and also includes initial deal state for completeness, avoiding expensive JSON parsing.
+- **Refactored ismcts to be Async:** It now yields to the event loop every 25 iterations (wait new Promise(r => setTimeout(r, 0))) so the UI stays responsive while the AI thinks.
+- **Updated Game Loop:** Changed GameController.step() and TableScene.driveAI() to be async to accommodate the new wait ismcts(...) call.
 
 ## 2. Current Blockers / Open Questions
-- None. We have the designs, we just need to write the code.
+- The basic ISMCTS runs properly now without freezing the browser!
+- We still need to implement the 10 custom roguelike builds discussed previously. 
 
 ## 3. Next Steps (Where to pick up)
-- We need to start implementing the 10 builds into the actual TypeScript engine.
-- Begin by adding the necessary state trackers to `src/game/GameController.ts` (e.g., tracking if a Tahreeb occurred, tracking if a 7/8 won a trick).
-- Add the 30 new Joker items to the `JOKER_CATALOG` in `src/roguelike/jokers.ts` and map their logic.
-- Hook up the engine modifiers in `src/engine/trick.ts` and `src/engine/projects.ts` (e.g., allowing blind Sawa, flipping the Gaid hierarchy, etc.).
-
----
-*Note to AI Agent: Please update this file with your progress, edited files, and the next step before you finish your turn so the other model can seamlessly take over.*
+- Start adding the 30 new items for the 10 builds into src/roguelike/jokers.ts.
+- Hook them up in the engine files (GameController.ts, 	rick.ts, projects.ts).
+- Feel free to run 
+pm run test or 
+pm start to test the new AI behavior in the browser!

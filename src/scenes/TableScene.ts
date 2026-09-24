@@ -372,13 +372,13 @@ export class TableScene extends Phaser.Scene {
 
   // ------------------------------------------------------------- AI pacing
 
-  private driveAI(): void {
+  private async driveAI(): Promise<void> {
     if (this.dealing) {
       this.resumeAfterDeal = true;
       return;
     }
     if (this.trickSettling || this.showingHandSummary || this.matchOver) return;
-    const status = this.controller.step();
+    const status = await this.controller.step();
     if (this.showingHandSummary || this.matchOver) return;
     if (status === "advanced") {
       const phase = this.controller.getRound().phase;

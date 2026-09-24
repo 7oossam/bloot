@@ -25,7 +25,7 @@ function answerHuman(c: GameController): void {
 /** Drives the human seat with the same AI policy, purely to exercise the full loop deterministically. */
 function playMatchToCompletion(controller: GameController, maxSteps = 5000): void {
   for (let i = 0; i < maxSteps; i++) {
-    const status = controller.step();
+    const status = await controller.step();
     if (status === "match-complete") return;
     if (status === "waiting-human") {
       answerHuman(controller);
@@ -34,8 +34,8 @@ function playMatchToCompletion(controller: GameController, maxSteps = 5000): voi
   throw new Error("Match did not complete within the step budget");
 }
 
-describe("GameController", () => {
-  it("plays a full match end to end and reaches the target score", () => {
+describe("GameController", async () => {
+  it("plays a full match end to end and reaches the target score", async () => {
     const events: string[] = [];
     const controller = new GameController(mulberry32(7));
     for (const evt of [
@@ -57,14 +57,14 @@ describe("GameController", () => {
     expect(score[0]).not.toBe(score[1]);
   });
 
-  it("emits trick:complete exactly 8 times per completed hand", () => {
+  it("emits trick:complete exactly 8 times per completed hand", async () => {
     const trickCounts: number[] = [];
     let tricksThisHand = 0;
     const controller = new GameController(mulberry32(99));
-    controller.on("trick:complete", () => {
+    controller.on("trick:complete", async () => {
       tricksThisHand++;
     });
-    controller.on("hand:complete", () => {
+    controller.on("hand:complete", async () => {
       trickCounts.push(tricksThisHand);
       tricksThisHand = 0;
     });
@@ -77,8 +77,8 @@ describe("GameController", () => {
   });
 });
 
-describe("GameController match length", () => {
-  it("a match to 41 lasts several hands, not one", () => {
+describe("GameController match length", async () => {
+  it("a match to 41 lasts several hands, not one", async () => {
     // Regression: hands used to add raw card points (162 a hokum hand) to a target of 41,
     // so every match ended on its first hand.
     for (const seed of [3, 11, 29, 57]) {
@@ -95,7 +95,7 @@ describe("GameController match length", () => {
   });
 });
 
-describe("joker effects in a match", () => {
+describe("joker effects in a match", async () => {
   const playHands = (opts: MatchOptions, seed: number) => {
     const c = new GameController(mulberry32(seed), { matchTarget: 999, ...opts });
     const hands: Array<{ gained: Record<0 | 1, number>; base: Record<0 | 1, number>; mode: string; declarerTeam: number; scored: Record<0 | 1, number>; bonuses: string[]; kaboot: boolean }> = [];
@@ -116,7 +116,7 @@ describe("joker effects in a match", () => {
     return { hands, gold, controller: c };
   };
 
-  it("الصن الملكي raises our sun hands by half and nothing else", () => {
+  it("الصن الملكي raises our sun hands by half and nothing else", async () => {
     let boosted = 0;
     for (const seed of [5, 6, 7, 8, 9]) {
       for (const h of playHands({ sunMultiplier: 1.5 }, seed).hands) {
@@ -132,7 +132,7 @@ describe("joker effects in a match", () => {
     expect(boosted).toBeGreaterThan(0);
   });
 
-  it("سيد الحكم pays +5 only when we bought hokum and made it", () => {
+  it("سيد الحكم pays +5 only when we bought hokum and made it", async () => {
     const { hands } = playHands({ hokumMadeBonus: 5 }, 8);
     for (const h of hands) {
       const made = h.mode === "hokum" && h.declarerTeam === 0 && h.scored[0] > h.scored[1];
@@ -141,12 +141,12 @@ describe("joker effects in a match", () => {
     }
   });
 
-  it("اللمسة الذهبية pays gold for our tricks with an Ace", () => {
+  it("اللمسة الذهبية pays gold for our tricks with an Ace", async () => {
     expect(playHands({ goldPerAceTrick: 3 }, 12).gold).toBeGreaterThan(0);
     expect(playHands({}, 12).gold).toBe(0);
   });
 
-  it("الولد المضمون always deals you a Jack (two at level 2) in your first five", () => {
+  it("الولد المضمون always deals you a Jack (two at level 2) in your first five", async () => {
     for (let seed = 1; seed <= 60; seed++) {
       const wanted = seed % 2 === 0 ? 2 : 1;
       const c = new GameController(mulberry32(seed), { guaranteedJacks: wanted });
@@ -159,7 +159,7 @@ describe("joker effects in a match", () => {
     }
   });
 
-  it("ملك الكبوت ends the match as a win when we take all eight tricks", () => {
+  it("ملك الكبوت ends the match as a win when we take all eight tricks", async () => {
     // Search seeds for a kaboot by our team, then check the match ended there.
     for (let seed = 1; seed <= 400; seed++) {
       const c = new GameController(mulberry32(seed), { matchTarget: 999, kabootWinsMatch: true });
@@ -202,8 +202,8 @@ function autoplay(c: GameController, until: (c: GameController) => boolean, maxS
   }
 }
 
-describe("combo jokers", () => {
-  it("الولد المزوّر: buying hokum lets you turn a card into the trump Jack — even a second one", () => {
+describe("combo jokers", async () => {
+  it("الولد المزوّر: buying hokum lets you turn a card into the trump Jack — even a second one", async () => {
     let checked = 0;
     for (let seed = 1; seed <= 300 && checked < 5; seed++) {
       const c = new GameController(mulberry32(seed), { matchTarget: 999, forgedJack: { nine: true, partnerToo: false } });
@@ -243,7 +243,7 @@ describe("combo jokers", () => {
     expect(checked).toBeGreaterThan(0);
   });
 
-  it("صيد الولد: winning with the trump Jack trades a card with an opponent (a trump at level 2)", () => {
+  it("صيد الولد: winning with the trump Jack trades a card with an opponent (a trump at level 2)", async () => {
     let swaps = 0, trumpDraws = 0, trumpAvailable = 0;
     for (let seed = 1; seed <= 400; seed++) {
       const c = new GameController(mulberry32(seed), {
@@ -276,7 +276,7 @@ describe("combo jokers", () => {
     expect(trumpDraws).toBe(trumpAvailable);
   });
 
-  it("الحرقة: winning with the trump Jack burns an opponent's best trump into a 7", () => {
+  it("الحرقة: winning with the trump Jack burns an opponent's best trump into a 7", async () => {
     let burns = 0;
     for (let seed = 1; seed <= 200 && burns === 0; seed++) {
       const c = new GameController(mulberry32(seed), {
@@ -301,7 +301,7 @@ describe("combo jokers", () => {
     expect(burns).toBeGreaterThan(0);
   });
 
-  it("جامع الأولاد pays per trick your team takes with a Jack", () => {
+  it("جامع الأولاد pays per trick your team takes with a Jack", async () => {
     const c = new GameController(mulberry32(21), { matchTarget: 999, jackTrickBonus: 2 });
     const seen: Array<{ jacks: number; bonus: number }> = [];
     let jacks = 0;
@@ -316,7 +316,7 @@ describe("combo jokers", () => {
     expect(seen.some((h) => h.jacks > 0)).toBe(true);
   });
 
-  it("a locked hokum (حكم synergy) is never taken over as sun", () => {
+  it("a locked hokum (حكم synergy) is never taken over as sun", async () => {
     for (let seed = 1; seed <= 80; seed++) {
       const c = new GameController(mulberry32(seed), { matchTarget: 999, lockedHokum: true });
       c.on("bidding:turn", (e) => {
@@ -332,8 +332,8 @@ describe("combo jokers", () => {
   });
 });
 
-describe("the shop-rework jokers in play", () => {
-  it("حارس الأرض pays for الأرض, الصبر مفتاح for lost hands, مهندس المشاريع doubles our projects", () => {
+describe("the shop-rework jokers in play", async () => {
+  it("حارس الأرض pays for الأرض, الصبر مفتاح for lost hands, مهندس المشاريع doubles our projects", async () => {
     const reasons: Record<string, number> = {};
     let projectBonus = 0, ourProjects = 0;
     const c = new GameController(mulberry32(21), {
@@ -357,8 +357,8 @@ describe("the shop-rework jokers in play", () => {
   });
 });
 
-describe("build-maker effects in play", () => {
-  it("win bonuses pay only on hands we win; المقامر costs gold on lost hands; الصراف and القطّاع score", () => {
+describe("build-maker effects in play", async () => {
+  it("win bonuses pay only on hands we win; المقامر costs gold on lost hands; الصراف and القطّاع score", async () => {
     const labels: Record<string, number> = {};
     const gold: Record<string, number> = {};
     let wonHands = 0, lostHands = 0, bonusHands = 0;
@@ -388,8 +388,8 @@ describe("build-maker effects in play", () => {
   });
 });
 
-describe("play-changing jokers in a match", () => {
-  it("سيد الأرض: whoever of us takes الأرض takes the hand — the other side keeps only its بلوت", () => {
+describe("play-changing jokers in a match", async () => {
+  it("سيد الأرض: whoever of us takes الأرض takes the hand — the other side keeps only its بلوت", async () => {
     let checked = 0;
     const c = new GameController(mulberry32(5), { matchTarget: 999, groundWins: true });
     c.on("hand:complete", (e) => {
@@ -404,7 +404,7 @@ describe("play-changing jokers in a match", () => {
     expect(checked).toBeGreaterThanOrEqual(3);
   });
 
-  it("المخلّي pays per trick you could have taken from them and didn't", () => {
+  it("المخلّي pays per trick you could have taken from them and didn't", async () => {
     let paid = 0;
     const c = new GameController(mulberry32(8), { matchTarget: 999, duckBonus: 3 });
     c.on("hand:complete", (e) => {
@@ -429,7 +429,7 @@ describe("play-changing jokers in a match", () => {
     expect(paid).toBeGreaterThanOrEqual(2);
   });
 
-  it("سارق السبيت trades your chosen card for an opponent's spade (their best at level 2)", () => {
+  it("سارق السبيت trades your chosen card for an opponent's spade (their best at level 2)", async () => {
     let swaps = 0;
     const c = new GameController(mulberry32(12), { matchTarget: 999, spadeThief: { best: true, twice: false } });
     c.on("hand:changed", (e) => {
@@ -450,10 +450,10 @@ describe("play-changing jokers in a match", () => {
     expect(swaps).toBeGreaterThanOrEqual(3);
   });
 
-  it("صاحب الحلة: you lead the first trick of every hand", () => {
+  it("صاحب الحلة: you lead the first trick of every hand", async () => {
     let hands = 0;
     const c = new GameController(mulberry32(3), { matchTarget: 999, alwaysLead: true });
-    c.on("bidding:resolved", () => {
+    c.on("bidding:resolved", async () => {
       hands++;
       expect(c.getRound().currentTrick!.leader).toBe(HUMAN_SEAT);
     });
@@ -462,7 +462,7 @@ describe("play-changing jokers in a match", () => {
     expect(hands).toBeGreaterThanOrEqual(4);
   });
 
-  it("الحكم الأعزل pays only on a hokum you bought without the trump J and 9", () => {
+  it("الحكم الأعزل pays only on a hokum you bought without the trump J and 9", async () => {
     let paid = 0;
     for (let seed = 1; seed <= 60 && paid === 0; seed++) {
       const c = new GameController(mulberry32(seed), { matchTarget: 999, bareHokumMultiplier: 2 });

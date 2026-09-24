@@ -1,4 +1,5 @@
 import { decideBid } from "../ai/bidding-ai";
+import { ismcts } from "../ai/mcts";
 import { decideCard } from "../ai/play-ai";
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
@@ -299,7 +300,7 @@ export class GameController extends Emitter<EventMap> {
   }
 
   /** Advances the game by exactly one action. The scene calls this in a loop, pacing with its own delays. */
-  step(): StepResult {
+  async step(): Promise<StepResult> {
     if (this.matchOver) return "match-complete";
 
     if (this.round.phase === "bidding") {
@@ -341,13 +342,7 @@ export class GameController extends Emitter<EventMap> {
         return "waiting-human";
       }
       const result = this.round.bidding.result!;
-      const card = decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, {
-        tricks: this.round.tricks,
-        declarer: result.declarer,
-        // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
-        ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
-        closed: this.round.closed,
-      });
+      const card = await ismcts(this.round, seat, 300);
       this.applyCard(seat, card);
       return "advanced";
     }
@@ -734,6 +729,7 @@ function buyerWonEarly(result: HandResult): boolean {
   const sheet = result.sheet;
   return !sheet || (sheet.judgedTeam === result.declarerTeam ? sheet.outcome === "won" : sheet.outcome === "lost");
 }
+
 
 
 
