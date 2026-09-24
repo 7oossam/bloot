@@ -182,6 +182,7 @@ export class TableScene extends Phaser.Scene {
 
   create(): void {
     this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x0b3d2e).setOrigin(0);
+    this.generateSparkTexture();
     this.drawTable();
     this.buildStaticUI();
     this.controller = new GameController(mulberry32(Date.now() % 2147483647), {
@@ -190,6 +191,35 @@ export class TableScene extends Phaser.Scene {
     });
     this.wireControllerEvents();
     this.controller.startMatch();
+  }
+
+  private generateSparkTexture(): void {
+    if (this.textures.exists("spark")) return;
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(4, 4, 4);
+    g.generateTexture("spark", 8, 8);
+    g.destroy();
+  }
+
+  private createImpactJuice(x: number, y: number, color: number): void {
+    this.cameras.main.shake(120, 0.003); // Very small screen shake
+    
+    // Create a particle burst
+    const emitter = this.add.particles(x, y, "spark", {
+      speed: { min: 100, max: 300 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: [color, 0xffffff],
+      lifespan: { min: 300, max: 600 },
+      gravityY: 400,
+      quantity: 25,
+      emitting: false
+    }).setDepth(100);
+    
+    emitter.explode();
+    this.time.delayedCall(700, () => emitter.destroy());
   }
 
   /** A square-ish felt table (not a landscape-style oval) with the 4 real seats around its edges. */
@@ -992,13 +1022,23 @@ export class TableScene extends Phaser.Scene {
   private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
     const dest = TRICK_ANCHOR[e.seat];
     this.projectMoment(e.seat);
+    let juiceColor = 0xffffff;
+    let shouldJuice = false;
     if (e.akka) {
-      this.showSeatBubble(e.seat, "آكه", 0x9cc3ff);
-      this.log(`${SEAT_LABEL_AR[e.seat]}: آكه`);
+      this.showSeatBubble(e.seat, "أكّة", 0x9cc3ff);
+      this.log(`${SEAT_LABEL_AR[e.seat]}: أكّة`);
+      juiceColor = 0x9cc3ff;
+      shouldJuice = true;
     }
     if (e.baloot) {
-      this.showSeatBubble(e.seat, "بلوت 👑", 0xffd54a);
+      this.showSeatBubble(e.seat, "بلوت", 0xffd54a);
       this.log(`${SEAT_LABEL_AR[e.seat]}: بلوت (+2)`);
+      juiceColor = 0xffd54a;
+      shouldJuice = true;
+    }
+
+    if (shouldJuice) {
+      this.time.delayedCall(CARD_MOVE_TWEEN_MS, () => this.createImpactJuice(dest.x, dest.y, juiceColor));
     }
 
     if (e.seat === HUMAN_SEAT) {
@@ -1396,3 +1436,4 @@ export class TableScene extends Phaser.Scene {
     this.hudScoreText.setText(`أنتم ${score[0]}  —  الخصم ${score[1]}  (هدف ${this.controller.getMatchTarget()})`);
   }
 }
+
