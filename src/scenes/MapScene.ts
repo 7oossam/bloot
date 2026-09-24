@@ -21,6 +21,9 @@ const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
 };
 
 const RADIUS = 54;
+const THEME_BG = 0x2a1a3a;
+const THEME_NODE = 0x1c102a;
+const THEME_GOLD = 0xd4af37;
 const TOP_MARGIN = 320;
 const BOTTOM_MARGIN = 130;
 // Slight zigzag so the path isn't a dead-straight line, cycling through these x offsets.
