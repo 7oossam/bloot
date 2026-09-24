@@ -1,6 +1,6 @@
 import { decideBid } from "../ai/bidding-ai";
 import { ismcts } from "../ai/mcts";
-import { decideCard } from "../ai/play-ai";
+
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
 import type { LegalCall } from "../engine/bidding";
@@ -341,7 +341,7 @@ export class GameController extends Emitter<EventMap> {
         this.emit("play:turn", { seat, legal: this.round.legalMovesFor(seat) });
         return "waiting-human";
       }
-      const result = this.round.bidding.result!;
+      
       const card = await ismcts(this.round, seat, 300);
       this.applyCard(seat, card);
       return "advanced";
@@ -410,11 +410,12 @@ export class GameController extends Emitter<EventMap> {
 
   /** Jokers that fire the moment a trick is decided. */
   private onTrickDecided(trick: Trick): void {
-    const result = this.round.bidding.result!;
+    
     const winner = trick.winner!;
     const us = teamOf(HUMAN_SEAT);
     const ours = teamOf(winner) === us;
     const card = trick.cards[winner]!;
+    const result = this.round.bidding.result!
     const trump = result.mode === "hokum" ? result.trumpSuit : undefined;
     const isTrumpJack = !!trump && card.suit === trump && card.rank === "J";
     const isTrumpNine = !!trump && card.suit === trump && card.rank === "9";

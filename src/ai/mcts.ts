@@ -1,5 +1,5 @@
-import { currentWinner, legalMoves } from "../engine/trick";
-import type { Card, Mode, Seat, Suit, Trick } from "../engine/types";
+
+import type { Card, Seat } from "../engine/types";
 import { teamOf } from "../engine/types";
 import { Round } from "../engine/round";
 
