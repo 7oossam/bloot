@@ -57,11 +57,13 @@ export interface ProjectRules {
   shortSira?: boolean;
   /** الأربع الصغار: four 7s, 8s or 9s count as مئة. */
   lowFours?: boolean;
+  /** 3-card Sira = 4-card Sira (Khamsin). 4-card Sira = Miya. 3-of-a-kind = 4-of-a-kind (Miya). */
+  phantomProjects?: boolean;
 }
 
 function kindFromRun(length: number, rules: ProjectRules = {}): ProjectKind | undefined {
-  if (length >= 5) return "miya";
-  if (length === 4) return "khamsin";
+  if (length >= 5 || (length === 4 && rules.phantomProjects)) return "miya";
+  if (length === 4 || (length === 3 && rules.phantomProjects)) return "khamsin";
   if (length === 3 || (length === 2 && rules.shortSira)) return "sira";
   return undefined;
 }
@@ -71,9 +73,9 @@ function fourOfAKinds(hand: Card[], mode: Mode, seat: Seat, rules: ProjectRules 
   const ranks: Rank[] = ["A", "K", "Q", "10", "J", ...(rules.lowFours ? (["9", "8", "7"] as Rank[]) : [])];
   for (const rank of ranks) {
     const cards = hand.filter((c) => c.rank === rank);
-    if (cards.length < 4) continue;
+    if (cards.length < (rules.phantomProjects ? 3 : 4)) continue;
     const kind: ProjectKind = rank === "A" && mode === "sun" ? "arbaamiya" : "miya";
-    out.push({ kind, seat, cards: cards.slice(0, 4) });
+    out.push({ kind, seat, cards: cards.slice(0, rules.phantomProjects ? 3 : 4) });
   }
   return out;
 }
@@ -171,3 +173,8 @@ export function resolveProjects(
   points[winner] = valueOf(declared.filter((p) => teamOf(p.seat) === winner), mode);
   return { declared, winner, points };
 }
+
+
+
+
+

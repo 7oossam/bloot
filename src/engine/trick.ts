@@ -35,7 +35,7 @@ function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined,
 
 function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
   // الورقة الأخيرة: that seat's card counts as the top of its suit.
-  return rankStrength(p.card, mode, trumpSuit) + (rules?.topCard === p.seat ? 100 : 0);
+  return rankStrength(p.card, mode, trumpSuit) + (rules?.topCard === p.seat ? 100 : 0) + (rules?.trashBeatsAce && (p.card.rank === "7" || p.card.rank === "8") ? 50 : 0);
 }
 
 function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules): boolean {
@@ -125,3 +125,5 @@ export function isAkka(card: Card, alreadyPlayed: Card[], mode: Mode, trumpSuit:
   );
   return RANKS_ABOVE.every((rank) => alreadyPlayed.some((c) => c.suit === card.suit && c.rank === rank));
 }
+
+

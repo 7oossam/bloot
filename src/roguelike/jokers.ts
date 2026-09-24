@@ -38,6 +38,24 @@ const joker = (d: Omit<ShopItemDef, "kind">): ShopItemDef => ({ kind: "joker", .
  * Prices are tuned to the node rewards (20 / 25 / 35 gold for matches, 50 for the elite).
  */
 export const JOKER_CATALOG: ShopItemDef[] = [
+  joker({
+    id: "phantom-card",
+    name: "Phantom Card",
+    icon: "dY'Z",
+    levels: ["3-card Sira counts as 4. 3-of-a-kind counts as 4-of-a-kind (Miya 400)."],
+    cost: 35,
+    rarity: "legendary",
+    tags: []
+  }),
+  joker({
+    id: "trash-beats-ace",
+    name: "Underdog",
+    icon: "dY~U",
+    levels: ["7s and 8s have a hidden +50 strength boost, beating Aces in their tier!"],
+    cost: 25,
+    rarity: "rare",
+    tags: []
+  }),
   // ---- الولد: Jacks, and stealing with them
   joker({
     id: "lucky-jack",
@@ -629,6 +647,8 @@ function mergeOptions(a: MatchOptions, b: MatchOptions): MatchOptions {
 
 function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: RunContext): MatchOptions {
   const o: MatchOptions = {};
+  if (lv("phantom-card")) o.phantomProjects = true;
+  if (lv("trash-beats-ace")) o.trashBeatsAce = true;
   const lv = (id: string) => (jokerIds.includes(id) ? (levels[id] ?? 1) : 0);
   const pick = <T>(id: string, values: T[]): T | undefined => (lv(id) ? values[Math.min(lv(id), values.length) - 1] : undefined);
   const tier = (tag: Tag) => tierOf(jokerIds, tag);
@@ -734,3 +754,5 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (winBonuses.length) o.winBonuses = winBonuses;
   return o;
 }
+
+

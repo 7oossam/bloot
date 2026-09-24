@@ -52,6 +52,8 @@ export interface TrickRules {
   personalTrump?: { seat: Seat; suit: Suit };
   /** This seat's card counts as the top card of its suit (الورقة الأخيرة). */
   topCard?: Seat;
+  /** 7s and 8s get a +50 strength boost, beating Aces in their tier. */
+  trashBeatsAce?: boolean;
 }
 
 export interface Trick {
@@ -109,3 +111,4 @@ export interface HandSheet {
   /** The side that took the hand — set for doubled hands, where the winner takes all. */
   winner?: Team;
 }
+
