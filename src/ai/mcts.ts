@@ -42,6 +42,11 @@ export interface SearchOptions {
   readBidding?: boolean;
   /** Who plays the guessed deals out: the rule-based AI by default, or a trained policy. */
   playout?: PlayoutPolicy;
+  /**
+   * A learned prior (src/ai/policy.ts): each candidate's score from the trained network, times
+   * `priorWeight` game points, is added to its average margin before the best is picked.
+   */
+  prior?: { score: (card: Card) => number; weight: number };
 }
 
 /** Picks a card the way `decideCard` does — the signature every play-out policy shares. */
@@ -96,11 +101,11 @@ export function searchVerdict(round: Round, seat: Seat, opts: SearchOptions = {}
   if (worlds === 0) return { choice: ruleChoice };
   const scores = new Map([...totals].map(([id, total]) => [id, total / worlds]));
 
-  // Best average margin; a near-tie goes to the rule-based choice.
+  // Best average margin (plus the prior, if any); the rule-based choice gets a small tie-break edge.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds + 0.25;
+  let bestScore = -Infinity;
   for (const card of candidates) {
-    const score = scores.get(cardId(card))!;
+    const score = scores.get(cardId(card))! + (cardId(card) === cardId(ruleChoice) ? 0.25 : 0) + (opts.prior ? opts.prior.weight * opts.prior.score(card) : 0);
     if (score > bestScore) {
       best = card;
       bestScore = score;

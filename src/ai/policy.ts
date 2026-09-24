@@ -3,6 +3,7 @@ import { currentWinner, legalMoves, wouldWinAgainstCurrent } from "../engine/tri
 import { teamOf, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
 import { buildBeliefs, outstanding, suitsOf } from "./beliefs";
 import type { PlayContext } from "./play-ai";
+import trained from "./policy-weights.json";
 
 /**
  * A small learned card-play policy, trained by self-play (scripts/selfplay.ts → scripts/train-policy.ts):
@@ -119,3 +120,13 @@ export function makePolicy(w: PolicyWeights) {
     return legal[best];
   };
 }
+
+/**
+ * The trained weights (generation 1: 4,000 self-play hands, 85,688 decisions, 24 hidden units).
+ * On its own this policy beats the rule-based AI by +1.79 ± 0.45 game points per hand (2,000
+ * mirrored hands) at well under 0.1 ms per card. Inside the search it didn't measurably help —
+ * as the play-out policy −0.02 ± 0.7, as a prior (weight 4) +0.52 ± 0.49 — so the game's search
+ * still plays its guesses out with the rule-based AI.
+ */
+export const TRAINED_WEIGHTS = trained as PolicyWeights;
+export const trainedPolicy = makePolicy(TRAINED_WEIGHTS);
