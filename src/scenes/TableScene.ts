@@ -942,8 +942,8 @@ export class TableScene extends Phaser.Scene {
       v.off("dragstart");
       v.off("drag");
       v.off("dragend");
-      if (this.input) this.input.setDraggable(v, false);
-      v.disableInteractive();
+      if (this.input && v.input) this.input.setDraggable(v, false);
+      if (v.input) v.disableInteractive();
       v.setDimmed(false);
     }
     
@@ -1436,4 +1436,6 @@ export class TableScene extends Phaser.Scene {
     this.hudScoreText.setText(`أنتم ${score[0]}  —  الخصم ${score[1]}  (هدف ${this.controller.getMatchTarget()})`);
   }
 }
+
+
 
