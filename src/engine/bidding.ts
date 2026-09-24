@@ -91,18 +91,19 @@ export function startBidding(
  * wants it on their own turn too.)
  *
  * While a hokum is pending, anyone may take it as sun — unless the ground card is an Ace,
- * when only the dealer's right may (4-1).
+ * when only the dealer's right may (4-1). 4-1 limits the flip to sun only: أشكل over the
+ * other team's hokum stays open to its usual callers even on an Ace (the player's rule).
  */
 export function legalCalls(state: BiddingState): LegalCall[] {
   if (state.result || state.redeal) return [];
   const seat = state.turnSeat;
   if (state.pendingHokum) {
     const aceGround = state.groundCard.rank === "A";
-    if (aceGround && seat !== nextSeat(state.dealer)) return [{ call: "pass" }];
-    const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
+    const calls: LegalCall[] = [{ call: "pass" }];
+    if (!aceGround || seat === nextSeat(state.dealer)) calls.push({ call: "sun" });
     const opposing = teamOf(state.pendingHokum.seat) !== teamOf(seat);
     const saidWala = state.round === 2 && passedThisRound(state, seat);
-    if (!aceGround && opposing && !saidWala && canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
+    if (opposing && !saidWala && canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
     return calls;
   }
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];

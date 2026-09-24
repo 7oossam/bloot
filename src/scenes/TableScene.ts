@@ -750,11 +750,15 @@ export class TableScene extends Phaser.Scene {
     if (e.seat !== HUMAN_SEAT) return;
 
     const bought = e.challenge ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]}` : "";
+    const canSun = e.calls.some((c) => c.call === "sun");
+    const canAshkal = e.calls.some((c) => c.call === "ashkal");
     const prompt = !e.challenge
       ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
-      : e.calls.length === 1
-        ? `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
-        : e.calls.some((c) => c.call === "ashkal")
+      : !canSun
+        ? canAshkal
+          ? `${bought} على إكة — الصن لليمين الموزع بس، لكن تقدر تشكّل`
+          : `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
+        : canAshkal
           ? `${bought} — تاخذها صن أو أشكل؟`
           : `${bought} — تاخذها صن؟`;
     this.showChoices(

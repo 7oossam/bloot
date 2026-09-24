@@ -728,15 +728,28 @@ describe("أشكل (Ashkal) — البند 8 of the regulation", () => {
     expect(legalCalls(state).map((c) => c.call).sort()).toEqual(["pass", "sun"]);
   });
 
-  it("hokum on an Ace can only be taken as sun by the dealer's right (4-1)", () => {
+  it("hokum on an Ace can only be taken as sun by the dealer's right (4-1) — but أشكل stays open", () => {
     let state = startBidding(0, { suit: "H", rank: "A" });
     state = submitBid(state, { seat: 1, call: "pass" });
     state = submitBid(state, { seat: 2, call: "hokum", suit: "H" });
-    expect(legalCalls(state).map((c) => c.call)).toEqual(["pass"]); // seat 3
+    // seat 3, the dealer's left, on the other team: no sun on an Ace, but أشكل is still theirs.
+    expect(legalCalls(state).map((c) => c.call)).toEqual(["pass", "ashkal"]);
     state = submitBid(state, { seat: 3, call: "pass" });
     expect(legalCalls(state).map((c) => c.call)).toEqual(["pass"]); // seat 0, the dealer
     state = submitBid(state, { seat: 0, call: "pass" });
     expect(legalCalls(state).map((c) => c.call).sort()).toEqual(["pass", "sun"]); // seat 1, the dealer's right
+  });
+
+  it("أشكل over the other team's hokum on an Ace: the dealer may call it, and buys sun", () => {
+    let state = startBidding(0, { suit: "H", rank: "A" });
+    state = submitBid(state, { seat: 1, call: "hokum", suit: "H" });
+    state = submitBid(state, { seat: 2, call: "pass" }); // the dealer's partner: not a caller
+    state = submitBid(state, { seat: 3, call: "pass" }); // seat 1's own partner
+    expect(legalCalls(state).map((c) => c.call)).toEqual(["pass", "ashkal"]); // seat 0, the dealer
+    state = submitBid(state, { seat: 0, call: "ashkal" });
+    expect(state.result?.mode).toBe("sun");
+    expect(state.result?.declarer).toBe(0);
+    expect(state.result?.ashkal?.groundTo).toBe(2);
   });
 });
 
