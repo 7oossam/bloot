@@ -1,4 +1,4 @@
-﻿import random
+import random
 
 def simulate_hands(num_runs=1000):
     deck = []

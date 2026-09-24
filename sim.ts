@@ -1,8 +1,7 @@
-﻿import { ranks, suits, Card, Hand } from './src/engine/cards';
-import { kindFromRun } from './src/engine/projects';
-import { strength } from './src/engine/trick';
+// Run with: npx vite-node sim.ts
+import { RANKS as ranks, SUITS as suits, type Card } from './src/engine/types';
 
-function shuffle(array: any[]) {
+function shuffle<T>(array: T[]): T[] {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];

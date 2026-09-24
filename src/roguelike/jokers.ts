@@ -41,8 +41,8 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "phantom-card",
     name: "Phantom Card",
-    icon: "dY'Z",
-    levels: ["3-card Sira counts as 4. 3-of-a-kind counts as 4-of-a-kind (Miya 400)."],
+    icon: "👻",
+    levels: ["3-card Sira counts as 4. 3-of-a-kind counts as 4-of-a-kind (three Aces in Sun make أربعمئة)."],
     cost: 35,
     rarity: "legendary",
     tags: []
@@ -50,7 +50,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "trash-beats-ace",
     name: "Underdog",
-    icon: "dY~U",
+    icon: "🐕",
     levels: ["7s and 8s have a hidden +50 strength boost, beating Aces in their tier!"],
     cost: 25,
     rarity: "rare",
@@ -647,9 +647,9 @@ function mergeOptions(a: MatchOptions, b: MatchOptions): MatchOptions {
 
 function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: RunContext): MatchOptions {
   const o: MatchOptions = {};
+  const lv = (id: string) => (jokerIds.includes(id) ? (levels[id] ?? 1) : 0);
   if (lv("phantom-card")) o.phantomProjects = true;
   if (lv("trash-beats-ace")) o.trashBeatsAce = true;
-  const lv = (id: string) => (jokerIds.includes(id) ? (levels[id] ?? 1) : 0);
   const pick = <T>(id: string, values: T[]): T | undefined => (lv(id) ? values[Math.min(lv(id), values.length) - 1] : undefined);
   const tier = (tag: Tag) => tierOf(jokerIds, tag);
 
