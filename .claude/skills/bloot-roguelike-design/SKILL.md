@@ -65,3 +65,11 @@ Tahreeb is the advanced meta-game of discarding to signal your partner.
 1. **Jokers Must Break Rules, Not Just Buff Math:** If a Joker just gives flat points, it's boring. Jokers should interact with Tahreeb, Mashareea, or the Meshytar phase.
 2. **The "Tahreeb" Opportunity:** Since the player controls one seat, we can create Jokers that *force* the AI partner to perfectly understand and execute Tahreeb, or Jokers that trigger massive multipliers when a Tahreeb signal is successfully completed.
 3. **Keep the Math Opaque During Play:** Let the Jokers light up and trigger sound effects sequentially (like Balatro). Don't give the player a flat "You will win this trick" preview. Make them feel the impact of the chain reaction.
+
+# ?? CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ??
+**NEVER EVER refer to "Your Deck" or "The Player's Deck".**
+Baloot does NOT have individual player decks. There is exactly ONE shared 32-card deck in the center of the table. 
+1. **The Deal:** All 32 cards are distributed evenly (8 cards per player) across the 4 players (You, Partner, Opponent 1, Opponent 2).
+2. **The Symmetry Problem:** If a card is permanently modified, added, or removed, it affects the ENTIRE game. If a 7 is upgraded to an Ace, the opponents have a 50% chance to draw that overpowered Ace in the next round.
+3. **No Deleting:** You cannot delete a card. Baloot strictly requires 8 tricks (4 players x 8 cards = 32 cards). Deleting a card breaks the game loop.
+4. **Agent Mandate:** Any future game design ideas MUST account for the fact that the deck is shared. If you propose "Deck Modification", you must explicitly explain how the player avoids handing an advantage to the AI.

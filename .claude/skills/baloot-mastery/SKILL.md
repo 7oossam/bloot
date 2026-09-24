@@ -64,3 +64,11 @@ Tahreeb is the advanced strategy of discarding a specific card when you cannot f
 
 ## 7. Sawa (سوا)
 If a player knows they are guaranteed to win all remaining tricks based on the cards left in their hand, they can declare "Sawa" and lay their cards down to speed up the game.
+
+# ?? CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ??
+**NEVER EVER refer to "Your Deck" or "The Player's Deck".**
+Baloot does NOT have individual player decks. There is exactly ONE shared 32-card deck in the center of the table. 
+1. **The Deal:** All 32 cards are distributed evenly (8 cards per player) across the 4 players (You, Partner, Opponent 1, Opponent 2).
+2. **The Symmetry Problem:** If a card is permanently modified, added, or removed, it affects the ENTIRE game. If a 7 is upgraded to an Ace, the opponents have a 50% chance to draw that overpowered Ace in the next round.
+3. **No Deleting:** You cannot delete a card. Baloot strictly requires 8 tricks (4 players x 8 cards = 32 cards). Deleting a card breaks the game loop.
+4. **Agent Mandate:** Any future game design ideas MUST account for the fact that the deck is shared. If you propose "Deck Modification", you must explicitly explain how the player avoids handing an advantage to the AI.
