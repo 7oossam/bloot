@@ -443,21 +443,27 @@ describe("غنائم الصكة — rewards after every match won", () => {
   });
 
   it("offers lean towards your build: jokers sharing your families show up far more", () => {
-    let aligned = 0, total = 0;
-    for (let seed = 1; seed <= 60; seed++) {
-      runController.startNewRun(seed);
-      runController.addGold(200);
-      runController.buyJoker("bare-hokum");
-      runController.buyJoker("cutter");
-      winNext();
-      for (const id of runController.getState().pendingRewards!.items) {
-        const def = getJokerDef(id)!;
-        total++;
-        if (def.kind === "joker" && def.tags.includes("حكم")) aligned++;
+    // Share of spoils that are حكم jokers, over the same seeds, with and without a حكم build.
+    const hokumShare = (withBuild: boolean) => {
+      let aligned = 0, total = 0;
+      for (let seed = 1; seed <= 200; seed++) {
+        runController.startNewRun(seed);
+        runController.addGold(200);
+        if (withBuild) {
+          runController.buyJoker("bare-hokum");
+          runController.buyJoker("cutter");
+        }
+        winNext();
+        for (const id of runController.getState().pendingRewards!.items) {
+          const def = getJokerDef(id)!;
+          total++;
+          if (def.kind === "joker" && def.tags.includes("حكم")) aligned++;
+        }
       }
-    }
-    // حكم jokers are 6 of 36; weighted, they fill well over a quarter of the offers.
-    expect(aligned / total).toBeGreaterThan(0.3);
+      return aligned / total;
+    };
+    // Compared against a run with no build, so adding jokers to the catalog doesn't move the bar.
+    expect(hokumShare(true)).toBeGreaterThan(1.5 * hokumShare(false));
   });
 
   it("the elite's spoils are rarer, and the boss ends the run without any", () => {
