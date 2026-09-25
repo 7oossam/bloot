@@ -15,12 +15,14 @@ export const HOKUM_BUY_THRESHOLD = 48;
 export const SUN_BUY_THRESHOLD = 40;
 /** معامل الحلة (§3): the seat that leads first values its hand 15–20% higher. */
 export const HILLA_FACTOR = 1.18;
+/** How much lower an eager sun buyer's bar is. */
+export const SUN_EAGER_DISCOUNT = 12;
 
 /**
  * Decides one seat's bid from its own 5-card hand and the face-up ground card only —
  * bidding is imperfect information, so this never looks at other hands.
  */
-export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
+export function decideBid(seat: Seat, hand: Card[], state: BiddingState, opts: { sunEager?: boolean } = {}): Bid {
   const options = legalCalls(state);
   const hasHilla = seat === nextSeat(state.dealer);
   const factor = hasHilla ? HILLA_FACTOR : 1;
@@ -30,10 +32,14 @@ export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
   const hokumSuits = options.filter((o) => o.call === "hokum").map((o) => o.suit!);
   const hokum = hokumSuits.length > 0 ? bestHokumOption(withGround, hokumSuits) : undefined;
   const hokumOk = !!hokum && meetsHokumCriteria(withGround, hokum.suit);
-  const sunOk = options.some((o) => o.call === "sun") && meetsSunCriteria(withGround, hasHilla);
+  // أهل الصن (an opponent rule): they buy sun on hands a careful player would pass.
+  const sunEdge = opts.sunEager ? SUN_EAGER_DISCOUNT : 0;
+  const sunOk =
+    options.some((o) => o.call === "sun") &&
+    (meetsSunCriteria(withGround, hasHilla) || (!!opts.sunEager && withGround.some((c) => c.rank === "A")));
 
   const hokumMargin = hokumOk ? hokum!.score * factor - HOKUM_BUY_THRESHOLD : -Infinity;
-  const sunMargin = sunOk ? sunStrength(withGround) * factor - SUN_BUY_THRESHOLD : -Infinity;
+  const sunMargin = sunOk ? sunStrength(withGround) * factor - (SUN_BUY_THRESHOLD - sunEdge) : -Infinity;
 
   if (hokumMargin >= 0 && hokumMargin >= sunMargin) return { seat, call: "hokum", suit: hokum!.suit };
   if (sunMargin >= 0) return { seat, call: "sun" };

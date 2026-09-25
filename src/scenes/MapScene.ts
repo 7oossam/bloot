@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
-import { runController } from "../roguelike/RunController";
+import { BLESSING_GOLD, runController } from "../roguelike/RunController";
+import { weakRuleText } from "../roguelike/opponents";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
@@ -65,6 +66,7 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.drawPath(state);
+    if (state.blessing) this.showBlessingPanel(state);
   }
 
   private updateHud(state: RunState): void {
@@ -129,8 +131,17 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
         ? arabicText(this, radius + 92, 22, `هدف ${node.matchTarget}`, { fontSize: "21px", color: "#8fae9a" })
         : null;
 
-    const parts = [circle, icon, label];
+    const parts: Phaser.GameObjects.GameObject[] = [circle, icon, label];
     if (targetLabel) parts.push(targetLabel);
+    const rival = runController.opponentFor(node);
+    if (rival) {
+      parts.push(
+        arabicText(this, radius + 92, 56, `${rival.def.icon} ${rival.def.name}${rival.weak ? " 🔓" : ""}`, {
+          fontSize: "21px",
+          color: rival.weak ? "#9be6a8" : "#ffb3b3",
+        }),
+      );
+    }
     if (state.isCleared) {
       parts.push(this.add.text(radius - 18, -radius + 4, "✓", { fontSize: "32px", color: "#5ad469" }));
     }
@@ -158,18 +169,110 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
   }
 
   private enterNode(node: MapNode): void {
-    runController.enterNode(node.id);
     if (node.type === "shop") {
+      runController.enterNode(node.id);
       this.scene.start("shop");
       return;
     }
+    this.showRivalPanel(node);
+  }
+
+  /** Who you're about to play, what their rule is, and whether your jokers have weakened it. */
+  private showRivalPanel(node: MapNode): void {
+    const rival = runController.opponentFor(node);
+    if (!rival) return this.startMatch(node);
+    this.overlay?.destroy();
+    const { def, weak } = rival;
+    const panelW = WIDTH - 80;
+    const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
+    this.overlay = panel;
+    const bg = this.add.graphics();
+    bg.fillStyle(THEME_NODE, 0.97);
+    bg.fillRoundedRect(-panelW / 2, -330, panelW, 660, 28);
+    bg.lineStyle(6, weak ? 0x5ad469 : 0xd45a5a, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -330, panelW, 660, 28);
+    panel.add(bg);
+    const wrap = { wordWrap: { width: panelW - 70 } };
+    panel.add(arabicText(this, 0, -270, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${node.matchTarget}`, { fontSize: "26px", color: "#bcd" }));
+    panel.add(this.add.text(0, -195, def.icon, { fontSize: "64px" }).setOrigin(0.5));
+    panel.add(arabicText(this, 0, -120, def.name, { fontSize: "40px", color: "#ffd54a" }));
+    panel.add(arabicText(this, 0, -40, weak ? weakRuleText(def) : def.rule, { fontSize: "27px", ...wrap }));
+    const hint = weak
+      ? `🔓 جوكرك من عائلة «${def.family}» أضعفهم`
+      : `💡 أي جوكر من عائلة «${def.family}» يضعفهم`;
+    panel.add(arabicText(this, 0, 60, hint, { fontSize: "24px", color: weak ? "#9be6a8" : "#9cc3ff", ...wrap }));
+    const signature = getJokerDef(def.signature);
+    if (signature && node.type === "elite") {
+      panel.add(arabicText(this, 0, 130, `إذا فزت: ${signature.icon} ${signature.name} ضمن الجوايز`, { fontSize: "23px", color: "#e0c3ff", ...wrap }));
+    } else if (node.type === "match") {
+      panel.add(arabicText(this, 0, 130, `إذا فزت: جوايزك تميل لعائلة «${def.family}»`, { fontSize: "23px", color: "#e0c3ff", ...wrap }));
+    }
+    panel.add(makeButton(this, 80, 245, "ابدأ", () => this.startMatch(node), { width: 220 }).container);
+    panel.add(
+      makeButton(this, -170, 245, "رجوع", () => {
+        panel.destroy();
+        this.overlay = undefined;
+      }, { width: 180, color: 0x5d5d5d }).container,
+    );
+  }
+
+  private startMatch(node: MapNode): void {
+    const rival = runController.opponentFor(node);
+    runController.enterNode(node.id);
     const run = runController.getState();
     const modifiers = matchOptionsFromJokers(run.jokerIds, run.jokerLevels, { counters: run.jokerCounters, gold: run.gold });
     // دفعة: a one-off head start for this match, on top of any joker's.
     const boost = runController.takeMatchBoost();
     if (boost) modifiers.headStart = { ...modifiers.headStart, 0: (modifiers.headStart?.[0] ?? 0) + boost };
+    if (rival) {
+      modifiers.rival = rival.def.rules(rival.weak);
+      modifiers.rivalLabel = `${rival.def.icon} ${rival.def.name}`;
+      modifiers.rivalRule = rival.weak ? weakRuleText(rival.def) : rival.def.rule;
+    }
     const data: TableSceneData = { nodeType: node.type, matchTarget: node.matchTarget!, modifiers };
     this.scene.start("table", data);
+  }
+
+  /** الحوت: pick one gift before the first node. */
+  private showBlessingPanel(state: RunState): void {
+    const offers = state.blessing!;
+    const panelW = WIDTH - 60;
+    const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
+    this.overlay = panel;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0d2a3a, 0.98);
+    bg.fillRoundedRect(-panelW / 2, -640, panelW, 1280, 28);
+    bg.lineStyle(6, 0x4fb3d9, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -640, panelW, 1280, 28);
+    panel.add(bg);
+    panel.add(this.add.text(0, -560, "🐋", { fontSize: "80px" }).setOrigin(0.5));
+    panel.add(arabicText(this, 0, -470, "الحوت يعطيك هدية قبل تبدأ", { fontSize: "34px", color: "#ffd54a" }));
+    panel.add(arabicText(this, 0, -420, "اختر وحدة", { fontSize: "25px", color: "#bcd" }));
+    const title: Record<string, string> = { rare: "🎁 جوكر نادر", pair: "🤝 باقة من عائلة", gold: "💰 كنز", cursed: "🌊 عرض خطير" };
+    offers.forEach((offer, i) => {
+      const y = -290 + i * 230;
+      const names = offer.items.map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id}`).join(" + ");
+      const body =
+        offer.kind === "gold" ? `${BLESSING_GOLD} ذهب` : offer.kind === "cursed" ? `${names} (أسطوري) — مقابل حياة ❤️` : names;
+      const card = this.add.container(0, y);
+      const cbg = this.add.graphics();
+      cbg.fillStyle(0x163d52, 1);
+      cbg.fillRoundedRect(-(panelW - 80) / 2, -95, panelW - 80, 190, 22);
+      cbg.lineStyle(3, offer.kind === "cursed" ? 0xd45a5a : 0x4fb3d9, 1);
+      cbg.strokeRoundedRect(-(panelW - 80) / 2, -95, panelW - 80, 190, 22);
+      card.add(cbg);
+      card.add(arabicText(this, 0, -45, title[offer.kind], { fontSize: "28px", color: "#ffd54a" }));
+      card.add(arabicText(this, 0, 20, body, { fontSize: "25px", wordWrap: { width: panelW - 140 } }));
+      const tip = offer.items.length === 1 ? getJokerDef(offer.items[0])?.levels[0] : undefined;
+      if (tip) card.add(arabicText(this, 0, 62, tip, { fontSize: "19px", color: "#9fc4d6", wordWrap: { width: panelW - 140 } }));
+      setBoxHitArea(card, panelW - 80, 190);
+      card.input!.cursor = "pointer";
+      card.on("pointerdown", () => {
+        runController.takeBlessing(i);
+        this.refresh();
+      });
+      panel.add(card);
+    });
   }
 
   private showRunOverPanel(state: RunState): void {

@@ -132,11 +132,11 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - القهوجي: winning a doubled hand pays +50% / +100%.
 
 ### 7. التهريب — signalling (skill build)
-- **المترجم** (Payoff): your partner reads every discard of yours (a card from another suit when you can't follow, not a ruff) as "lead me this suit" and answers it the first time they lead.
+- **المترجم**: shows you over each player what their التهريب (and any برقية) asks for. Understanding your signals is normal play, not a joker: your partner comes to your asked suit once it has no winners of its own.
 - **الإشارة الذهبية** (Reward): a hand where your partner led a suit you asked for and your team took that trick is ×1.5 / ×2.
 - **المرسال** (Forge): after the buy, give your partner a card; they give you their best card of that suit. (Replaces the planned "البرقية المضمونة": a swap is clearer to use and builds long suits for signalling.)
 - عين الشريك: see your partner's cards, so you know what to ask for.
-- Synergy: 2 = +2 per answered signal trick; 3 = المترجم free.
+- Synergy: 2 = +2 per answered signal trick; 3 = المترجم free (see every player's signals).
 
 ### 8. العين — the card counter (skill build)
 - **الذاكرة**: a line under your jokers showing how many cards of each suit you haven't seen; level 2 also lists the Aces and 10s still out.
@@ -175,6 +175,42 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - **The hand summary counts the jokers up one at a time**, each lighting its joker, before the match total appears (Mandate 3).
 - **Your hand**: a "🔀 ترتيب" button cycles suit / strongest first / alternating colours, and dragging a card sideways reorders it by hand.
 - **Every joker pick is optional** (a تخطّي button), and picks that would change nothing are greyed out.
+
+## PART 7: Opponents and الحوت (src/roguelike/opponents.ts)
+
+### The law: enemies and items are one system
+Every opponent pair wields a power **from the joker catalog** (the same rule a player could
+buy), so learning the jokers teaches you the enemies and vice versa:
+- **Family:** each opponent has a joker family. Owning **any** joker of that family weakens
+  them: their rule is only on **every other hand** (يد ويد; the table says شغال/معطّل هاليد).
+- **Never a hard counter.** The player's rule: a counter makes the fight *easier*, it's never
+  required. Every rule is tuned so it can be beaten without its counter.
+- **Beating them pays in their family:** after a match the rewards weigh their family ×4;
+  after an elite, their **signature joker** is always one of the three rewards.
+- **Known in advance:** every fight node shows its opponent on the map from the start
+  (🔓 = already weakened), and entering one shows their rule, the counter family and the reward.
+
+### The roster (margin per hand for the rule-based AI in your seat; no rule = −0.8)
+| Tier | Opponent | Rule | Family → signature | Full | Weakened |
+|---|---|---|---|---|---|
+| match | ملوك السبيت | +3 per trick they take with a spade | سبيت → كنز السبيت | −3.8 | ≈ −2.3 |
+| match | الحرّيفة | their projects count ×2 | مشروع → مهندس المشاريع | −3.1 | ≈ −1.9 |
+| match | حرّاس الأرض | right-hand opponent's last-trick card is top | أرض → الورقة الأخيرة | −3.0 | −2.2 |
+| match | أهل الصن | buy sun readily; a sun they make ×1.75 | دفاع → الكاسر | −3.1 | ≈ −2 |
+| elite | ثوار الصغار | in sun, right-hand opponent's 7s/8s beat the Ace | صغار → ثورة الصغار | −5.7 | −3.5 |
+| elite | العيون | their search AI sees your and your partner's hands | عين → الجاسوس | (search only) | |
+| boss | أبو قهوة | a hand they buy and make ×1.7 | دبل → القهوجي | −6.1 | −3.8 |
+| boss | شيخ الأرض | on a hand they bought, الأرض takes the whole hand | أرض → سيد الأرض | −5.4 | −3.2 |
+| boss | سلطان السبيت | in sun, right-hand opponent's spades cut like trumps | سبيت → ملك السبيت | −6.8 | −3.9 |
+
+Tuning targets: match ≈ −3, elite ≈ −5, boss ≈ −6 at full; weakened takes about half of the
+extra away. The trick-changing powers (both opponents' spades as trumps, both seats' 7s/8s
+beating Aces, projects one size up) measured −10 to −14 a hand, far too strong, which is why
+they're scoped to one seat, sun only, or moved up a tier. Re-measure any new rule the same way.
+
+### الحوت (the whale)
+Before the first node the run offers four gifts: a rare joker, two commons of one family, 60
+gold, or a legendary joker that costs a life. The first hand of a run is already not plain Baloot.
 
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**

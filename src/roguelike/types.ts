@@ -6,6 +6,18 @@ export interface MapNode {
   floor: number; // 0-indexed depth along the run
   matchTarget?: number; // present for match/elite/boss nodes
   reward: number; // gold earned on winning this node (match/elite/boss)
+  /** Who you play here (src/roguelike/opponents.ts) — fight nodes only. */
+  opponent?: string;
+}
+
+/** One of الحوت's gifts at the start of a run. */
+export interface Blessing {
+  kind: "rare" | "pair" | "gold" | "cursed";
+  /** The jokers it gives (none for gold). */
+  items: string[];
+  gold: number;
+  /** Lives it costs (the cursed gift). */
+  lifeCost: number;
 }
 
 export interface RunState {
@@ -47,6 +59,8 @@ export interface RunState {
   shopStock: string[];
   /** Price of the next reroll in the current shop visit; goes up each time. */
   rerollCost: number;
+  /** الحوت's offer before the first node; cleared once one is taken. */
+  blessing?: Blessing[];
   cleared: boolean[]; // parallel to nodes: true once that node is resolved
   over: boolean; // run ended (won or lost)
   won: boolean;

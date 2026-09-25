@@ -58,6 +58,8 @@ export interface RoundOptions {
   trickRules?: TrickRules;
   /** الورقة الأخيرة: this seat's card in the last trick counts as the top of its suit. */
   lastCardTop?: Seat;
+  /** حرّاس الأرض: these (opponent) seats' cards in the last trick count as the top of their suit. */
+  rivalLastCardTop?: Seat[];
 }
 
 /**
@@ -245,6 +247,7 @@ export class Round {
     const last = this.tricks.length === 7;
     const rules: TrickRules = { ...this.options.trickRules };
     if (last && this.options.lastCardTop !== undefined) rules.topCard = this.options.lastCardTop;
+    if (last && this.options.rivalLastCardTop?.length) rules.rival = { ...rules.rival, top: this.options.rivalLastCardTop };
     return Object.keys(rules).length ? { leader, cards: {}, order: [], rules } : { leader, cards: {}, order: [] };
   }
 

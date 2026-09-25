@@ -1,3 +1,5 @@
+import { mulberry32 } from "../engine/rng";
+import { pickOpponents, type OpponentTier } from "./opponents";
 import type { MapNode, NodeType, RunState } from "./types";
 import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, SHOP_JOKER_SLOTS, STARTING_GOLD, STARTING_LIVES } from "./types";
 
@@ -15,6 +17,10 @@ export function generateMap(seed: number): RunState {
     const reward = type === "boss" ? 80 : type === "elite" ? 50 : 20 + floor * 5;
     return { id: `node-${floor}`, type, floor, matchTarget: target, reward };
   });
+  // Every fight has its opponents, known from the start so the run can be planned around them.
+  const fights = nodes.filter((n) => n.type !== "shop");
+  const rivals = pickOpponents(fights.map((n) => n.type as OpponentTier), mulberry32(seed ^ 0x5eed));
+  fights.forEach((n, i) => (n.opponent = rivals[i]));
 
   return {
     seed,

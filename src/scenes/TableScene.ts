@@ -102,6 +102,7 @@ type HandCompleteEvent = {
   gained: Record<Team, number>;
   bonuses: HandBonus[];
   kaboot: boolean;
+  rivalBonus?: HandBonus;
   /** Filled in by the scene: the contract came from أشكل. */
   ashkal?: boolean;
 };
@@ -154,6 +155,8 @@ export class TableScene extends Phaser.Scene {
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
+  /** Who you're playing and whether their rule is on this hand. */
+  private rivalText?: Phaser.GameObjects.Text;
   /** المترجم: what each seat's التهريب asks for, shown over its name. */
   private signalTexts: Phaser.GameObjects.Text[] = [];
   /** Which of each opponent's cards the spy joker is showing this hand. */
@@ -285,6 +288,10 @@ export class TableScene extends Phaser.Scene {
   private buildStaticUI(): void {
     this.hudScoreText = arabicText(this, CENTER_X, 46, "", { fontSize: "30px" }).setDepth(5);
     this.hudModeText = arabicText(this, CENTER_X, 92, "", { fontSize: "23px", color: "#ffd54a" }).setDepth(5);
+    if (this.nodeData.modifiers.rivalLabel) {
+      this.rivalText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 34, "", { fontSize: "21px", color: "#ffb3b3", wordWrap: { width: WIDTH - 80 } }).setDepth(5);
+      this.refreshRival();
+    }
 
     this.seatLabels[0] = arabicText(this, HAND_ANCHOR[0].x, HAND_ANCHOR[0].y - 128, SEAT_LABEL_AR[0], {
       fontSize: "26px",
@@ -522,7 +529,8 @@ export class TableScene extends Phaser.Scene {
     const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
     btn.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
-      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
+      const below = this.nodeData.modifiers.rivalLabel ? 36 : 0;
+      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38 + below, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
     }
   }
 
@@ -580,6 +588,21 @@ export class TableScene extends Phaser.Scene {
   }
 
   /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
+  /** The opponents' line under the header; a weakened rule says whether it's on this hand. */
+  private refreshRival(): void {
+    const mods = this.nodeData.modifiers;
+    if (!this.rivalText || !mods.rivalLabel) return;
+    const on = !mods.rival?.alternate || !!this.controller?.activeRival();
+    const status = mods.rival?.alternate ? (on ? "  (شغال هاليد)" : "  (معطّل هاليد 🔓)") : "";
+    this.rivalText.setText(`${mods.rivalLabel}: ${mods.rival?.alternate ? this.ruleOnly(mods.rivalRule) : mods.rivalRule ?? ""}${status}`);
+    this.rivalText.setColor(on ? "#ffb3b3" : "#9be6a8");
+  }
+
+  /** The rule without the "weakened" note (the status says it). */
+  private ruleOnly(rule: string | undefined): string {
+    return (rule ?? "").split(" — بس يد ويد")[0];
+  }
+
   /** المترجم: over each player, what their discards ask their partner for (docs/baloot-guide.md §4أ). */
   private refreshSignals(): void {
     for (const t of this.signalTexts) t.destroy();
@@ -721,6 +744,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private rebuildTable(e: { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card }): void {
+    this.refreshRival();
     this.clearBidButtons();
     this.clearSeatBubbles();
     for (const view of this.playerHandViews) view.destroy();
@@ -1676,6 +1700,10 @@ export class TableScene extends Phaser.Scene {
       }).setAlpha(0),
     );
     y += e.bonuses.length * 42;
+    if (e.rivalBonus) {
+      put(CENTER_X, y, `${e.rivalBonus.label}: +${e.rivalBonus.points} لهم`, { fontSize: "25px", color: "#ff9a9a" });
+      y += 42;
+    }
     const gainedLine = (n: number) => `المكتسب: لنا ${n} — لهم ${e.gained[them]}`;
     const gainedText = e.bonuses.length > 0 ? put(CENTER_X, y, gainedLine(running), { fontSize: "27px", color: "#ffffff", fontStyle: "bold" }) : undefined;
     if (gainedText) y += 46;

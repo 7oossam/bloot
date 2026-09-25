@@ -12,7 +12,8 @@ import {
   type Rarity,
   type ShopItemDef,
 } from "./jokers";
-import { MAX_LIVES, type MapNode, type RunState } from "./types";
+import { getOpponent, isWeakened, type OpponentDef } from "./opponents";
+import { MAX_LIVES, type Blessing, type MapNode, type RunState } from "./types";
 
 /** How often each rarity turns up in a shop slot. */
 const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, rare: 32, legendary: 8 };
@@ -27,6 +28,8 @@ const REWARD_RARITY: Record<"match" | "elite", Record<Rarity, number>> = {
   match: { common: 55, rare: 35, legendary: 10 },
   elite: { common: 15, rare: 55, legendary: 30 },
 };
+/** الحوت's treasure gift. */
+export const BLESSING_GOLD = 60;
 /** Jokers whose worth comes from the rest of your row. */
 const BUILD_MAKERS = new Set(["wild", "chief", "maestro", "copycat"]);
 
@@ -43,12 +46,30 @@ export interface MatchOutcome {
  * rather than passing the whole state through Phaser scene data.
  */
 class RunController {
-  private state: RunState = generateMap(Date.now());
+  private state: RunState = withBlessing(generateMap(Date.now()));
   private shopRolls = 0;
 
   startNewRun(seed: number = Date.now()): void {
-    this.state = generateMap(seed);
+    this.state = withBlessing(generateMap(seed));
     this.shopRolls = 0;
+  }
+
+  /** Takes one of الحوت's gifts (by its place in the offer). */
+  takeBlessing(index: number): void {
+    const offer = this.state.blessing?.[index];
+    if (!offer) throw new Error(`No blessing ${index}`);
+    for (const id of offer.items) this.grant(id);
+    this.state.gold += offer.gold;
+    this.state.lives = Math.max(1, this.state.lives - offer.lifeCost);
+    this.state.blessing = undefined;
+  }
+
+  /** Who a fight node is played against, and whether your jokers have weakened them. */
+  opponentFor(node: MapNode): { def: OpponentDef; weak: boolean } | undefined {
+    const def = getOpponent(node.opponent);
+    if (!def) return undefined;
+    const families = this.state.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []);
+    return { def, weak: isWeakened(def, families) };
   }
 
   getState(): Readonly<RunState> {
@@ -264,9 +285,14 @@ class RunController {
     const rand = mulberry32(s.seed * 31 + s.currentIndex * 1009 + s.gold);
     const rarity = REWARD_RARITY[elite ? "elite" : "match"];
     const ownedTags = new Set(s.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
+    // Beaten opponents leave their secrets behind: their family is favoured, and an elite's
+    // own joker is always on offer.
+    const rival = getOpponent(s.nodes[s.currentIndex]?.opponent);
+    const signature = elite && rival && !this.whyNotReward(rival.signature) ? rival.signature : undefined;
     const weight = (def: ShopItemDef): number => {
-      if (this.whyNotReward(def.id)) return 0;
+      if (this.whyNotReward(def.id) || def.id === signature) return 0;
       let w = def.kind === "joker" ? rarity[def.rarity] : def.kind === "upgrade" ? 14 : 10;
+      if (def.kind === "joker" && rival && def.tags.includes(rival.family)) w *= 4;
       if (def.kind === "joker") {
         if (this.levelOf(def.id) > 0) w *= 2;
         else if (def.tags.some((t) => ownedTags.has(t))) w *= 3;
@@ -277,7 +303,7 @@ class RunController {
       return w;
     };
     const pool = [...JOKER_CATALOG, ...UPGRADE_CATALOG, ...CONSUMABLE_CATALOG].map((def) => ({ def, w: weight(def) })).filter((x) => x.w > 0);
-    const items: string[] = [];
+    const items: string[] = signature ? [signature] : [];
     while (items.length < 3 && pool.length > 0) {
       const total = pool.reduce((n, x) => n + x.w, 0);
       let roll = rand() * total;
@@ -286,6 +312,14 @@ class RunController {
       items.push(picked.def.id);
     }
     s.pendingRewards = { items, skipGold: elite ? 15 : 8, elite };
+  }
+
+  /** Why this reward is here, if an opponent left it (shown on the reward screen). */
+  rivalHint(itemId: string): string | undefined {
+    const rival = getOpponent(this.state.nodes[this.state.currentIndex]?.opponent);
+    if (!rival) return undefined;
+    if (itemId === rival.signature) return `سر ${rival.name}`;
+    return getJokerDef(itemId)?.tags.includes(rival.family) ? `من عائلة ${rival.name}` : undefined;
   }
 
   private applyUpgrade(itemId: string): void {
@@ -372,3 +406,28 @@ class RunController {
 }
 
 export const runController = new RunController();
+
+/**
+ * الحوت: four gifts before the first node — a rare joker, two commons from one family, a
+ * pile of gold, or a legendary joker that costs a life.
+ */
+function withBlessing(state: RunState): RunState {
+  const rand = mulberry32(state.seed * 7 + 13);
+  const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)];
+  const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker");
+  const rare = pick(jokers.filter((d) => d.rarity === "rare"));
+  const legendary = pick(jokers.filter((d) => d.rarity === "legendary"));
+  const commons = jokers.filter((d) => d.rarity === "common");
+  const families = [...new Set(commons.flatMap((d) => d.tags))].filter((t) => commons.filter((d) => d.tags.includes(t)).length >= 2);
+  const family = pick(families);
+  const pair = commons.filter((d) => d.tags.includes(family));
+  const first = pick(pair);
+  const second = pick(pair.filter((d) => d.id !== first.id));
+  const offers: Blessing[] = [
+    { kind: "rare", items: [rare.id], gold: 0, lifeCost: 0 },
+    { kind: "pair", items: [first.id, second.id], gold: 0, lifeCost: 0 },
+    { kind: "gold", items: [], gold: BLESSING_GOLD, lifeCost: 0 },
+    { kind: "cursed", items: [legendary.id], gold: 0, lifeCost: 1 },
+  ];
+  return { ...state, blessing: offers };
+}
