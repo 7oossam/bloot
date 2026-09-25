@@ -66,6 +66,8 @@ export interface RoundOptions {
   hokumSeat?: Seat;
   /** This team may not buy sun (nor call أشكل, which buys it). */
   noSunFor?: Team;
+  /** الجفرة (a partner): this seat's first five always hold this many Aces (from the shared deck). */
+  luckyAces?: { seat: Seat; count: number };
 }
 
 /**
@@ -191,6 +193,9 @@ export class Round {
       if (options.completeRunTo) {
         completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
       }
+    }
+    if (options.luckyAces) {
+      giveCards(this.initial, options.luckyAces.seat, rand, options.luckyAces.count, (c) => c.rank === "A");
     }
     if (options.hokumSeat !== undefined) {
       const suit = this.initial.stock[0].suit;

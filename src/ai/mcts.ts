@@ -41,7 +41,7 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   const legal = round.legalMovesFor(seat);
   if (legal.length <= 1) return legal[0] ?? ruleChoice;
   // A partner's برقية is a convention, not a calculation: answer it.
-  if (followsConvention(round, seat)) return ruleChoice;
+  if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return ruleChoice;
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
   if (candidates.length === 1) return candidates[0];
@@ -74,15 +74,16 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
 
 // ------------------------------------------------------------------ the player's rules
 
-/** The partner sent a برقية and this seat is leading: follow it. */
-function followsConvention(round: Round, seat: Seat): boolean {
+/** The partner sent a برقية (or, for الشايب, any signal) and this seat is leading: follow it. */
+function followsConvention(round: Round, seat: Seat, answerFirst = false): boolean {
   const trick = round.currentTrick!;
   if (trick.order.length !== 0) return false;
   const res = round.bidding.result!;
   const partner = ((seat + 2) % 4) as Seat;
   const beliefs = buildBeliefs(round.tricks, trick, res.mode, res.trumpSuit);
   const hand = round.hands[seat];
-  return beliefs.barqiya[partner].some((suit) => hand.some((c) => c.suit === suit));
+  const asked = answerFirst ? [...beliefs.barqiya[partner], ...beliefs.wants[partner]] : beliefs.barqiya[partner];
+  return asked.some((suit) => hand.some((c) => c.suit === suit));
 }
 
 /**

@@ -254,6 +254,20 @@ sold. The player's taste: no blessing that costs a life, and no shop discount.
 
 It appears at the start of the map only (never in the middle).
 
+### شخصيات الخوي (src/roguelike/partners.ts)
+The run opens with picking who sits across from you (before الحوت), like picking a
+character in Slay the Spire. Each has a perk and a quirk; the table shows their name.
+
+| Partner | Perk | Quirk | Margin/hand (sim, no search AI) |
+|---|---|---|---|
+| الشايب 👴 | answers your تهريب before cashing his own winners | never doubles | −1.08 |
+| المتحمس 🔥 | buys (−10 bar) and doubles (−20 bar) readily | his eagerness lands خسرانة on you | −1.14 |
+| الجفرة 🍀 | always dealt an Ace in his first five (shared deck) | plays by habit (no search AI in the game) | +1.18 |
+| الغشيم 🙃 | match gold ×1.5 and one more spoil to choose from | can't read your تهريب, plays weakly (no search AI) | −0.98 |
+
+No partner: −0.84. The sim can't show the search AI's quirks (الجفرة and الغشيم are weaker
+in the real game) or a human's deliberate signals (which make الشايب's perk real).
+
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**
 Baloot does NOT have individual player decks. There is exactly ONE shared 32-card deck in the center of the table. 

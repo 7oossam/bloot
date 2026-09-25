@@ -60,6 +60,8 @@ export interface RunState {
   blessing?: string[];
   /** The blessings this run holds (src/roguelike/blessings.ts). */
   blessings: string[];
+  /** Who sits across from you this run (src/roguelike/partners.ts); chosen before الحوت. */
+  partner?: string;
   cleared: boolean[]; // parallel to nodes: true once that node is resolved
   over: boolean; // run ended (won or lost)
   won: boolean;

@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { getBlessing } from "../roguelike/blessings";
+import { getPartner, PARTNERS } from "../roguelike/partners";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
@@ -68,7 +69,9 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.drawPath(state);
-    if (state.blessing) this.showBlessingPanel(state);
+    // The run opens with your partner, then الحوت's blessing.
+    if (!state.partner) this.showPartnerPanel();
+    else if (state.blessing) this.showBlessingPanel(state);
   }
 
   private updateHud(state: RunState): void {
@@ -83,8 +86,9 @@ export class MapScene extends Phaser.Scene {
       .map((x) => `${x.tag} ${x.count}✓`)
       .join("  ");
     const blessings = state.blessings.map((id) => getBlessing(id)?.icon ?? "").join(" ");
+    const partner = getPartner(state.partner);
     this.hudText.setText(
-      `❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   🐋 ${blessings}` : ""}\nالجوكرز: ${jokerNames}` +
+      `${partner ? `${partner.icon}   ` : ""}❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   🐋 ${blessings}` : ""}\nالجوكرز: ${jokerNames}` +
         (synergies ? `\nتآزر: ${synergies}` : ""),
     );
   }
@@ -277,6 +281,41 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     runController.applyBlessings(modifiers);
     const data: TableSceneData = { nodeType: node.type, matchTarget: runController.matchTargetFor(node)!, modifiers };
     this.scene.start("table", data);
+  }
+
+  /** شخصيات الخوي: pick who sits across from you this run. */
+  private showPartnerPanel(): void {
+    const panelW = WIDTH - 60;
+    const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
+    this.overlay = panel;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1c102a, 0.98);
+    bg.fillRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
+    bg.lineStyle(6, 0xd4af37, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
+    panel.add(bg);
+    panel.add(arabicText(this, 0, -630, "مين خويك هالرن؟", { fontSize: "38px", color: "#ffd54a" }));
+    const cardW = panelW - 80;
+    PARTNERS.forEach((def, i) => {
+      const y = -470 + i * 300;
+      const card = this.add.container(0, y);
+      const cbg = this.add.graphics();
+      cbg.fillStyle(0x2a1a3a, 1);
+      cbg.fillRoundedRect(-cardW / 2, -130, cardW, 260, 22);
+      cbg.lineStyle(3, 0xd4af37, 0.8);
+      cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 22);
+      card.add(cbg);
+      card.add(arabicText(this, 0, -80, `${def.icon} ${def.name}`, { fontSize: "32px", color: "#ffd54a" }));
+      card.add(arabicText(this, 0, -10, `✨ ${def.perk}`, { fontSize: "23px", wordWrap: { width: cardW - 60 } }));
+      card.add(arabicText(this, 0, 70, `⚖️ ${def.quirk}`, { fontSize: "22px", color: "#ffc27a", wordWrap: { width: cardW - 60 } }));
+      setBoxHitArea(card, cardW, 260);
+      card.input!.cursor = "pointer";
+      card.on("pointerdown", () => {
+        runController.choosePartner(def.id);
+        this.refresh();
+      });
+      panel.add(card);
+    });
   }
 
   /** الحوت: pick one of three blessings before the first node. */

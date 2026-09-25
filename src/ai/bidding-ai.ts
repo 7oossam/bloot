@@ -20,7 +20,8 @@ export const HILLA_FACTOR = 1.18;
  * Decides one seat's bid from its own 5-card hand and the face-up ground card only —
  * bidding is imperfect information, so this never looks at other hands.
  */
-export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
+/** `eager` lowers both buy bars by that much (المتحمس, a partner). */
+export function decideBid(seat: Seat, hand: Card[], state: BiddingState, eager = 0): Bid {
   const options = legalCalls(state);
   const hasHilla = seat === nextSeat(state.dealer);
   const factor = hasHilla ? HILLA_FACTOR : 1;
@@ -32,8 +33,8 @@ export function decideBid(seat: Seat, hand: Card[], state: BiddingState): Bid {
   const hokumOk = !!hokum && meetsHokumCriteria(withGround, hokum.suit);
   const sunOk = options.some((o) => o.call === "sun") && meetsSunCriteria(withGround, hasHilla);
 
-  const hokumMargin = hokumOk ? hokum!.score * factor - HOKUM_BUY_THRESHOLD : -Infinity;
-  const sunMargin = sunOk ? sunStrength(withGround) * factor - SUN_BUY_THRESHOLD : -Infinity;
+  const hokumMargin = hokumOk ? hokum!.score * factor - (HOKUM_BUY_THRESHOLD - eager) : -Infinity;
+  const sunMargin = sunOk ? sunStrength(withGround) * factor - (SUN_BUY_THRESHOLD - eager) : -Infinity;
 
   if (hokumMargin >= 0 && hokumMargin >= sunMargin) return { seat, call: "hokum", suit: hokum!.suit };
   if (sunMargin >= 0) return { seat, call: "sun" };
