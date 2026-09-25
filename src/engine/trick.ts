@@ -45,7 +45,12 @@ function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: Tr
     !isTrumpCard(p.card, mode, trumpSuit)
       ? 50
       : 0;
-  return rankStrength(p.card, mode, trumpSuit) + top + low;
+  // خاطفين الولد: that team's trump Jack sits just under the trump 9.
+  const jack =
+    rules?.rival?.weakJack !== undefined && teamOf(p.seat) === rules.rival.weakJack && p.card.rank === "J" && isTrumpCard(p.card, mode, trumpSuit)
+      ? rankStrength({ suit: p.card.suit, rank: rules.rival.jackBottom ? "7" : "9" }, mode, trumpSuit) - 0.5
+      : undefined;
+  return (jack ?? rankStrength(p.card, mode, trumpSuit)) + top + low;
 }
 
 function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules): boolean {
@@ -91,12 +96,18 @@ export function legalMoves(
   closed = false,
 ): Card[] {
   if (trick.order.length === 0) {
+    let lead = hand; // leading: anything goes, but…
     // مقفل (a closed دبل): no leading a trump while holding anything else.
     if (closed && mode === "hokum") {
-      const side = hand.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-      if (side.length > 0) return side;
+      const side = lead.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+      if (side.length > 0) lead = side;
     }
-    return hand; // leading: anything goes
+    // حرّاس الإكك (an opponent rule): this team can't lead an Ace or a 10 while holding anything else.
+    if (trick.rules?.rival?.noAceLead !== undefined && teamOf(seat) === trick.rules.rival.noAceLead) {
+      const noAce = lead.filter((c) => c.rank !== "A" && c.rank !== "10");
+      if (noAce.length > 0) lead = noAce;
+    }
+    return lead;
   }
 
   const ledSuit = trick.cards[trick.order[0]]!.suit;

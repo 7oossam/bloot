@@ -27,6 +27,8 @@ export interface BiddingState {
    * the second even in the ground card's suit (الحكم الحر، سبيت دايم).
    */
   extraHokum?: { seat: Seat; suits: Suit[] };
+  /** These teams may not buy sun (a blessing's price, see src/roguelike/blessings.ts). */
+  noSunTeams?: Team[];
 }
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
@@ -104,7 +106,7 @@ export function legalCalls(state: BiddingState): LegalCall[] {
     const opposing = teamOf(state.pendingHokum.seat) !== teamOf(seat);
     const saidWala = state.round === 2 && passedThisRound(state, seat);
     if (opposing && !saidWala && canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
-    return calls;
+    return noSun(state, seat, calls);
   }
   const calls: LegalCall[] = [{ call: "pass" }, { call: "sun" }];
   if (canCallAshkal(seat, state.dealer)) calls.push({ call: "ashkal" });
@@ -121,7 +123,13 @@ export function legalCalls(state: BiddingState): LegalCall[] {
       if (!calls.some((c) => c.call === "hokum" && c.suit === suit)) calls.push({ call: "hokum", suit });
     }
   }
-  return calls;
+  return noSun(state, seat, calls);
+}
+
+/** A team barred from sun can't buy it, nor call أشكل (which buys it). */
+function noSun(state: BiddingState, seat: Seat, calls: LegalCall[]): LegalCall[] {
+  if (!state.noSunTeams?.includes(teamOf(seat))) return calls;
+  return calls.filter((c) => c.call !== "sun" && c.call !== "ashkal");
 }
 
 /** Whether `seat` has passed in the current bidding round. */

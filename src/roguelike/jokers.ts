@@ -414,7 +414,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     id: "translator",
     name: "المترجم",
     icon: "🗣️",
-    levels: ["شريكك يفهم تهريبك: أي ورقة تهرّبها (وأنت ما عندك من اللون المطلوب)، يلعب لك من شكلها أول ما يمسك اللعب."],
+    levels: ["يترجم لك التهريب: تشوف فوق كل لاعب وش يطلب من خويه بتهريبه، والبرقية إذا رماها."],
     cost: 26,
     rarity: "rare",
     tags: ["تهريب"],
@@ -511,7 +511,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     name: "السوا",
     icon: "✋",
     levels: [
-      "وأنت تبدأ الأكلة: قل سوا إذا كل ورقة في يدك أكبر من كل ورقة باقية عند غيرك. صح = +6 بنط والباقي ينلعب لك. غلط = -6 بنط.",
+      "كل سوا صح (كل ورقة في يدك أكبر من كل ورقة باقية عند غيرك) = +6 بنط.",
       "صح = +10 بنط.",
       "صح = +15 بنط.",
     ],
@@ -622,17 +622,6 @@ export const CONSUMABLE_CATALOG: ShopItemDef[] = [
 
 /** Run upgrades — what used to be bought with glory in الديوانية, now bought with gold. */
 export const UPGRADE_CATALOG: ShopItemDef[] = [
-  {
-    id: "joker-slot",
-    kind: "upgrade",
-    name: "جيب زيادة",
-    icon: "🎒",
-    levels: ["+1 خانة جوكر.", "+1 خانة ثانية."],
-    cost: 30,
-    costs: [30, 45],
-    rarity: "rare",
-    tags: [],
-  },
   {
     id: "shop-slot",
     kind: "upgrade",
@@ -748,7 +737,7 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
   ],
   تهريب: [
     { count: 2, text: "كل أكلة يلعبها لك شريكك من شكل طلبته +2 بنط" },
-    { count: 3, text: "كسر قانون: شريكك يفهم تهريبك دايم" },
+    { count: 3, text: "كسر قانون: تشوف وش يطلب كل لاعب بتهريبه" },
   ],
   كبوت: [
     { count: 2, text: "كل كبوت لكم +10 أبناط" },
@@ -856,7 +845,7 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   // ---- الكبوت
   const kabootTier = tier("كبوت");
   const sawa = pick("sawa", [6, 10, 15]);
-  if (sawa) o.sawa = { bonus: sawa, penalty: 6 };
+  if (sawa) o.sawa = { bonus: sawa };
   const crawl = pick("crawl", [1, 2]);
   if (crawl) o.streakBonus = crawl;
   if (kabootTier >= 1) o.kabootBonus = { points: 10, gold: 0 };

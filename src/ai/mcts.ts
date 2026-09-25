@@ -2,7 +2,7 @@ import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, type PlayContext } from "./play-ai";
+import { decideCard, defenderMayLeadTrump, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -27,7 +27,7 @@ export interface SearchOptions {
   /** Stop early once this many milliseconds have gone (the game stays responsive on a phone). */
   timeBudgetMs?: number;
   rand?: () => number;
-  /** What the rule-based AI is told for this seat (أشكل signal, المترجم, مقفل…). */
+  /** What the rule-based AI is told for this seat (أشكل signal, مقفل…). */
   ctx?: PlayContext;
 }
 
@@ -40,8 +40,8 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
   const legal = round.legalMovesFor(seat);
   if (legal.length <= 1) return legal[0] ?? ruleChoice;
-  // A partner's برقية (or المترجم's ask) is a convention, not a calculation: answer it.
-  if (followsConvention(round, seat, ctx)) return ruleChoice;
+  // A partner's برقية is a convention, not a calculation: answer it.
+  if (followsConvention(round, seat)) return ruleChoice;
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
   if (candidates.length === 1) return candidates[0];
@@ -74,16 +74,15 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
 
 // ------------------------------------------------------------------ the player's rules
 
-/** The partner sent a برقية (or you asked through المترجم) and this seat is leading: follow it. */
-function followsConvention(round: Round, seat: Seat, ctx: PlayContext): boolean {
+/** The partner sent a برقية and this seat is leading: follow it. */
+function followsConvention(round: Round, seat: Seat): boolean {
   const trick = round.currentTrick!;
   if (trick.order.length !== 0) return false;
   const res = round.bidding.result!;
   const partner = ((seat + 2) % 4) as Seat;
   const beliefs = buildBeliefs(round.tricks, trick, res.mode, res.trumpSuit);
   const hand = round.hands[seat];
-  const asked = [...beliefs.barqiya[partner], ...(ctx.partnerAsks ?? [])];
-  return asked.some((suit) => hand.some((c) => c.suit === suit));
+  return beliefs.barqiya[partner].some((suit) => hand.some((c) => c.suit === suit));
 }
 
 /**
@@ -92,8 +91,15 @@ function followsConvention(round: Round, seat: Seat, ctx: PlayContext): boolean 
  */
 function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card): Card[] {
   const trick = round.currentTrick!;
-  if (trick.order.length === 0) return legal;
-  const { mode, trumpSuit } = round.bidding.result!;
+  const { mode, trumpSuit, declarer } = round.bidding.result!;
+  if (trick.order.length === 0) {
+    // The side that didn't buy the hokum doesn't lead trumps, bar the exceptions.
+    if (mode !== "hokum" || teamOf(declarer) === teamOf(seat)) return legal;
+    const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
+    if (defenderMayLeadTrump(round.hands[seat], mode, trumpSuit, beliefs)) return legal;
+    const side = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+    return side.length > 0 ? side : legal;
+  }
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);

@@ -58,12 +58,15 @@ Projects are declared in the first trick and revealed in the second trick. Only 
 5. **Baloot (بلوت)**: King & Queen of the Trump suit. Declared during play, always scores (20 pts / 2 in score) unless hidden inside a sequence project.
 
 ## 6. Tahreeb (التهريب - Signaling/Discarding)
-Tahreeb is the advanced strategy of discarding a specific card when you cannot follow the led suit, signaling your partner.
-- **Brother Suit (أخو اللون)**: Discarding a Red suit (e.g., Diamond) means "I want the other Red suit" (Hearts). Discarding a Black suit means "I want the other Black suit".
-- **Double Discard**: Discarding two different suits of the *same color* means "I want the opposite color".
-- **Bottom-to-Top (من تحت لفوق)**: Discarding a 7 then an 8 of the same suit means "I WANT this suit".
-- **Top-to-Bottom (من فوق لتحت)**: Discarding a 10 then a 7 of the same suit means "I DO NOT want this suit".
-- **Ace Discard**: "Stop playing this suit" or "Give me the lead."
+Tahreeb is discarding a card you don't need, when you can't follow the led suit, so your partner learns what you do need. The full rules are in `docs/baloot-guide.md` §4 (from the player's video); they hold about 80% of the time, so read them as strong hints.
+- **Brother suit (أخو اللون)**: ♥/♦ are red, ♠/♣ black. A discarded suit is NOT wanted; it asks for its brother (discard ♦ = "I want ♥").
+- **Both suits of one colour**: discarding from both asks for the other colour.
+- **Discarding the led suit's brother** (led ♦, discard ♥): asks for the other colour.
+- **Bottom-to-top (من تحت لفوق)**: climbing in one suit (7, then 8, then Q) means "I WANT this suit" and overrides the rules above.
+- **Top-to-bottom (من فوق لتحت)**: coming down (10, J, 9, 7) means "I don't want it"; apply the rules above.
+- **Ace discard (برقية)**: stop everything and lead that suit back at once; the partner holds the rest.
+- **Answering**: lead your biggest card of the suit your partner wants.
+- **Don't leave a 10 bare**: with 10 + a small card (no Ace), never discard the small card.
 
 ## 7. Sawa (سوا)
 If a player knows they are guaranteed to win all remaining tricks based on the cards left in their hand, they can declare "Sawa" and lay their cards down to speed up the game.

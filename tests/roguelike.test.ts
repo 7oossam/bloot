@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { generateMap } from "../src/roguelike/mapgen";
+import { generateMap, pathTo } from "../src/roguelike/mapgen";
 import { runController } from "../src/roguelike/RunController";
 import {
   activeSynergies,
@@ -11,7 +11,7 @@ import {
   sellPrice,
   UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
-import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
+import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -22,10 +22,10 @@ describe("generateMap", () => {
     expect(map.currentIndex).toBe(-1);
   });
 
-  it("gives every non-shop node a matchTarget and every node a defined reward", () => {
+  it("gives every fight node a matchTarget and every node a defined reward", () => {
     const map = generateMap(2);
     for (const node of map.nodes) {
-      if (node.type === "shop") {
+      if (node.type === "shop" || node.type === "diwaniya") {
         expect(node.matchTarget).toBeUndefined();
       } else {
         expect(node.matchTarget).toBeGreaterThan(0);
@@ -40,15 +40,21 @@ describe("RunController", () => {
     runController.startNewRun(42);
   });
 
-  it("only lets you enter the next node in sequence", () => {
-    const first = runController.getAvailableNode()!;
-    expect(first.floor).toBe(0);
+  it("only lets you enter a node the current one leads to", () => {
+    const starts = runController.getAvailableNodes();
+    expect(starts.length).toBeGreaterThanOrEqual(2);
+    expect(starts.every((n) => n.floor === 0)).toBe(true);
+    const first = starts[0];
     runController.enterNode(first.id);
-    expect(runController.getState().currentIndex).toBe(0);
-
-    const second = runController.getAvailableNode()!;
-    expect(second.floor).toBe(1);
-    expect(() => runController.enterNode("node-6")).toThrow(); // not next
+    expect(runController.getState().nodes[runController.getState().currentIndex].id).toBe(first.id);
+    // Nothing opens until this node is done.
+    expect(runController.getAvailableNodes()).toEqual([]);
+    runController.resolveMatchNode(true);
+    runController.skipReward();
+    const next = runController.getAvailableNodes();
+    expect(next.map((n) => n.id).sort()).toEqual([...first.next].sort());
+    const boss = runController.getState().nodes.find((n) => n.type === "boss")!;
+    expect(() => runController.enterNode(boss.id)).toThrow(); // not reachable yet
   });
 
   it("winning a match node banks gold and advances; losing costs a life", () => {
@@ -192,19 +198,18 @@ describe("shop", () => {
     }
   });
 
-  it("joker slots are capped", () => {
+  it("there's no cap on jokers (they're like STS relics)", () => {
     enterFirstShop();
     runController.addGold(10_000);
-    let bought = 0;
-    for (let i = 0; i < 20 && bought < MAX_JOKERS; i++) {
+    for (let i = 0; i < 20 && runController.getState().jokerIds.length < 8; i++) {
       for (const id of runController.shopOffering().slice(0, 3)) {
-        if (runController.canAfford(id)) { runController.buyJoker(id); bought++; }
+        if (runController.canAfford(id)) runController.buyJoker(id);
       }
       runController.reroll();
     }
-    expect(runController.getState().jokerIds).toHaveLength(MAX_JOKERS);
+    expect(runController.getState().jokerIds.length).toBeGreaterThanOrEqual(8);
     const more = JOKER_CATALOG.find((j) => !runController.getState().jokerIds.includes(j.id))!;
-    expect(runController.whyNot(more.id)).toBeDefined();
+    expect(runController.whyNot(more.id)).toBeUndefined();
   });
 
   it("a shield absorbs one lost match; an extra life adds a life", () => {
@@ -303,12 +308,6 @@ describe("run upgrades, selling and the new consumables", () => {
   it("upgrades are bought with gold, level by level, and change the run at once", () => {
     runController.addGold(1000);
     const s = runController.getState();
-    runController.buyJoker("joker-slot");
-    expect(s.maxJokers).toBe(MAX_JOKERS + 1);
-    expect(runController.priceOf("joker-slot")).toBe(45); // the second level costs more
-    runController.buyJoker("joker-slot");
-    expect(s.maxJokers).toBe(MAX_JOKERS + 2);
-    expect(runController.whyNot("joker-slot")).toBe("مكتمل");
     runController.buyJoker("shop-slot");
     expect(s.shopSlots).toBe(4);
     runController.buyJoker("cheap-reroll");
@@ -470,8 +469,10 @@ describe("غنائم الصكة — rewards after every match won", () => {
     let rare = 0, count = 0;
     for (let seed = 1; seed <= 20; seed++) {
       runController.startNewRun(seed);
-      for (;;) {
-        const node = runController.getAvailableNode()!;
+      const nodes = runController.getState().nodes;
+      const elite = nodes.find((n) => n.type === "elite");
+      if (!elite) continue;
+      for (const node of pathTo(nodes, elite.id)!) {
         runController.enterNode(node.id);
         if (node.type === "shop") { runController.leaveShopNode(); continue; }
         runController.resolveMatchNode(true);

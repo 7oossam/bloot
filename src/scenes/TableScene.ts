@@ -83,6 +83,7 @@ const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
   elite: "نخبة",
   shop: "متجر",
   boss: "الزعيم",
+  diwaniya: "الديوانية",
 };
 
 export interface TableSceneData {
@@ -154,6 +155,10 @@ export class TableScene extends Phaser.Scene {
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
+  /** Who you're playing and whether their rule is on this hand. */
+  private rivalText?: Phaser.GameObjects.Text;
+  /** المترجم: what each seat's التهريب asks for, shown over its name. */
+  private signalTexts: Phaser.GameObjects.Text[] = [];
   /** Which of each opponent's cards the spy joker is showing this hand. */
   private spied: Partial<Record<Seat, string[]>> = {};
   private actionPrompt?: Phaser.GameObjects.Text;
@@ -202,6 +207,7 @@ export class TableScene extends Phaser.Scene {
     this.dealerChip = undefined;
     this.highlightedSeat = null;
     this.revealViews = [];
+    this.signalTexts = [];
     this.spied = {};
     this.actionPrompt = undefined;
     this.actionSkip = undefined;
@@ -282,6 +288,10 @@ export class TableScene extends Phaser.Scene {
   private buildStaticUI(): void {
     this.hudScoreText = arabicText(this, CENTER_X, 46, "", { fontSize: "30px" }).setDepth(5);
     this.hudModeText = arabicText(this, CENTER_X, 92, "", { fontSize: "23px", color: "#ffd54a" }).setDepth(5);
+    if (this.nodeData.modifiers.rivalLabel) {
+      this.rivalText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 34, "", { fontSize: "21px", color: "#ffb3b3", wordWrap: { width: WIDTH - 80 } }).setDepth(5);
+      this.refreshRival();
+    }
 
     this.seatLabels[0] = arabicText(this, HAND_ANCHOR[0].x, HAND_ANCHOR[0].y - 128, SEAT_LABEL_AR[0], {
       fontSize: "26px",
@@ -425,7 +435,9 @@ export class TableScene extends Phaser.Scene {
   private buildJokerRow(): void {
     const state = runController.getState();
     const ids = state.jokerIds;
-    const startX = CENTER_X - ((ids.length - 1) * JOKER_GAP) / 2;
+    // No cap on jokers: past ten the row tightens to stay on the screen.
+    const gap = Math.min(JOKER_GAP, (WIDTH - 60) / Math.max(ids.length, 1));
+    const startX = CENTER_X - ((ids.length - 1) * gap) / 2;
     ids.forEach((id, i) => {
       const def = getJokerDef(id);
       if (!def) return;
@@ -437,10 +449,17 @@ export class TableScene extends Phaser.Scene {
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       const icon = this.add.text(0, -2, def.icon, { fontSize: "36px" }).setOrigin(0.5);
       const parts: Phaser.GameObjects.GameObject[] = [bg, icon];
+      // المعطّل: this joker sits the match out.
+      const off = this.nodeData.modifiers.disabledJoker === id;
+      if (off) {
+        icon.setAlpha(0.3);
+        parts.push(this.add.text(0, 0, "🔒", { fontSize: "30px" }).setOrigin(0.5));
+      }
       if (def.levels.length > 1) {
         parts.push(arabicText(this, JOKER_ICON / 2 - 12, JOKER_ICON / 2 - 12, String(level), { fontSize: "18px", color: "#ffd54a", fontStyle: "bold" }));
       }
-      const box = this.add.container(startX + i * JOKER_GAP, JOKER_ROW_Y, parts).setDepth(21);
+      const box = this.add.container(startX + i * gap, JOKER_ROW_Y, parts).setDepth(21);
+      if (gap < JOKER_GAP) box.setScale(gap / JOKER_GAP);
       setBoxHitArea(box, JOKER_ICON, JOKER_ICON);
       box.input!.cursor = "pointer";
       box.on("pointerdown", () => this.toggleJokerTip(id));
@@ -519,7 +538,8 @@ export class TableScene extends Phaser.Scene {
     const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
     btn.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
-      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
+      const below = this.nodeData.modifiers.rivalLabel ? 36 : 0;
+      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38 + below, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
     }
   }
 
@@ -576,6 +596,32 @@ export class TableScene extends Phaser.Scene {
     this.relayoutHand();
   }
 
+  /** The opponents' line under the header. */
+  private refreshRival(): void {
+    const mods = this.nodeData.modifiers;
+    if (!this.rivalText || !mods.rivalLabel) return;
+    this.rivalText.setText(`${mods.rivalLabel}: ${mods.rivalRule ?? ""}`);
+  }
+
+  /** المترجم: over each player, what their discards ask their partner for (docs/baloot-guide.md §4أ). */
+  private refreshSignals(): void {
+    for (const t of this.signalTexts) t.destroy();
+    this.signalTexts = [];
+    if (!this.nodeData.modifiers.translator) return;
+    const signals = this.controller.getSignals();
+    if (!signals) return;
+    for (const seat of [0, 1, 2, 3] as Seat[]) {
+      const { wants, barqiya } = signals[seat];
+      const parts: string[] = [];
+      if (barqiya.length) parts.push("برقية " + barqiya.map((x) => SUIT_SYMBOL[x]).join(""));
+      if (wants.length) parts.push("يبي " + wants.map((x) => SUIT_SYMBOL[x]).join(""));
+      const label = this.seatLabels[seat];
+      if (!parts.length || !label) continue;
+      const text = arabicText(this, label.x, label.y - 34, "🗣️ " + parts.join(" · "), { fontSize: "22px", color: "#ffd54a" }).setDepth(5);
+      this.signalTexts.push(text);
+    }
+  }
+
   /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
   private refreshMemory(): void {
     if (!this.memoryText) return;
@@ -603,8 +649,8 @@ export class TableScene extends Phaser.Scene {
     this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
-      const ok = this.controller.claimSawa();
-      if (!ok) return; // still your turn: play a card as usual
+      // Right or wrong, the hand plays itself out from here.
+      this.controller.claimSawa();
       for (const v of this.playerHandViews) {
         v.off("pointerdown");
         v.off("dragstart");
@@ -699,6 +745,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private rebuildTable(e: { dealer: Seat; hands: Record<Seat, Card[]>; groundCard: Card }): void {
+    this.refreshRival();
     this.clearBidButtons();
     this.clearSeatBubbles();
     for (const view of this.playerHandViews) view.destroy();
@@ -1330,7 +1377,10 @@ export class TableScene extends Phaser.Scene {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
     }
-    this.time.delayedCall(0, () => this.refreshMemory());
+    this.time.delayedCall(0, () => {
+      this.refreshMemory();
+      this.refreshSignals();
+    });
     this.projectMoment(e.seat);
     let juiceColor = 0xffffff;
     let shouldJuice = false;

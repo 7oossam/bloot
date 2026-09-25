@@ -54,6 +54,16 @@ export interface TrickRules {
   topCard?: Seat;
   /** This team's 7s and 8s outside the trump suit beat the rest of their suit (ثورة الصغار). The deck is shared, so it never helps the other side. */
   trashBeatsAce?: Team;
+  /** Opponent rules (see src/roguelike/opponents.ts). */
+  rival?: {
+    /** This team's trump Jack drops below the trump 9 (خاطفين الولد)… */
+    weakJack?: Team;
+    /** …or all the way to the bottom of the trumps. */
+    jackBottom?: boolean;
+    /** This team can't lead a trick with an Ace or a 10 while holding anything else (حرّاس الإكك). */
+    noAceLead?: Team;
+  };
+
 }
 
 export interface Trick {

@@ -1,12 +1,21 @@
-export type NodeType = "match" | "elite" | "shop" | "boss";
+export type NodeType = "match" | "elite" | "shop" | "boss" | "diwaniya";
 
 export interface MapNode {
   id: string;
   type: NodeType;
-  floor: number; // 0-indexed depth along the run
+  floor: number; // 0-indexed row of the map, bottom to top
+  /** Which of the map's lanes it sits in (left to right). */
+  col?: number;
+  /** The nodes it leads to on the row above. */
+  next: string[];
   matchTarget?: number; // present for match/elite/boss nodes
   reward: number; // gold earned on winning this node (match/elite/boss)
+  /** Who you play here (src/roguelike/opponents.ts) — fight nodes only. */
+  opponent?: string;
+  /** What happens here (src/roguelike/events.ts) — ديوانية nodes only. */
+  event?: string;
 }
+
 
 export interface RunState {
   seed: number;
@@ -17,8 +26,6 @@ export interface RunState {
   jokerIds: string[];
   /** Level of each owned joker (1 when first bought). */
   jokerLevels: Record<string, number>;
-  /** Joker slots this run (base plus the جيب زيادة upgrade). */
-  maxJokers: number;
   /** How many jokers a shop puts on the shelf this run. */
   shopSlots: number;
   /** What a reroll costs at the start of each shop visit. */
@@ -33,6 +40,8 @@ export interface RunState {
   salary: number;
   /** A start-ahead bonus for the next match only (the دفعة consumable). */
   nextMatchBoost: number;
+  /** The opponents start the next match this far ahead (a ديوانية choice's price). */
+  nextMatchPenalty: number;
   /** The joker the last تذكرة ترقية levelled up, for the shop to announce. */
   lastTicket?: string;
   /** Run-long counters some jokers grow (الحصالة). */
@@ -47,6 +56,10 @@ export interface RunState {
   shopStock: string[];
   /** Price of the next reroll in the current shop visit; goes up each time. */
   rerollCost: number;
+  /** الحوت's offer (blessing ids) before the first node; cleared once one is taken. */
+  blessing?: string[];
+  /** The blessings this run holds (src/roguelike/blessings.ts). */
+  blessings: string[];
   cleared: boolean[]; // parallel to nodes: true once that node is resolved
   over: boolean; // run ended (won or lost)
   won: boolean;
@@ -54,7 +67,6 @@ export interface RunState {
 
 export const STARTING_LIVES = 3;
 export const STARTING_GOLD = 5;
-export const MAX_JOKERS = 4;
 export const MAX_LIVES = 5;
 export const REROLL_BASE_COST = 3;
 export const REROLL_STEP = 2;

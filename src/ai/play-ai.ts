@@ -1,7 +1,8 @@
 import { cardPoints, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner, legalMoves, wouldWinAgainstCurrent } from "../engine/trick";
+import { findProjects } from "../engine/projects";
 import { SUITS, teamOf, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
-import { buildBeliefs, outstanding, suitsOf, type Beliefs } from "./beliefs";
+import { buildBeliefs, outstanding, readDiscards, suitsOf, type Beliefs } from "./beliefs";
 
 /** Everything the table knows beyond the current trick, for the tactics in docs/baloot-guide.md. */
 export interface PlayContext {
@@ -12,18 +13,13 @@ export interface PlayContext {
   declarer?: Seat;
   /** مقفل: a closed دبل — no leading trumps while holding anything else. */
   closed?: boolean;
-  /**
-   * المترجم: suits the partner signalled (discarded from), latest first. With it this seat reads
-   * every discard as "lead me this suit" and answers before anything else but a برقية.
-   */
-  partnerAsks?: Suit[];
 }
 
 /**
  * Card-play policy. Without context it falls back to the plain "win cheaply / bank points on
  * a won trick / shed the least" rules; with the table's history it adds the guide's tactics:
- * signalling (التهريب, §4), void tracking and belief updates (§4ج), protecting the abnat (§4أ.3),
- * supporting a partner who has the trick (§4ب.2), and running a long suit (السرد, §5).
+ * signalling (التهريب, §4), void tracking and belief updates (§4د), protecting the abnat (§4أ.8),
+ * supporting a partner who has the trick (§4ج.5), and running a long suit (السرد, §5).
  */
 export function decideCard(
   hand: Card[],
@@ -39,7 +35,11 @@ export function decideCard(
   const partner = ((seat + 2) % 4) as Seat;
 
   if (trick.order.length === 0) {
-    const lead = chooseLead(hand, mode, trumpSuit, seat, partner, beliefs, ctx);
+    // The defending side doesn't lead trumps (the player's rule), bar the two exceptions.
+    const defending = mode === "hokum" && ctx?.declarer !== undefined && teamOf(ctx.declarer) !== teamOf(seat);
+    const sideLeads = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+    const pool = defending && sideLeads.length > 0 && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs) ? sideLeads : hand;
+    const lead = chooseLead(pool, mode, trumpSuit, seat, partner, beliefs, ctx);
     // مقفل can rule out the trump lead the tactics wanted; pick again among what's allowed.
     return legal.some((c) => c.suit === lead.suit && c.rank === lead.rank)
       ? lead
@@ -54,8 +54,24 @@ export function decideCard(
     const noRuff = legal.filter((c) => ledIsTrump || !isTrumpCard(c, mode, trumpSuit));
     const pool = noRuff.length > 0 ? noRuff : legal;
     const safe = trickIsSafe(trick, winnerSoFar, seat, mode, trumpSuit, beliefs, hand);
-    const ledSuit = trick.cards[trick.order[0]]!.suit;
+    const ledCard = trick.cards[trick.order[0]]!;
+    const ledSuit = ledCard.suit;
     const discarding = !legal.some((c) => c.suit === ledSuit);
+
+    // The partner led an Ace: early on, give them the 10 so they keep cashing; later, the 10
+    // says "I want this suit", so it goes only with the شايب behind it (§4ب.4).
+    if (!discarding && trick.leader === partner && winnerSoFar === partner && ledCard.rank === "A" && !isTrumpCard(ledCard, mode, trumpSuit)) {
+      const ten = legal.find((c) => c.rank === "10");
+      const early = (ctx?.tricks.length ?? 0) <= 1;
+      if (ten && safe && (early || hand.some((c) => c.suit === ledSuit && c.rank === "K"))) return ten;
+    }
+    // The partner led and an opponent still plays after me: go in with my biggest card of the
+    // suit to force the last player to spend a big one — or take it (§4ب.2). Not an Ace:
+    // that's never fed to a winning partner.
+    if (!discarding && !safe && trick.leader === partner && trick.order.length === 2) {
+      const over = legal.filter((c) => c.rank !== "A" && !isTrumpCard(c, mode, trumpSuit) && wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
+      if (over.length > 0) return maxBy(over, (c) => rankStrength(c, mode, trumpSuit));
+    }
 
     // برقية: an Ace thrown on the partner's trick says "come back to me in this suit" — only
     // when every card left after it is a sure winner.
@@ -69,12 +85,16 @@ export function decideCard(
     const cost = (c: Card) =>
       (isTrumpCard(c, mode, trumpSuit) ? 1000 : 0) +
       (c.rank === "A" ? 800 : isBoss(c, hand, beliefs, mode, trumpSuit) ? 500 : 0);
-    // Bank points only if the trick is safe (§4ب.2 دعم الخوي الماكل); otherwise keep the 10s
-    // and Aces out of it (§4أ.3 حماية الأبناط).
+    // Bank points only if the trick is safe (§4ج.5 دعم الخوي الماكل); otherwise keep the 10s
+    // and Aces out of it (§4أ.8 حماية الأبناط).
     if (safe) {
       const under = pool.filter((c) => winnerSoFar === seat || !wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
-      return maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - cost(c));
+      const feed = maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - cost(c));
+      // A 10 fed to the partner is support; anything smaller thrown off-suit is read as التهريب.
+      if (discarding && cardPoints(feed, mode, trumpSuit) < 10) return chooseDiscard(pool, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx);
+      return feed;
     }
+    if (discarding) return chooseDiscard(pool, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx);
     return minBy(pool, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + cost(c));
   }
 
@@ -86,30 +106,71 @@ export function decideCard(
 
   // Can't win. If we're not following suit this discard is a message to the partner (§4).
   const ledSuit = trick.cards[trick.order[0]]!.suit;
-  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit, beliefs);
+  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx);
   return minBy(legal, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
 }
 
 /**
- * التهريب: in sun, throw a 7/8 from the suit you hold the Ace in to ask for it (§4أ.1);
- * otherwise throw from the weakest suit (§4أ.2). Never a 10 or Ace if anything else will do.
+ * التهريب (§4أ): pick the discard whose reading asks the partner for my strongest suit — its
+ * brother, the other colour, or the next step up a climb in it — and never one that says I
+ * don't want it. Aces and sure winners stay in hand, a 10 is never left bare (لا تعلّق
+ * عشرتك), and in hokum the buyer doesn't throw a side suit's last card (مقطوعك).
  */
-function chooseDiscard(legal: Card[], hand: Card[], mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): Card {
+function chooseDiscard(
+  legal: Card[],
+  hand: Card[],
+  mode: Mode,
+  trumpSuit: Suit | undefined,
+  seat: Seat,
+  led: Suit,
+  beliefs: Beliefs,
+  ctx: PlayContext | undefined,
+): Card {
   const by = suitsOf(hand);
   const nonTrump = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
   const pool = nonTrump.length > 0 ? nonTrump : legal;
+  const boss = (c: Card) => isBoss(c, hand, beliefs, mode, trumpSuit);
 
-  if (mode === "sun") {
-    const ask = pool.find(
-      (c) => (c.rank === "7" || c.rank === "8") && by[c.suit].some((x) => x.rank === "A") && by[c.suit].length >= 2,
-    );
-    if (ask) return ask;
-  }
+  // The suit to ask for: where I hold sure winners (an Ace, or the top card still out).
+  const strength = (s: Suit) => by[s].filter(boss).length * 3 + (by[s].some((c) => c.rank === "A") ? 3 : 0) + by[s].length;
+  const askable = SUITS.filter((s) => s !== led && by[s].some(boss) && !(mode === "hokum" && s === trumpSuit));
+  const want = askable.length > 0 ? maxBy(askable, strength) : undefined;
+
   const weakness = (suit: Suit) =>
     by[suit].reduce((sum, c) => sum + cardPoints(c, mode, trumpSuit), 0) + (by[suit].some((c) => c.rank === "A") ? 30 : 0);
-  // Sure winners stay in hand: they're the way back in later.
-  const keep = (c: Card) => (c.rank === "A" ? 500 : isBoss(c, hand, beliefs, mode, trumpSuit) ? 400 : 0);
-  return minBy(pool, (c) => weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit) + keep(c));
+  const cost = (c: Card) => {
+    const rest = by[c.suit].filter((x) => x !== c);
+    let score = weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit);
+    // Sure winners stay in hand: they're the way back in later.
+    score += c.rank === "A" ? 500 : boss(c) ? 400 : 0;
+    // لا تعلّق عشرتك: don't throw the card guarding a 10 you hold without its Ace.
+    if (rest.length === 1 && rest[0].rank === "10" && !beliefs.played.some((x) => x.suit === c.suit && x.rank === "A")) score += 300;
+    // مقطوعك: the hokum buyer keeps a card in each side suit so he isn't forced to ruff away his trumps.
+    if (mode === "hokum" && ctx?.declarer === seat && rest.length === 0 && c.suit !== trumpSuit) score += 200;
+    if (want) {
+      const read = readDiscards([...beliefs.discards[seat], { card: c, led }]);
+      // Exactly that suit (its brother, or a climb) beats "the other colour".
+      if (read.wants[0] === want) score -= read.wants.length === 1 ? 60 : 50;
+      else if (read.wants.includes(want)) score -= 20;
+      if (read.rejects.includes(want)) score += 60;
+    }
+    return score;
+  };
+  return minBy(pool, cost);
+}
+
+/**
+ * حل الحكم من غير المشتري: the side that didn't buy the hokum shouldn't lead trumps — it only
+ * pulls its own cuts and helps the buyer. The exceptions (the player's words): a hand long in
+ * trumps (4+), or a strong sun-like hand (3+ sure side-suit winners) that wants the trumps gone
+ * fast so its winners can't be cut.
+ */
+export function defenderMayLeadTrump(hand: Card[], mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): boolean {
+  if (mode !== "hokum" || !trumpSuit) return true;
+  const trumps = hand.filter((c) => c.suit === trumpSuit);
+  if (trumps.length >= 4) return true;
+  const sideWinners = hand.filter((c) => c.suit !== trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit)).length;
+  return trumps.length > 0 && sideWinners >= 3;
 }
 
 /** Will the side currently winning keep this trick whatever the players still to come do? */
@@ -154,15 +215,14 @@ function chooseLead(
   const lowest = (cards: Card[]) => minBy(cards, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
   const sideSuits = SUITS.filter((s) => by[s].length > 0 && !(mode === "hokum" && s === trumpSuit));
 
-  // The partner sent a برقية: they hold the rest — give them the lead in that suit.
-  for (const suit of beliefs.barqiya[partner]) {
-    if (by[suit].length > 0) return lowest(by[suit]);
-  }
-  // المترجم: answer the partner's last signal first.
-  for (const suit of ctx?.partnerAsks ?? []) {
-    if (by[suit].length > 0) return lowest(by[suit]);
-  }
+  // Going to the partner, go with the biggest card of the suit: it clears the way for their
+  // cards and they eat more (§4أ.6).
+  const highest = (cards: Card[]) => maxBy(cards, (c) => rankStrength(c, mode, trumpSuit));
 
+  // The partner sent a برقية: they hold the rest — stop everything and give them the lead there.
+  for (const suit of beliefs.barqiya[partner]) {
+    if (by[suit].length > 0) return highest(by[suit]);
+  }
   if (mode === "hokum" && trumpSuit) {
     const trumps = by[trumpSuit];
     const opponentsOutOfTrump = opponents.every((o) => beliefs.voids[o][trumpSuit]);
@@ -173,14 +233,41 @@ function chooseLead(
       if (isBoss(top)) return top;
       if (trumps.length >= 4) return lowest(trumps);
     }
+    // ربّع لخويك: the partner bought — lead the 10 to drop the Ace under their ولد, or the 9
+    // from شايب-9 so a weak partner can come back for another round (§4ج.1).
+    if (ctx?.declarer === partner && !opponentsOutOfTrump && !beliefs.voids[partner][trumpSuit]) {
+      const ten = trumps.find((c) => c.rank === "10");
+      if (ten) return ten;
+      const nine = trumps.find((c) => c.rank === "9");
+      if (nine && trumps.length >= 2) return nine;
+    }
     // إظهار القاطع: the partner showed a void and still has trumps — lead that suit to be ruffed.
     const ruffFor = sideSuits.find((s) => beliefs.voids[partner][s] && !beliefs.voids[partner][trumpSuit] && !opponentsCanRuff(s));
     if (ruffFor) return lowest(by[ruffFor]);
   }
 
-  // The partner asked for a suit — by أشكل (§3) or by a small discard (§4أ.1).
-  for (const suit of [...(ctx?.ashkalSuits ?? []), ...beliefs.wants[partner]]) {
-    if (by[suit].length > 0 && !opponentsCanRuff(suit)) return lowest(by[suit]);
+  // The partner asked for a suit by أشكل (§3).
+  for (const suit of ctx?.ashkalSuits ?? []) {
+    if (by[suit].length > 0 && !opponentsCanRuff(suit)) return highest(by[suit]);
+  }
+
+  // حل مشروعك: the hand's first lead comes from the project's suit, so the partner knows where
+  // the strength is and comes back to it (§4ب.1).
+  if (ctx && ctx.tricks.length === 0) {
+    const run = findProjects(hand, mode, seat).find((p) => p.cards.every((c) => c.suit === p.cards[0].suit));
+    // Lead low to draw the big card out — unless the run's top is already the boss: cash it.
+    if (run) {
+      const suit = run.cards[0].suit;
+      const top = highest(by[suit]);
+      return isBoss(top) ? top : lowest(by[suit]);
+    }
+  }
+
+  // The partner's strength — the first suit they led, or took a trick in — is where to go back to (§4ب.3, §4ب.5).
+  for (const suit of beliefs.strong[partner]) {
+    if (by[suit].length > 0 && !opponentsCanRuff(suit) && !beliefs.rejects[partner].includes(suit) && !(mode === "hokum" && suit === trumpSuit)) {
+      return highest(by[suit]);
+    }
   }
 
   // Cash a sure winner in a side suit that won't be ruffed.
@@ -188,6 +275,11 @@ function chooseLead(
   if (bosses.length > 0) {
     // Run the longest suit first — تسييل السرد (§5): strip, then keep leading it.
     return maxBy(bosses, (c) => by[c.suit].length * 100 + cardPoints(c, mode, trumpSuit));
+  }
+
+  // No winners of my own: go to the partner in the suit their التهريب asks for (§4أ).
+  for (const suit of beliefs.wants[partner]) {
+    if (by[suit].length > 0 && !opponentsCanRuff(suit)) return highest(by[suit]);
   }
 
   // Otherwise lead low from the longest suit that no opponent can ruff and the partner hasn't rejected.

@@ -1,5 +1,6 @@
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard, type PlayContext } from "../ai/play-ai";
+import { buildBeliefs } from "../ai/beliefs";
 import { searchCard } from "../ai/mcts";
 import { mulberry32 } from "../engine/rng";
 import { decideDouble } from "../ai/doubling-ai";
@@ -15,6 +16,7 @@ import { currentWinner, isAkka, wouldWinAgainstCurrent } from "../engine/trick";
 import { raiserTeam } from "../engine/doubling";
 import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
+import type { RivalOptions } from "../roguelike/opponents";
 
 export const HUMAN_SEAT: Seat = 0;
 export const MATCH_TARGET = 152;
@@ -144,7 +146,7 @@ export interface MatchOptions {
   sunBreakMultiplier?: number;
   /** الصبر: gold for every hand the other team bought and you out-scored them. */
   defenseGold?: number;
-  /** المترجم: your partner leads the suit you last signalled (discarded from) when they get the lead. */
+  /** المترجم: the table shows you what every player's التهريب (and برقية) asks for. */
   translator?: boolean;
   /** الإشارة الذهبية: a hand where your partner answered your signal and you took that trick is multiplied by this. */
   signalMultiplier?: number;
@@ -152,8 +154,8 @@ export interface MatchOptions {
   signalTrickBonus?: number;
   /** الآكه الذهبية: gold per آكه your team leads that takes its trick; points lost per one that gets cut. */
   akkaGamble?: { gold: number; penalty: number };
-  /** السوا: claim every trick left while you're on lead — right pays `bonus`, wrong costs `penalty`. */
-  sawa?: { bonus: number; penalty: number };
+  /** السوا joker: a right سوا pays `bonus` (the button itself is for everyone). */
+  sawa?: { bonus: number };
   /** الجريء: your team may double a sun contract whatever the 100-point rule says. */
   freeSunDouble?: boolean;
   /** رأس المال: a doubled hand your team wins pays (double level × this) gold. */
@@ -167,12 +169,25 @@ export interface MatchOptions {
    * hidden hands and played out. Off, they play the rule-based AI straight. The table turns it on.
    */
   searchAI?: boolean;
+  /** The opponents this match is played against and their rules (src/roguelike/opponents.ts). */
+  rival?: RivalOptions;
+  /** Their name and icon, for the table. */
+  rivalLabel?: string;
+  /** Their rule as the table shows it (UI only). */
+  rivalRule?: string;
+  /** بحر المشاريع (a blessing): your team may not buy sun. */
+  noSun?: boolean;
+  /** المعطّل: the joker sitting this match out (UI only — it's already left out of these options). */
+  disabledJoker?: string;
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
   /** الذاكرة: 1 = cards still out per suit; 2 = also which Aces and 10s are still out. */
   memory?: number;
 }
+
+/** 7-2: the score line for doubling a sun. */
+export const SUN_DOUBLE_LIMIT = 100;
 
 /** Something the human has to decide mid-hand because a joker fired: which card to use. */
 export type PendingAction =
@@ -286,7 +301,7 @@ export class GameController extends Emitter<EventMap> {
   private lowTricks = 0;
   private streak = 0;
   private streakPoints = 0;
-  /** Suits you discarded from (latest first): your signals to your partner. */
+  /** The suits your discards ask your partner for (latest first), read by the rules of التهريب. */
   private humanAsks: Suit[] = [];
   private signalHits = 0;
   private akkaCuts = 0;
@@ -308,6 +323,16 @@ export class GameController extends Emitter<EventMap> {
   override emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void {
     if (event === "gold:earned") this.goldEarned += (payload as { amount: number }).amount;
     super.emit(event, payload);
+  }
+
+  /** What each seat's discards ask its partner for (التهريب) and any برقية — for المترجم. */
+  getSignals(): Record<Seat, { wants: Suit[]; barqiya: Suit[] }> | undefined {
+    const res = this.round?.bidding.result;
+    if (!res || this.round.tricks.length + (this.round.currentTrick?.order.length ? 1 : 0) === 0) return undefined;
+    const b = buildBeliefs(this.round.tricks, this.round.currentTrick, res.mode, res.trumpSuit);
+    const out = {} as Record<Seat, { wants: Suit[]; barqiya: Suit[] }>;
+    for (const seat of [0, 1, 2, 3] as Seat[]) out[seat] = { wants: b.wants[seat], barqiya: b.barqiya[seat] };
+    return out;
   }
 
   getRound(): Round {
@@ -358,8 +383,9 @@ export class GameController extends Emitter<EventMap> {
       guaranteedLow: o.guaranteedLow,
       completeRunTo: o.completeRunTo,
       lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
-      // 7-2's "100 of 152" scaled to this match's target.
-      doubling: { matchScore: { ...this.matchScore }, sunLimit: Math.round((this.matchTarget * 100) / 152) },
+      // 7-2: sun is doubled only by a side at 100 or under against a side past 100 — the real
+      // 100, whatever the match's target (the player's call), so short matches never see it.
+      doubling: { matchScore: { ...this.matchScore }, sunLimit: SUN_DOUBLE_LIMIT },
       ...this.jokerRoundRules(),
     });
     this.emit("hand:dealt", {
@@ -383,6 +409,24 @@ export class GameController extends Emitter<EventMap> {
     if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
+    if (o.noSun) rules.noSunFor = us;
+    // The opponents' rules (src/roguelike/opponents.ts): the game bent against your team.
+    const r = o.rival;
+    const them: Team = us === 0 ? 1 : 0;
+    if (r?.weakJack || r?.noAceLead) {
+      rules.trickRules = {
+        ...rules.trickRules,
+        rival: {
+          weakJack: r.weakJack ? us : undefined,
+          jackBottom: r.weakJack === "bottom",
+          noAceLead: r.noAceLead ? us : undefined,
+        },
+      };
+    }
+    if (r?.groundTheirs) rules.groundTo = them;
+    if (r?.cancelProjects) rules.cancelProjectsOf = us;
+    // The one on your right: you still get a say (sun, or over their hokum) before the hand is theirs.
+    if (r?.hokumHands) rules.hokumSeat = nextSeat(HUMAN_SEAT);
     return rules;
   }
 
@@ -423,6 +467,7 @@ export class GameController extends Emitter<EventMap> {
       // الوجه البارد: once your team has raised, the other side won't raise back.
       const us = teamOf(HUMAN_SEAT);
       const cowed = this.options.pokerFace && teamOf(seat) !== us && state.level > 1 && raiserTeam(state) === us;
+
       this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
       return "advanced";
     }
@@ -435,7 +480,7 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "playing") {
       const seat = this.round.turnSeat!;
       // A right سوا plays your sure winners out for you.
-      if (seat === HUMAN_SEAT && this.sawaClaim !== true) {
+      if (seat === HUMAN_SEAT && this.sawaClaim === undefined) {
         this.emit("play:turn", { seat, legal: this.round.legalMovesFor(seat) });
         return "waiting-human";
       }
@@ -446,14 +491,17 @@ export class GameController extends Emitter<EventMap> {
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
         ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
         closed: this.round.closed,
-        // المترجم: your partner reads every discard of yours as "lead me this suit".
-        partnerAsks: this.options.translator && seat === partnerOf(HUMAN_SEAT) ? this.humanAsks : undefined,
       };
       // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
       const think = this.options.searchAI && seat !== HUMAN_SEAT;
       if (think && !this.searchRand) this.searchRand = mulberry32(Math.floor(this.rand() * 2147483647));
       const card = think
-        ? searchCard(this.round, seat, { ctx, rand: this.searchRand, worlds: 40, timeBudgetMs: 150 })
+        ? searchCard(this.round, seat, {
+            ctx,
+            rand: this.searchRand,
+            worlds: 40,
+            timeBudgetMs: 150,
+          })
         : decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, ctx);
       this.applyCard(seat, card);
       return "advanced";
@@ -539,17 +587,18 @@ export class GameController extends Emitter<EventMap> {
     if (!this.pendingActions.shift()) throw new Error("No joker action is waiting");
   }
 
-  /** السوا is on offer: you hold the joker, haven't claimed this hand, and you're leading a trick. */
+  /** السوا is on offer: you haven't claimed this hand, and you're leading a trick. */
   canClaimSawa(): boolean {
     const r = this.round;
-    return !!this.options.sawa && this.sawaClaim === undefined && r.phase === "playing" && this.pendingActions.length === 0 &&
+    return this.sawaClaim === undefined && r.phase === "playing" && this.pendingActions.length === 0 &&
       r.turnSeat === HUMAN_SEAT && r.currentTrick!.order.length === 0 && r.hands[HUMAN_SEAT].length >= 2;
   }
 
   /**
    * السوا: you lay your cards down, claiming every trick left. It's right when each card in your
    * hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody
-   * else to hold a trump) — then you play the rest out automatically. Wrong costs the penalty.
+   * else to hold a trump). Either way the rest plays itself out: a right one keeps the hand as
+   * it falls (the السوا joker pays a bonus); a wrong one hands the whole hand to the other side.
    */
   claimSawa(): boolean {
     if (!this.canClaimSawa()) throw new Error("السوا isn't available now");
@@ -707,15 +756,6 @@ export class GameController extends Emitter<EventMap> {
       if (couldWin && !wouldWinAgainstCurrent(card, trick, mode, trumpSuit)) {
         this.ducks++;
         if (this.options.duckBonus) this.emit("joker:fired", { label: "المخلّي", points: this.options.duckBonus });
-      }
-    }
-    // التهريب: a card from another suit when you can't follow is a message — unless it's a ruff.
-    if (trick.order.length > 0) {
-      const led = trick.cards[trick.order[0]]!.suit;
-      const hand = this.round.hands[HUMAN_SEAT];
-      const ruff = mode === "hokum" && card.suit === trumpSuit;
-      if (card.suit !== led && !hand.some((c) => c.suit === led) && !ruff) {
-        this.humanAsks = [card.suit, ...this.humanAsks.filter((x) => x !== card.suit)];
       }
     }
   }
@@ -891,10 +931,9 @@ export class GameController extends Emitter<EventMap> {
       gained[us] -= lost;
       if (lost) bonuses.push({ label: "الآكه الذهبية", points: -lost });
     }
-    if (o.sawa && this.sawaClaim !== undefined) {
-      const pts = this.sawaClaim ? o.sawa.bonus : -Math.min(gained[us], o.sawa.penalty);
-      gained[us] += pts;
-      if (pts) bonuses.push({ label: this.sawaClaim ? "السوا" : "سوا غلط", points: pts });
+    if (this.sawaClaim && o.sawa?.bonus) {
+      gained[us] += o.sawa.bonus;
+      bonuses.push({ label: "السوا", points: o.sawa.bonus });
     }
     const wonDouble = !!sheet?.double && sheet.winner === us;
     if (o.doubleWinPoints && wonDouble) {
@@ -919,6 +958,17 @@ export class GameController extends Emitter<EventMap> {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
     }
+    // سوا غلط: the hand goes to the other side — the whole of it, projects too (only your own
+    // بلوت stays yours), and none of your jokers' bonuses count.
+    if (this.sawaClaim === false) {
+      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
+      const total = result.gamePoints[us] + result.gamePoints[them];
+      const lost = gained[us] - ourBaloot;
+      gained[them] = total - ourBaloot;
+      gained[us] = ourBaloot;
+      bonuses.length = 0;
+      if (lost > 0) bonuses.push({ label: "سوا غلط", points: -lost });
+    }
     return { gained, bonuses };
   }
 
@@ -942,10 +992,15 @@ export class GameController extends Emitter<EventMap> {
       this.emit("trick:complete", { trick: finishedTrick, winner: finishedTrick.winner! });
       this.onTrickDecided(finishedTrick);
     }
+    // التهريب: what your discards ask your partner for, read by the table's rules (docs/baloot-guide.md §4أ).
+    if (seat === HUMAN_SEAT) this.humanAsks = buildBeliefs(this.round.tricks, this.round.currentTrick, mode, trumpSuit).wants[HUMAN_SEAT];
 
     if (this.round.phase === "complete") {
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
+      // المدبّلين: a hand your team bought and lost counts double for them.
+      const ourTeam = teamOf(HUMAN_SEAT);
+      if (this.options.rival?.lossDoubled && result.declarerTeam === ourTeam && !buyerWonEarly(result)) gained[ourTeam === 0 ? 1 : 0] *= 2;
       // Match targets are in game points (abnat), not card points — adding raw card points
       // (162 a hokum hand) against a target of 41 ended every match on its first hand.
       this.matchScore = {

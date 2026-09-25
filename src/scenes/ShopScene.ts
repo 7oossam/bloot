@@ -67,30 +67,27 @@ export class ShopScene extends Phaser.Scene {
     const salary = state.salary ? `   💼 +${state.salary}` : "";
     this.goldText.setText(`💰 ${state.gold}${interest}   ❤️ ${state.lives}${shields}${salary}`);
 
-    // Your jokers as chips; tap one to sell it.
+    // Your jokers as chips (no cap — like STS relics); tap one to sell it. They shrink to fit.
     this.ownedLayer.removeAll(true);
-    const slots = state.maxJokers;
-    const startX = WIDTH / 2 + ((slots - 1) * (OWNED_CHIP_W + 10)) / 2;
-    for (let i = 0; i < slots; i++) {
-      const id = state.jokerIds[i];
-      const x = startX - i * (OWNED_CHIP_W + 10); // right to left, like the reading order
+    const ids = state.jokerIds;
+    const chipW = Math.min(OWNED_CHIP_W, (WIDTH - 40) / Math.max(ids.length, 1) - 10);
+    const startX = WIDTH / 2 + ((ids.length - 1) * (chipW + 10)) / 2;
+    ids.forEach((id, i) => {
+      const x = startX - i * (chipW + 10); // right to left, like the reading order
       const g = this.add.graphics();
-      g.fillStyle(id ? 0x2f2452 : 0x1f1838, 1);
-      g.fillRoundedRect(-OWNED_CHIP_W / 2, -36, OWNED_CHIP_W, 72, 16);
-      g.lineStyle(3, id ? 0x9c8ad6 : 0x3a3158, 1);
-      g.strokeRoundedRect(-OWNED_CHIP_W / 2, -36, OWNED_CHIP_W, 72, 16);
+      g.fillStyle(0x2f2452, 1);
+      g.fillRoundedRect(-chipW / 2, -36, chipW, 72, 16);
+      g.lineStyle(3, 0x9c8ad6, 1);
+      g.strokeRoundedRect(-chipW / 2, -36, chipW, 72, 16);
       const chip = this.add.container(x, OWNED_Y, [g]);
-      if (id) {
-        const def = getJokerDef(id)!;
-        chip.add(this.add.text(-22, 0, def.icon, { fontSize: "34px" }).setOrigin(0.5));
-        chip.add(arabicText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: "#cfc8e0" }));
-        setBoxHitArea(chip, OWNED_CHIP_W, 72);
-        chip.on("pointerdown", () => this.confirmSell(id));
-      } else {
-        chip.add(arabicText(this, 0, 0, "فاضي", { fontSize: "18px", color: "#5d5480" }));
-      }
+      const def = getJokerDef(id)!;
+      const roomy = chipW >= 100;
+      chip.add(this.add.text(roomy ? -22 : 0, 0, def.icon, { fontSize: "34px" }).setOrigin(0.5));
+      if (roomy) chip.add(arabicText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: "#cfc8e0" }));
+      setBoxHitArea(chip, chipW, 72);
+      chip.on("pointerdown", () => this.confirmSell(id));
       this.ownedLayer.add(chip);
-    }
+    });
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier || x.next)
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)

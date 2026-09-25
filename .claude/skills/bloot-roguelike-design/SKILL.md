@@ -132,11 +132,11 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - القهوجي: winning a doubled hand pays +50% / +100%.
 
 ### 7. التهريب — signalling (skill build)
-- **المترجم** (Payoff): your partner reads every discard of yours (a card from another suit when you can't follow, not a ruff) as "lead me this suit" and answers it the first time they lead.
+- **المترجم**: shows you over each player what their التهريب (and any برقية) asks for. Understanding your signals is normal play, not a joker: your partner comes to your asked suit once it has no winners of its own.
 - **الإشارة الذهبية** (Reward): a hand where your partner led a suit you asked for and your team took that trick is ×1.5 / ×2.
 - **المرسال** (Forge): after the buy, give your partner a card; they give you their best card of that suit. (Replaces the planned "البرقية المضمونة": a swap is clearer to use and builds long suits for signalling.)
 - عين الشريك: see your partner's cards, so you know what to ask for.
-- Synergy: 2 = +2 per answered signal trick; 3 = المترجم free.
+- Synergy: 2 = +2 per answered signal trick; 3 = المترجم free (see every player's signals).
 
 ### 8. العين — the card counter (skill build)
 - **الذاكرة**: a line under your jokers showing how many cards of each suit you haven't seen; level 2 also lists the Aces and 10s still out.
@@ -175,6 +175,78 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - **The hand summary counts the jokers up one at a time**, each lighting its joker, before the match total appears (Mandate 3).
 - **Your hand**: a "🔀 ترتيب" button cycles suit / strongest first / alternating colours, and dragging a card sideways reorders it by hand.
 - **Every joker pick is optional** (a تخطّي button), and picks that would change nothing are greyed out.
+
+## PART 7: Opponents, الديوانية and الحوت
+
+### Opponents bend the game against YOU (src/roguelike/opponents.ts)
+The player's design, like Balatro's boss blinds: an opponent isn't a stronger player with a
+power of its own, it's a rule that changes the game on you (your first Ace scores nothing,
+your projects don't count, الأرض is theirs…). Each rule hits one way of playing, so the
+jokers you gathered make some fights harder and others easier. That is the whole link
+between enemies and items; there is no "own a joker of their family to weaken them"
+mechanic (tried and rejected by the player).
+- **Hidden:** the map never says who is where. You find out as you walk in (a reveal panel
+  with their rule and the way of playing it hurts).
+- **Never impossible:** every rule is measured so a run can beat it without a counter.
+
+| Tier | Opponent | Rule | Margin/hand |
+|---|---|---|---|
+| match | حرّاس الإكك | you can't lead a trick with an Ace or a 10 (unless that's all you hold) | −2.3 |
+| match | ماسحين المشاريع | your projects don't count (بلوت does) | −4.1 |
+| match | أهل الأرض | الأرض's 10 is theirs whoever takes the last trick | −3.1 |
+| match | خاطفين الولد | your trump Jack is the weakest trump (still worth 20) | −2.8 |
+| elite | أهل الحكم | the one on your right is dealt the J and 9 of the ground suit: buy sun or they buy hokum | −4.8 |
+| elite | المدبّلين | a hand you buy and lose counts double for them | −4.4 |
+| boss | أبو قهوة | المدبّلين + حرّاس الإكك | −6.1 |
+| boss | السبّاقين | they start 40 ahead | (fixed) |
+| boss | المعطّل | your strongest joker is off for the match + أهل الأرض | (depends on your row) |
+
+Margins: the rule-based AI in your seat over 1500 hands; with no rule it's −0.8.
+Also rejected: "your first Ace scores nothing" (−2.8, but it's only a smaller score, nothing
+to play around — the player found it dull). A rule should change a decision, not a total.
+Measured and **rejected**: "they double everything you buy" (+5: a buyer who usually makes
+it only gains from a دبل, even when the buyer stays the judged side), "you can't buy sun"
+(≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
+
+### The map branches (src/roguelike/mapgen.ts)
+Like Slay the Spire: 9 rows, 2–3 nodes a row in 3 lanes, each linked to the node above and
+diagonally one way per row (so links never cross). Row 0 is all matches, elites from row 3,
+shops from row 3 (rare), the row before the boss is all shops, then the boss. A match's
+target and gold grow with its row (41 + 10×row, 20 + 3×row). You choose your route: more
+fights for more rewards, a ديوانية for a gamble, an elite for rarer spoils.
+
+### السوا is for everyone
+The سوا button shows whenever you lead; either way the rest plays itself out. Right keeps the
+hand as it falls; **wrong hands the whole hand to the other side** (26 or 16, doubled if
+doubled, plus every project — only your own بلوت stays yours; your jokers' bonuses don't count).
+The السوا joker only adds a bonus on a right call.
+
+### Jokers are relics (no cap)
+Like Slay the Spire's relics there's no limit on how many jokers you hold. The row on the table
+and the chips in the shop shrink to fit. (The جيب زيادة upgrade is gone.)
+
+### الديوانية (src/roguelike/events.ts)
+Map nodes with a short scene and a choice:
+safe, a gamble, or a price now for something later. The events are فنجال المعزّب، الرهان،
+الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
+with the reason, and every event has at least one choice that's always open.
+
+### بركات الحوت (src/roguelike/blessings.ts)
+At the start of the map the whale offers three **blessings** — one free, two stronger ones
+with a price. They're not jokers: they hold for the whole run, never show in a shop, can't be
+sold. The player's taste: no blessing that costs a life, and no shop discount.
+
+| Blessing | Gift | Price |
+|---|---|---|
+| موجة البداية | every match starts 10 ahead | — |
+| قلب الحوت | +1 life | — |
+| كنز الحوت | 100 gold | the shop shows one joker fewer |
+| تاج الحوت | a legendary joker | every match's target +10 |
+| بحر المشاريع | your projects ×2 | you can't buy sun (nor call أشكل) |
+| صيد وفير | match gold ×1.5 | two spoils after a match instead of three |
+| سرب الجوكرات | three commons of one family | your first opponents start 20 ahead |
+
+It appears at the start of the map only (never in the middle).
 
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**
