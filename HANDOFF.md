@@ -14,6 +14,7 @@
 ### The run (src/roguelike/)
 - **Branching map** (`mapgen.ts`): 9 rows × 2–3 nodes in 3 lanes, links never cross; row 0 matches, elites and shops from row 3, a shop row before the boss. Targets/gold grow with the row. `pathTo()` finds a route (used by tests). `RunController.getAvailableNodes()`.
 - **Opponents** (`opponents.ts`): each is a rule bent against YOU (Balatro boss-blind style), hidden on the map, revealed as you walk in. Every rule's difficulty was measured by simulation (match ≈ −3 a hand, elite ≈ −4.5, boss ≈ −6); rejected rules and why are in the design bible PART 7.
+- **العارفين** (match, the doubling opponent the player asked for): before doubling they play the hand out with every card known (`buyerWouldLose` in `src/ai/mcts.ts`) and double exactly the contracts you'd lose — your sun too, at any score. −2.1 a hand; الحكم المقفول stops them completely. Plain "double a lot" was tried many ways and always *helped* the player (a doubled hand is all or nothing and the buyer usually wins) — details in the design bible PART 7.
 - **الديوانية** (`events.ts`): six events with a choice each (safe / gamble / price now, pay-off later).
 - **بركات الحوت** (`blessings.ts`): at the start of the map, three blessings (one free, two with a price). Permanent for the run, not jokers. The player's taste: no blessing costs a life, no shop discount.
 - **Jokers are relics:** no cap (the جيب زيادة upgrade is gone); the table row and shop chips shrink to fit.
@@ -27,7 +28,7 @@
 ## 2. Current Blockers / Open Questions
 - **Balance of the uncapped jokers:** with no cap, the build-makers (شيخ القبيلة، المايسترو، الوايلد) scale further. Watch them in playtests.
 - **Opponent strength for a human:** the margins were measured with the rule-based AI in the player's seat; a real player may find حرّاس الإكك or المدبّلين harder or easier. Retune from playtests.
-- **Hokum doubling** has no score limit (the regulation only limits sun). The player noticed doubles "under 100" — the sun case is fixed; ask if they also want hokum limited.
+- **Hokum doubling** has no score limit (the regulation only limits sun). The player noticed doubles "under 100" — the sun case is fixed; ask if they also want hokum limited. (العارفين doubles your sun at any score on purpose — it's their rule.)
 - **Deploys only from `main` or `claude/gamedev-skills-install-9ybem7`** (`.github/workflows/deploy-pages.yml`). Work on another branch shows up on the page only after its PR is merged.
 
 ## 3. Next Steps (Where to pick up)

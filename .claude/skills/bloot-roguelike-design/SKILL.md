@@ -196,6 +196,7 @@ mechanic (tried and rejected by the player).
 | match | ماسحين المشاريع | your projects don't count (بلوت does) | −4.1 |
 | match | أهل الأرض | الأرض's 10 is theirs whoever takes the last trick | −3.1 |
 | match | خاطفين الولد | your trump Jack is the weakest trump (still worth 20) | −2.8 |
+| match | العارفين | they play the hand out with every card known and double exactly the contracts you'd lose (your sun too, at any score) | −2.1 |
 | elite | أهل الحكم | the one on your right is dealt the J and 9 of the ground suit: buy sun or they buy hokum | −4.8 |
 | elite | المدبّلين | a hand you buy and lose counts double for them | −4.4 |
 | boss | أبو قهوة | المدبّلين + حرّاس الإكك | −6.1 |
@@ -205,9 +206,13 @@ mechanic (tried and rejected by the player).
 Margins: the rule-based AI in your seat over 1500 hands; with no rule it's −0.8.
 Also rejected: "your first Ace scores nothing" (−2.8, but it's only a smaller score, nothing
 to play around — the player found it dull). A rule should change a decision, not a total.
-Measured and **rejected**: "they double everything you buy" (+5: a buyer who usually makes
-it only gains from a دبل, even when the buyer stays the judged side), "you can't buy sun"
-(≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
+Measured and **rejected**: "they double everything you buy" (+5 for you), "they double on a
+lower bar" (+0 to +3), "they double when your hand is weak" (+1 to +5) — even with you kept as
+the judged side. Why: a doubled hand is all or nothing (the winner takes the whole hand ×2),
+and a buyer usually wins, so any double that doesn't truly KNOW you'll lose hands you more.
+Only العارفين (a foreseen play-out) makes doubling a threat — and الحكم المقفول / الوجه البارد
+are its counters, which is why the player wanted them kept. Also rejected: "you can't buy
+sun" (≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
 
 ### The map branches (src/roguelike/mapgen.ts)
 Like Slay the Spire: 9 rows, 2–3 nodes a row in 3 lanes, each linked to the node above and

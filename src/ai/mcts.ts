@@ -235,6 +235,28 @@ function cloneRound(r: Round, hands: Record<Seat, Card[]>): Round {
   return c;
 }
 
+/**
+ * العارفين (an opponent rule): plays the hand out from here with every card known and the
+ * rule-based AI in every seat, undoubled, and says whether the buyer would lose it.
+ */
+export function buyerWouldLose(round: Round): boolean {
+  const sim = cloneRound(round, round.hands);
+  sim.doubling = undefined;
+  sim.phase = "playing";
+  const res = sim.bidding.result!;
+  while (sim.phase === "playing") {
+    const s = sim.turnSeat!;
+    const pick = decideCard(sim.hands[s], sim.currentTrick!, res.mode, res.trumpSuit, s, {
+      tricks: sim.tricks,
+      declarer: res.declarer,
+      ashkalSuits: s === res.ashkal?.groundTo ? res.ashkal.signalSuits : undefined,
+    });
+    sim.playCard(s, pick);
+  }
+  const sheet = sim.result!.sheet;
+  return !!sheet && sheet.judgedTeam === res.declarerTeam && sheet.outcome === "lost";
+}
+
 /** Plays `card` for `seat` in a copy of the round, lets the rule-based AI finish, and returns the margin. */
 function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Card): number {
   const sim = cloneRound(round, hands);
