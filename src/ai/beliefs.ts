@@ -24,7 +24,16 @@ export interface Beliefs {
    * this one, then come back to me in this suit" — the sender holds every trick that's left.
    */
   barqiya: Record<Seat, Suit[]>;
+  /**
+   * A seat that discarded from BOTH suits of one colour (say a هاص then a ديمن) is asking for
+   * the other colour — "ترجع له أسود لأنه عطاك نوعين أحمر" (the player's rule). Lists the two
+   * suits of the wanted colour. It overrides a single small-card ask.
+   */
+  wantsColor: Record<Seat, Suit[]>;
 }
+
+const RED: Suit[] = ["H", "D"];
+const BLACK: Suit[] = ["S", "C"];
 
 const emptyBySuit = (): Record<Suit, boolean> => ({ S: false, H: false, D: false, C: false });
 
@@ -35,7 +44,9 @@ export function buildBeliefs(tricks: Trick[], current: Trick | undefined, mode: 
     wants: { 0: [], 1: [], 2: [], 3: [] },
     rejects: { 0: [], 1: [], 2: [], 3: [] },
     barqiya: { 0: [], 1: [], 2: [], 3: [] },
+    wantsColor: { 0: [], 1: [], 2: [], 3: [] },
   };
+  const discarded: Record<Seat, Set<Suit>> = { 0: new Set(), 1: new Set(), 2: new Set(), 3: new Set() };
   for (const trick of current ? [...tricks, current] : tricks) {
     if (trick.order.length === 0) continue;
     const led = trick.cards[trick.order[0]]!.suit;
@@ -53,10 +64,15 @@ export function buildBeliefs(tricks: Trick[], current: Trick | undefined, mode: 
           return;
         }
       }
+      discarded[seat].add(card.suit);
       const small = card.rank === "7" || card.rank === "8";
       const list = small && mode === "sun" ? beliefs.wants[seat] : beliefs.rejects[seat];
       if (!list.includes(card.suit)) list.push(card.suit);
     });
+  }
+  for (const seat of [0, 1, 2, 3] as Seat[]) {
+    if (RED.every((x) => discarded[seat].has(x))) beliefs.wantsColor[seat] = [...BLACK];
+    else if (BLACK.every((x) => discarded[seat].has(x))) beliefs.wantsColor[seat] = [...RED];
   }
   return beliefs;
 }

@@ -78,11 +78,13 @@ export function searchVerdict(round: Round, seat: Seat, opts: SearchOptions = {}
   const rand = opts.rand ?? Math.random;
   const res = round.bidding.result!;
   const ctx: PlayContext = opts.ctx ?? { tricks: round.tricks, declarer: res.declarer, closed: round.closed };
-  const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
+  const probe: PlayContext = { ...ctx, followedConvention: false };
+  const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, probe);
   const legal = round.legalMovesFor(seat);
   if (legal.length <= 1) return { choice: legal[0] ?? ruleChoice };
-  // A partner's برقية (or المترجم's ask) is a convention, not a calculation: answer it.
-  if (followsConvention(round, seat, ctx)) return { choice: ruleChoice };
+  // Answering the partner (a برقية, a signal, his hokum, the brother suit) is a convention, not a
+  // calculation: the search keeps the rule AI's lead.
+  if (probe.followedConvention) return { choice: ruleChoice };
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
   if (candidates.length === 1) return { choice: candidates[0] };
@@ -115,18 +117,6 @@ export function searchVerdict(round: Round, seat: Seat, opts: SearchOptions = {}
 }
 
 // ------------------------------------------------------------------ the player's rules
-
-/** The partner sent a برقية (or you asked through المترجم) and this seat is leading: follow it. */
-function followsConvention(round: Round, seat: Seat, ctx: PlayContext): boolean {
-  const trick = round.currentTrick!;
-  if (trick.order.length !== 0) return false;
-  const res = round.bidding.result!;
-  const partner = ((seat + 2) % 4) as Seat;
-  const beliefs = buildBeliefs(round.tricks, trick, res.mode, res.trumpSuit);
-  const hand = round.hands[seat];
-  const asked = [...beliefs.barqiya[partner], ...(ctx.partnerAsks ?? [])];
-  return asked.some((suit) => hand.some((c) => c.suit === suit));
-}
 
 /**
  * Never feed an Ace to a partner who's winning, and never throw an Ace away when you can't
@@ -358,7 +348,7 @@ export function worldLikelihood(round: Round, me: Seat, world: Record<Seat, Card
 // ------------------------------------------------------------------ playing a guess out
 
 /** A copy of the round with `hands` in place of the real ones. Nothing is shared with the real game. */
-function cloneRound(r: Round, hands: Record<Seat, Card[]>): Round {
+export function cloneRound(r: Round, hands: Record<Seat, Card[]>): Round {
   const c = Object.assign(Object.create(Round.prototype), r) as Round;
   c.hands = { 0: [...hands[0]], 1: [...hands[1]], 2: [...hands[2]], 3: [...hands[3]] };
   c.tricks = r.tricks.map((t) => ({ ...t, cards: { ...t.cards }, order: [...t.order] }));

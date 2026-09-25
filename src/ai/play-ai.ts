@@ -20,12 +20,22 @@ export interface PlayContext {
   partnerAsks?: Suit[];
   /** When given, each decision adds a one-line reason (Arabic) — for the AI exam, not for play. */
   explain?: string[];
+  /**
+   * Set by the AI when its lead answered the partner by convention (a برقية, a signal, the
+   * partner's hokum, the brother suit). The search AI never overrides such a lead.
+   */
+  followedConvention?: boolean;
 }
 
 const name = (c: Card) => `${RANK_NAME_AR[c.rank]} ${SUIT_NAME_AR[c.suit]}`;
 function note(ctx: PlayContext | undefined, card: Card, why: string): Card {
   ctx?.explain?.push(why);
   return card;
+}
+/** A lead that answers the partner by convention: noted, and marked so the search keeps it. */
+function convention(ctx: PlayContext | undefined, card: Card, why: string): Card {
+  if (ctx) ctx.followedConvention = true;
+  return note(ctx, card, why);
 }
 
 /**
@@ -170,16 +180,31 @@ function chooseLead(
 
   // The partner sent a برقية: they hold the rest — give them the lead in that suit.
   for (const suit of beliefs.barqiya[partner]) {
-    if (by[suit].length > 0) return note(ctx, lowest(by[suit]), `خويي أرسل برقية في ${SUIT_NAME_AR[suit]} — يعني الباقي كله عنده، أرجع له بأصغر ${SUIT_NAME_AR[suit]}.`);
+    if (by[suit].length > 0) return convention(ctx, lowest(by[suit]), `خويي أرسل برقية في ${SUIT_NAME_AR[suit]} — يعني الباقي كله عنده، أرجع له بأصغر ${SUIT_NAME_AR[suit]}.`);
   }
   // المترجم: answer the partner's last signal first.
   for (const suit of ctx?.partnerAsks ?? []) {
-    if (by[suit].length > 0) return note(ctx, lowest(by[suit]), `المترجم: خويي هرّب ${SUIT_NAME_AR[suit]} — ألعب له منه.`);
+    if (by[suit].length > 0) return convention(ctx, lowest(by[suit]), `المترجم: خويي هرّب ${SUIT_NAME_AR[suit]} — ألعب له منه.`);
+  }
+
+  // The partner discarded from both suits of one colour: he wants the other colour. Of those
+  // suits, prefer one the opponents have been throwing away (they're weak there).
+  const colour = beliefs.wantsColor[partner].filter((s) => by[s].length > 0 && !opponentsCanRuff(s));
+  if (colour.length > 0) {
+    const oppThrew = (s: Suit) => opponents.some((o) => beliefs.rejects[o].includes(s) || beliefs.wants[o].includes(s));
+    const suit = maxBy(colour, (s) => (oppThrew(s) ? 100 : 0) + by[s].length);
+    const other = beliefs.wantsColor[partner].map((x) => SUIT_NAME_AR[x]).join(" أو ");
+    return convention(ctx, lowest(by[suit]), `خويي هرّب من اللونين الثانيين (نوعين ${suit === "S" || suit === "C" ? "أحمر" : "أسود"}) — يبي ${other}. أرجع له ${SUIT_NAME_AR[suit]}${oppThrew(suit) ? "، والخصم يرمي منه (ضعيف فيه)" : ""}.`);
   }
 
   if (mode === "hokum" && trumpSuit) {
     const trumps = by[trumpSuit];
     const opponentsOutOfTrump = opponents.every((o) => beliefs.voids[o][trumpSuit]);
+    // خويي مشتري حكم والحلة عندي: ألعب حكم أول شيء، أكبر شيء عندي (the player's rule).
+    if (ctx?.declarer === partner && trumps.length > 0 && !opponentsOutOfTrump && outstanding(beliefs, hand, trumpSuit).length > 0) {
+      const top = maxBy(trumps, (c) => rankStrength(c, mode, trumpSuit));
+      return convention(ctx, top, `خويي مشتري حكم ${SUIT_NAME_AR[trumpSuit]} — ألعب له حكم أول شيء وبأكبر حكم عندي (${name(top)}) أساعده يسحب حكم الخصم.`);
+    }
     const ourContract = ctx?.declarer !== undefined && teamOf(ctx.declarer) === teamOf(seat);
     // سحب الحكم: the buying side pulls trumps with the top trump while opponents may still hold some.
     if (ourContract && !opponentsOutOfTrump && trumps.length >= 2) {
@@ -196,7 +221,37 @@ function chooseLead(
   for (const suit of [...(ctx?.ashkalSuits ?? []), ...beliefs.wants[partner]]) {
     if (by[suit].length > 0 && !opponentsCanRuff(suit)) {
       const how = ctx?.ashkalSuits?.includes(suit) ? "بالأشكل" : "بتهريب ورقة صغيرة";
-      return note(ctx, lowest(by[suit]), `خويي طلب ${SUIT_NAME_AR[suit]} ${how} — ألعب له بأصغر ${SUIT_NAME_AR[suit]} عشان ياكلها هو.`);
+      return convention(ctx, lowest(by[suit]), `خويي طلب ${SUIT_NAME_AR[suit]} ${how} — ألعب له بأصغر ${SUIT_NAME_AR[suit]} عشان ياكلها هو.`);
+    }
+  }
+
+  // الحلة: the suit the partner led is usually the one he wants — return it, with the highest
+  // card you have in it (the player's rule). Not the brother suit: that's تهريب, not a lead.
+  const hisLead = [...(ctx?.tricks ?? [])].reverse().find((t) => t.leader === partner);
+  if (hisLead) {
+    const led = hisLead.cards[partner]!.suit;
+    if (by[led].length > 0 && !opponentsCanRuff(led) && !(mode === "hokum" && led === trumpSuit)) {
+      const top = maxBy(by[led], (c) => rankStrength(c, mode, trumpSuit));
+      return convention(ctx, top, `خويي حل ${SUIT_NAME_AR[led]} — يعني غالباً يبيه. أرجع له ${SUIT_NAME_AR[led]} بأكبر ورقة عندي (${name(top)}).`);
+    }
+  }
+
+  // أول حلة في الصن: لا تصرف الإكة — اطلع برا اللعب بصغيرة من لون ما فيه إكة، وخلّ الإكك
+  // مداخل لبعدين. Measured (scripts/deep-analysis.ts, 200 hands × 40 deals per buyer): better than
+  // cashing an Ace by +1.4 ± 0.4 (you bought), +0.9 ± 0.4 (partner), +1.4 ± 0.3 (opponent).
+  // The exception is السرد: five sure winners in a row from the Ace (A 10 K Q J) — then cash
+  // and run it (measured: clearly best in every buyer case; with 2–4 in a row it's a toss-up).
+  const SUN_TOP: Card["rank"][] = ["A", "10", "K", "Q", "J", "9", "8", "7"];
+  const topRun = (suit: Suit) => {
+    let n = 0;
+    while (n < SUN_TOP.length && by[suit].some((c) => c.rank === SUN_TOP[n])) n++;
+    return n;
+  };
+  if (mode === "sun" && (ctx?.tricks.length ?? 0) === 0 && !SUITS.some((suit) => topRun(suit) >= 5)) {
+    const outside = hand.filter((c) => !by[c.suit].some((x) => x.rank === "A"));
+    if (outside.length > 0 && hand.some((c) => c.rank === "A")) {
+      const card = lowest(outside);
+      return note(ctx, card, `أول حلة: ما أصرف الإكة وأخسر قوتي — أطلع برا اللعب بـ${name(card)} من لون ما فيه إكة، والإكك تبقى مداخل لبعدين.`);
     }
   }
 
@@ -205,7 +260,7 @@ function chooseLead(
   if (bosses.length > 0) {
     // Run the longest suit first — تسييل السرد (§5): strip, then keep leading it.
     const card = maxBy(bosses, (c) => by[c.suit].length * 100 + cardPoints(c, mode, trumpSuit));
-    return note(ctx, card, `${name(card)} أكبر ورقة باقية في ${SUIT_NAME_AR[card.suit]} ومحد يقطعها — أصرفها، وأبدأ بأطول لون عندي (${by[card.suit].length} أوراق) عشان أسيّله (السرد).`);
+    return note(ctx, card, `${name(card)} أكبر ورقة باقية في ${SUIT_NAME_AR[card.suit]} ومحد يقطعها — آكل اللي عندي أول، وأبدأ بأطول لون عندي (${by[card.suit].length} أوراق) عشان أسيّله (السرد).`);
   }
 
   // Otherwise lead low from the longest suit that no opponent can ruff and the partner hasn't rejected.

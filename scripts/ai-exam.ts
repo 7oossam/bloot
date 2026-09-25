@@ -42,7 +42,9 @@ const out: string[] = [
 for (const q of EXAM) {
   const started = Date.now();
   const report = runExam(q, { hands, worlds });
-  out.push(`## ${q.question}`, "", "**كيف قريت السؤال:**", ...q.assumptions.map((a) => `- ${a}`), "");
+  out.push(`## ${q.question}`, "");
+  if (q.answer) out.push(`> **جواب اللاعب:** ${q.answer}`, "");
+  out.push("**كيف قريت السؤال:**", ...q.assumptions.map((a) => `- ${a}`), "");
   if (report.single) {
     const { pos, result } = report.single;
     out.push(`**اللعب:** ${contract(pos)} — **يدك:** ${handText(pos)}`, "", ...answers(result), "");

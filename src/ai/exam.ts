@@ -1,8 +1,8 @@
-import { cardId } from "../engine/cards";
+import { cardId, rankStrength } from "../engine/cards";
 import { resolveProjects } from "../engine/projects";
 import { Round } from "../engine/round";
 import { resolveTrick } from "../engine/trick";
-import { RANKS, SUITS, teamOf, type BiddingResult, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
+import { RANKS, SUITS, teamOf, type Bid, type BiddingResult, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
 import { mulberry32 } from "../engine/rng";
 import { RANK_NAME_AR, SUIT_NAME_AR } from "../scenes/cardArt";
 import { decideCard, type PlayContext } from "./play-ai";
@@ -32,12 +32,16 @@ export interface ExamPosition {
   tricks: Array<{ leader: Seat; cards: Card[] }>;
   /** Your cards now. */
   hand: Card[];
+  /** The auction as it went (legal from the dealer's right). Guessed deals must explain it. */
+  bids?: Bid[];
 }
 
 export interface ExamQuestion {
   id: string;
   /** The question as the player asked it. */
   question: string;
+  /** The player's own answer, shown beside the AIs'. */
+  answer?: string;
   /** How the question was read into a table position. */
   assumptions: string[];
   /** A fixed position, or a generator of positions that fit the question (hands left open). */
@@ -52,7 +56,7 @@ export function buildRound(pos: ExamPosition, rand: () => number): Round | undef
   const dealer = ((firstLeader + 3) % 4) as Seat;
   const r = new Round(dealer, rand);
   const result: BiddingResult = { mode: pos.mode, trumpSuit: pos.trumpSuit, declarer: pos.declarer, declarerTeam: teamOf(pos.declarer), history: [] };
-  r.bidding = { ...r.bidding, groundCard: pos.ground, result };
+  r.bidding = { ...r.bidding, groundCard: pos.ground, result, history: pos.bids ?? [] };
   (r.initial.stock as Card[])[0] = pos.ground;
   r.phase = "playing";
   r.tricks = [];
@@ -143,80 +147,74 @@ export const EXAM: ExamQuestion[] = [
   {
     id: "q1",
     question: "إذا خويك حل بنت هاص وانت أكلت، وش تحل له؟",
+    answer: "ترجع له هاص بأكبر ورقة عندك: الحلة معناها غالباً إنه يبي هذا النوع. (أحياناً يحل الواحد الشي اللي ما يبيه لأن باقي يده قوية، يخلّصه ويضمن الباقي.)",
     assumptions: [
       "صن (السؤال ما حدد نوع اللعب)، والمشتري خويك.",
       "الأكلة الأولى: خويك حل بنت هاص، اللي قبلك نزّل ثمانية هاص، أنت أكلت بالإكة، واللي بعدك نزّل تسعة هاص.",
-      "باقي ورقك (٧ أوراق) عشوائي — نعرض كم مرة يختار كل نوع جواب على ٢٠٠ يد، ومع أمثلة.",
+      "باقي ورقك (٧ أوراق) عشوائي وفيه هاص — نعرض كم مرة يختار كل نوع جواب، ومع أمثلة.",
     ],
     position: (rand) => {
       const t1 = [C("QH"), C("8H"), C("AH"), C("9H")]; // partner (2) leads, 3, you (0), 1
       const ground = C("KD");
-      const hand = dealRest(rand, [...t1, ground], 7);
+      const hand = dealRest(rand, [...t1, ground], 7, (h) => h.some((c) => c.suit === "H"));
       if (!hand) return undefined;
       return { mode: "sun", declarer: 2, ground, tricks: [{ leader: 2, cards: t1 }], hand };
     },
-    classify: (card) => (card.suit === "H" ? "رجّع له هاص" : card.rank === "A" ? "صرف إكة من لون ثاني" : "لعب لون ثاني"),
-  },
-  {
-    id: "q2-sun",
-    question: "إذا اللعب عندك وفي يدك سرا سبيت ولد، وعشرة ديمن وشايب ديمن، وأكة سبيت وشايب سبيت وثمانية سبيت — وش تحل؟ (صن)",
-    assumptions: [
-      "\"سرا سبيت ولد\" = تسعة وعشرة وولد سبيت، و\"أمة سبيت\" قرأتها إكة سبيت (م جنب ك في الكيبورد).",
-      "يدك: ٨ ٩ ١٠ ولد شايب إكة سبيت + عشرة وشايب ديمن. (الثمانية تكمّل التسعة والعشرة والولد، فالمحرك يعدّها خمسين).",
-      "صن، وأنت المشتري وعندك الحلة (أول أكلة).",
-    ],
-    position: {
-      mode: "sun",
-      declarer: 0,
-      ground: C("KD"),
-      tricks: [],
-      hand: ["8S", "9S", "10S", "JS", "KS", "AS", "10D", "KD"].map(C),
+    classify: (card, pos) => {
+      if (card.suit !== "H") return "لون ثاني";
+      const hearts = pos.hand.filter((c) => c.suit === "H");
+      return hearts.every((c) => rankStrength(c, "sun") <= rankStrength(card, "sun")) ? "✔ رجّع هاص بأكبر ورقة" : "رجّع هاص بورقة صغيرة";
     },
-    classify: (card) => cardName(card),
   },
-  {
-    id: "q2-hokum",
-    question: "نفس اليد — لو اشتريتها حكم سبيت، وش تحل؟",
-    assumptions: ["حكم سبيت، وأنت المشتري وعندك الحلة. ورقة الأرض كانت تسعة سبيت (صارت عندك)."],
-    position: {
-      mode: "hokum",
-      trumpSuit: "S",
-      declarer: 0,
-      ground: C("9S"),
-      tricks: [],
-      hand: ["8S", "9S", "10S", "JS", "KS", "AS", "10D", "KD"].map(C),
-    },
-    classify: (card) => cardName(card),
-  },
+  ...(["me", "partner", "them"] as const).map((who): ExamQuestion => {
+    const seat: Seat = who === "me" ? 0 : who === "partner" ? 2 : 1;
+    const hand = ["AS", "KS", "QS", "10H", "QH", "7H", "AD", "8C"].map(C);
+    const ground = who === "me" ? C("8C") : C("JC");
+    return {
+      id: `q2-${who}`,
+      question: `الحلة عندك وورقك إكة شايب بنت سبيت، عشرة بنت سبعة هاص، إكة ديمن — وش تحل؟ (${who === "me" ? "أنت اللي شريت صن" : who === "partner" ? "خويك شرا صن" : "الخصم شرا صن"})`,
+      answer:
+        who === "me"
+          ? "أنت المشتري: خسارتها ونجاحها مسؤوليتك — العب قوتك (السبيت: عندك سرا للإكة، ولو طاحت العشرة تاكل السبيت كله). فيه ناس يفضلون يطلعون برا اللعب."
+          : who === "partner"
+            ? "خويك المشتري: تاكل اللي عندك وترجع له — بس انتبه: لو لعبت الإكتين خلصت قوتك (شف التحليل العميق)."
+            : "الخصم المشتري: تحاول تخسّرها. عندك ثلاث أنواع قوية (السبيت، إكة الديمن، عشرة الهاص)، فالمشتري أكيد عنده إما إكة الهاص والشرية، أو إكة الشرية وسرد بعدها.",
+      assumptions: [
+        "يدك في السؤال ٧ أوراق؛ أضفت ثمانية شرية كثامنة (التحليل العميق يجرب غيرها).",
+        who === "me" ? "صن، أنت اشتريت وعندك الحلة." : who === "partner" ? "صن، خويك اشترى (ورقة الأرض ولد شرية عنده) والحلة عندك." : "صن، اللي بعدك اشترى (ورقة الأرض ولد شرية عنده) والحلة عندك.",
+      ],
+      position: { mode: "sun", declarer: seat, ground, tricks: [], hand },
+      classify: (card) => cardName(card),
+    };
+  }),
   {
     id: "q3",
     question: "إذا خويك حكم هاص والحلة عندك، وش تلعب؟",
+    answer: "تلعب هاص أول شي، وأكبر شي عندك.",
     assumptions: [
       "حكم هاص في الدورة الأولى، المشتري خويك، وورقة الأرض (هاص) صارت عنده.",
-      "أنت أول من يلعب (الحلة عندك). يدك عشوائية — نعرض كم مرة يختار كل نوع جواب على ٢٠٠ يد، ومع أمثلة.",
+      "أنت أول من يلعب. يدك عشوائية وفيها هاص — نعرض كم مرة يختار كل نوع جواب، ومع أمثلة.",
     ],
     position: (rand) => {
       const ground = C("10H");
-      const hand = dealRest(rand, [ground], 8);
+      const hand = dealRest(rand, [ground], 8, (h) => h.some((c) => c.suit === "H"));
       if (!hand) return undefined;
       return { mode: "hokum", trumpSuit: "H", declarer: 2, ground, tricks: [], hand };
     },
-    classify: (card, pos) =>
-      card.suit === pos.trumpSuit
-        ? card.rank === "J" || card.rank === "9"
-          ? "حكم كبير (ولد/تسعة) لخويه"
-          : "حكم صغير لخويه"
-        : card.rank === "A"
-          ? "إكة من لون ثاني"
-          : "ورقة صغيرة من لون ثاني",
+    classify: (card, pos) => {
+      if (card.suit !== "H") return card.rank === "A" ? "إكة من لون ثاني" : "ورقة من لون ثاني";
+      const trumps = pos.hand.filter((c) => c.suit === "H");
+      return trumps.every((c) => rankStrength(c, "hokum", "H") <= rankStrength(card, "hokum", "H")) ? "✔ حكم بأكبر ورقة" : "حكم بورقة صغيرة";
+    },
   },
   {
     id: "q4",
     question: "إذا خويك هرّب لك بنت هاص، بعدين سبعة ديمن، بعدين تسعة ديمن — وش ترجع له؟",
+    answer: "ترجع له أسود، لأنه عطاك نوعين أحمر. بس برضه يعتمد على اللي شرا والخصم وش قاعدين يرمون.",
     assumptions: [
-      "صن (التهريب بالصغار أوضح في الصن)، والمشتري خويك. \"بنت خاص\" قرأتها بنت هاص.",
+      "صن، والمشتري خويك. \"بنت خاص\" قرأتها بنت هاص.",
       "ثلاث أكلات شرية وخويك فاضي منها: هرّب بنت هاص، ثم سبعة ديمن، ثم تسعة ديمن. أنت أكلت الثالثة بعشرة الشرية وصار اللعب عندك.",
-      "باقي ورقك (٥ أوراق) عشوائي، بس فيه هاص وديمن عشان يكون فيه اختيار — نعرض النسب على ٢٠٠ يد، ومع أمثلة.",
+      "باقي ورقك (٥ أوراق) عشوائي، وفيه سبيت (أسود) وأحمر عشان يكون فيه اختيار.",
     ],
     position: (rand) => {
       const t1 = [C("AC"), C("QH"), C("7C"), C("8C")]; // 1 leads, partner discards, 3, you
@@ -226,7 +224,7 @@ export const EXAM: ExamQuestion[] = [
       if (!seat3) return undefined;
       const t3 = [...t3first, seat3[0], C("10C")];
       const ground = C("KS");
-      const hand = dealRest(rand, [...t1, ...t2, ...t3, ground], 5, (h) => h.some((c) => c.suit === "H") && h.some((c) => c.suit === "D") && !h.some((c) => c.suit === "C"));
+      const hand = dealRest(rand, [...t1, ...t2, ...t3, ground], 5, (h) => h.some((c) => c.suit === "S") && h.some((c) => c.suit === "H" || c.suit === "D") && !h.some((c) => c.suit === "C"));
       if (!hand) return undefined;
       return {
         mode: "sun",
@@ -240,7 +238,7 @@ export const EXAM: ExamQuestion[] = [
         hand,
       };
     },
-    classify: (card) => (card.suit === "D" ? "رجّع له ديمن" : card.suit === "H" ? "لعب هاص" : "لون ثاني"),
+    classify: (card) => (card.suit === "S" || card.suit === "C" ? "✔ رجّع له أسود" : card.suit === "D" ? "رجّع ديمن" : "رجّع هاص"),
   },
 ];
 

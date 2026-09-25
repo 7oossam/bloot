@@ -211,7 +211,8 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
   });
 
   it("cashes a sure winner from its longest suit when leading (تسييل السرد)", () => {
-    const chosen = decideCard(cards("AS", "KS", "QS", "JS", "7H", "8D"), trickOf(0), "sun", undefined, 0, { tricks: [] });
+    // Five sure winners in a row from the Ace: run them, even on the first lead.
+    const chosen = decideCard(cards("AS", "10S", "KS", "QS", "JS", "7H", "8D"), trickOf(0), "sun", undefined, 0, { tricks: [] });
     expect(chosen).toEqual(c("AS"));
   });
 
@@ -258,5 +259,46 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
       ashkalSuits: ["D"],
     });
     expect(chosen.suit).toBe("D");
+  });
+});
+
+describe("the player's lead rules (answers to the AI exam)", () => {
+  const K = (s: string): Card => ({ suit: s.slice(-1) as Card["suit"], rank: s.slice(0, -1) as Card["rank"] });
+  const done = (leader: Seat, cards: string[], winner: Seat): Trick => {
+    const t: Trick = { leader, cards: {}, order: [], winner };
+    cards.forEach((c, i) => {
+      const seat = ((leader + i) % 4) as Seat;
+      t.cards[seat] = K(c);
+      t.order.push(seat);
+    });
+    return t;
+  };
+  const lead = (leader: Seat): Trick => ({ leader, cards: {}, order: [] });
+
+  it("الحلة: the partner led هاص and you took it — return هاص with your highest card", () => {
+    const tricks = [done(2, ["QH", "8H", "AH", "9H"], 0)];
+    const hand = ["10H", "7H", "AS", "KS", "8D", "9C", "7C"].map(K);
+    const card = decideCard(hand, lead(0), "sun", undefined, 0, { tricks, declarer: 2 });
+    expect(card).toEqual(K("10H"));
+  });
+
+  it("two red suits discarded by the partner: return black", () => {
+    const tricks = [done(1, ["AC", "QH", "7C", "8C"], 1), done(1, ["KC", "7D", "JC", "QC"], 1), done(1, ["9C", "9D", "7S", "10C"], 0)];
+    const hand = ["AH", "8H", "10S", "9S", "QD"].map(K);
+    const card = decideCard(hand, lead(0), "sun", undefined, 0, { tricks, declarer: 2 });
+    expect(card.suit).toBe("S");
+  });
+
+  it("the partner bought hokum and you lead: trump first, your highest", () => {
+    const hand = ["9H", "7H", "AS", "KS", "8D", "9C", "7C", "QD"].map(K);
+    const card = decideCard(hand, lead(0), "hokum", "H", 0, { tricks: [], declarer: 2 });
+    expect(card).toEqual(K("9H"));
+  });
+
+  it("first lead in sun: don't cash the Ace — go outside with a low card from a suit without one", () => {
+    const hand = ["AS", "KS", "QS", "10H", "QH", "7H", "AD", "8C"].map(K);
+    const card = decideCard(hand, lead(0), "sun", undefined, 0, { tricks: [], declarer: 0 });
+    expect(card.rank).not.toBe("A");
+    expect(hand.some((c) => c.suit === card.suit && c.rank === "A")).toBe(false);
   });
 });

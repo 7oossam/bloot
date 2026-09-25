@@ -51,5 +51,12 @@ Ground rules when working on the game:
    "come back to me in this suit", sent only when every card left is a sure winner. Keep
    Aces and sure winners in hand as entries; don't throw them away. Read a partner's برقية
    and lead that suit back.
-10. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+10. **The player's lead rules (from the AI exam, `docs/ai-exam.md`; each measured in `docs/ai-deep-analysis.md`):**
+   - **الحلة ≠ التهريب.** The suit the partner **led** is usually the one he wants: when you get the lead, return it with your **highest** card in it (not the brother suit — that was a mix-up with تهريب). Returning it beats cashing your own winners first (+1.5 ± 0.4). A player sometimes leads what he doesn't want because the rest of his hand is strong — the AI can't tell, so it returns the suit.
+   - **Two suits of one colour discarded** by the partner (a هاص then a ديمن) = he wants the other colour: return black (which black depends on what the buyer / opponents are throwing). Beats returning ديمن by +1.3 ± 0.4.
+   - **Partner bought hokum and you lead:** trump first, your highest (the player's rule; the simulations call the lead options close to equal).
+   - **First lead in sun: don't cash the Ace** — go outside with a low card from a suit without an Ace, and keep the Aces as entries (+0.9 to +1.4 ± 0.4 whoever bought). **Except السرد:** five sure winners in a row from the Ace (A 10 K Q J) — cash and run them.
+   - Who bought changes the plan: if you bought, the result is yours — play your strength; if the partner bought, don't burn your entries before returning to him; if the opponents bought, play to break it (their strength must be where yours isn't).
+   - The search AI never overrides a lead that answers the partner (برقية, a signal, his hokum, his led suit): `followedConvention` in `src/ai/play-ai.ts`.
+11. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.
