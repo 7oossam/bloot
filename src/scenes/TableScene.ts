@@ -435,7 +435,9 @@ export class TableScene extends Phaser.Scene {
   private buildJokerRow(): void {
     const state = runController.getState();
     const ids = state.jokerIds;
-    const startX = CENTER_X - ((ids.length - 1) * JOKER_GAP) / 2;
+    // No cap on jokers: past ten the row tightens to stay on the screen.
+    const gap = Math.min(JOKER_GAP, (WIDTH - 60) / Math.max(ids.length, 1));
+    const startX = CENTER_X - ((ids.length - 1) * gap) / 2;
     ids.forEach((id, i) => {
       const def = getJokerDef(id);
       if (!def) return;
@@ -456,7 +458,8 @@ export class TableScene extends Phaser.Scene {
       if (def.levels.length > 1) {
         parts.push(arabicText(this, JOKER_ICON / 2 - 12, JOKER_ICON / 2 - 12, String(level), { fontSize: "18px", color: "#ffd54a", fontStyle: "bold" }));
       }
-      const box = this.add.container(startX + i * JOKER_GAP, JOKER_ROW_Y, parts).setDepth(21);
+      const box = this.add.container(startX + i * gap, JOKER_ROW_Y, parts).setDepth(21);
+      if (gap < JOKER_GAP) box.setScale(gap / JOKER_GAP);
       setBoxHitArea(box, JOKER_ICON, JOKER_ICON);
       box.input!.cursor = "pointer";
       box.on("pointerdown", () => this.toggleJokerTip(id));
@@ -646,8 +649,8 @@ export class TableScene extends Phaser.Scene {
     this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
-      const ok = this.controller.claimSawa();
-      if (!ok) return; // still your turn: play a card as usual
+      // Right or wrong, the hand plays itself out from here.
+      this.controller.claimSawa();
       for (const v of this.playerHandViews) {
         v.off("pointerdown");
         v.off("dragstart");

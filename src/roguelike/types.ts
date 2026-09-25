@@ -16,15 +16,6 @@ export interface MapNode {
   event?: string;
 }
 
-/** One of الحوت's gifts at the start of a run. */
-export interface Blessing {
-  kind: "rare" | "pair" | "gold" | "cursed";
-  /** The jokers it gives (none for gold). */
-  items: string[];
-  gold: number;
-  /** Lives it costs (the cursed gift). */
-  lifeCost: number;
-}
 
 export interface RunState {
   seed: number;
@@ -35,8 +26,6 @@ export interface RunState {
   jokerIds: string[];
   /** Level of each owned joker (1 when first bought). */
   jokerLevels: Record<string, number>;
-  /** Joker slots this run (base plus the جيب زيادة upgrade). */
-  maxJokers: number;
   /** How many jokers a shop puts on the shelf this run. */
   shopSlots: number;
   /** What a reroll costs at the start of each shop visit. */
@@ -67,8 +56,10 @@ export interface RunState {
   shopStock: string[];
   /** Price of the next reroll in the current shop visit; goes up each time. */
   rerollCost: number;
-  /** الحوت's offer before the first node; cleared once one is taken. */
-  blessing?: Blessing[];
+  /** الحوت's offer (blessing ids) before the first node; cleared once one is taken. */
+  blessing?: string[];
+  /** The blessings this run holds (src/roguelike/blessings.ts). */
+  blessings: string[];
   cleared: boolean[]; // parallel to nodes: true once that node is resolved
   over: boolean; // run ended (won or lost)
   won: boolean;
@@ -76,7 +67,6 @@ export interface RunState {
 
 export const STARTING_LIVES = 3;
 export const STARTING_GOLD = 5;
-export const MAX_JOKERS = 4;
 export const MAX_LIVES = 5;
 export const REROLL_BASE_COST = 3;
 export const REROLL_STEP = 2;

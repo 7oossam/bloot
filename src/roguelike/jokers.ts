@@ -623,17 +623,6 @@ export const CONSUMABLE_CATALOG: ShopItemDef[] = [
 /** Run upgrades — what used to be bought with glory in الديوانية, now bought with gold. */
 export const UPGRADE_CATALOG: ShopItemDef[] = [
   {
-    id: "joker-slot",
-    kind: "upgrade",
-    name: "جيب زيادة",
-    icon: "🎒",
-    levels: ["+1 خانة جوكر.", "+1 خانة ثانية."],
-    cost: 30,
-    costs: [30, 45],
-    rarity: "rare",
-    tags: [],
-  },
-  {
     id: "shop-slot",
     kind: "upgrade",
     name: "بسطة أكبر",
@@ -856,7 +845,7 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   // ---- الكبوت
   const kabootTier = tier("كبوت");
   const sawa = pick("sawa", [6, 10, 15]);
-  if (sawa) o.sawa = { bonus: sawa, penalty: 6 };
+  if (sawa) o.sawa = { bonus: sawa };
   const crawl = pick("crawl", [1, 2]);
   if (crawl) o.streakBonus = crawl;
   if (kabootTier >= 1) o.kabootBonus = { points: 10, gold: 0 };

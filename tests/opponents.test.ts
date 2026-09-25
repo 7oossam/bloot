@@ -12,8 +12,9 @@ import { EVENTS, getEvent } from "../src/roguelike/events";
 import { getJokerDef } from "../src/roguelike/jokers";
 import { generateMap, pathTo } from "../src/roguelike/mapgen";
 import { getOpponent } from "../src/roguelike/opponents";
-import { BLESSING_GOLD, runController } from "../src/roguelike/RunController";
-import { STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
+import { runController } from "../src/roguelike/RunController";
+import { CROWN_TARGET, getBlessing, TREASURE_GOLD } from "../src/roguelike/blessings";
+import { STARTING_GOLD } from "../src/roguelike/types";
 
 const c = (s: string): Card => ({ suit: s.slice(-1) as Card["suit"], rank: s.slice(0, -1) as Card["rank"] });
 const trickOf = (leader: Seat, plays: string[], rules?: Trick["rules"]): Trick => {
@@ -146,29 +147,89 @@ describe("the run: opponents, الديوانية and الحوت", () => {
 
   beforeEach(() => runController.startNewRun(77));
 
+  /** Offers exactly this blessing, and takes it. */
+  const bless = (id: string) => {
+    (runController.getState() as { blessing?: string[] }).blessing = [id];
+    runController.takeBlessing(0);
+  };
+
   it("المعطّل picks your rarest joker", () => {
-    runController.takeBlessing(3); // a legendary
+    bless("crown"); // a legendary
     const legendary = runController.getState().jokerIds[0];
+    expect(getJokerDef(legendary)!.rarity).toBe("legendary");
     expect(runController.strongestJoker()).toBe(legendary);
   });
 
-  it("الحوت offers four gifts, and each gives what it says", () => {
-    const offers = runController.getState().blessing!;
-    expect(offers.map((o) => o.kind)).toEqual(["rare", "pair", "gold", "cursed"]);
-    expect(getJokerDef(offers[0].items[0])!.rarity).toBe("rare");
-    runController.takeBlessing(3);
-    const s = runController.getState();
-    expect(s.jokerIds).toEqual(offers[3].items);
-    expect(s.lives).toBe(STARTING_LIVES - 1);
-    expect(s.blessing).toBeUndefined();
+  it("الحوت offers three blessings: one free, two with a price", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      runController.startNewRun(seed);
+      const offers = runController.getState().blessing!.map((id) => getBlessing(id)!);
+      expect(offers).toHaveLength(3);
+      expect(offers[0].price).toBeUndefined();
+      expect(offers[1].price).toBeDefined();
+      expect(offers[2].price).toBeDefined();
+      expect(new Set(offers.map((o) => o.id)).size).toBe(3);
+    }
     runController.startNewRun(77);
-    runController.takeBlessing(2);
-    expect(runController.getState().gold).toBe(STARTING_GOLD + BLESSING_GOLD);
+    runController.takeBlessing(0);
+    expect(runController.getState().blessing).toBeUndefined();
+    expect(runController.getState().blessings).toHaveLength(1);
+  });
+
+  it("each blessing gives what it says, and costs what it says", () => {
+    bless("treasure");
+    expect(runController.getState().gold).toBe(STARTING_GOLD + TREASURE_GOLD);
+    expect(runController.getState().shopSlots).toBe(2);
+
+    runController.startNewRun(77);
+    bless("crown");
+    const first = runController.getState().nodes.find((n) => n.type === "match")!;
+    expect(runController.matchTargetFor(first)).toBe(first.matchTarget! + CROWN_TARGET);
+
+    runController.startNewRun(77);
+    bless("projects");
+    const o: MatchOptions = {};
+    runController.applyBlessings(o);
+    expect(o.projectMultiplier).toBe(2);
+    expect(o.noSun).toBe(true);
+
+    runController.startNewRun(77);
+    bless("wave");
+    const w: MatchOptions = {};
+    runController.applyBlessings(w);
+    expect(w.headStart?.[0]).toBe(10);
+
+    runController.startNewRun(77);
+    bless("school");
+    const got = runController.getState().jokerIds.map((id) => getJokerDef(id)!);
+    expect(got.length).toBeGreaterThanOrEqual(2);
+    expect(got.every((d) => d.rarity === "common")).toBe(true);
+    expect(got.every((d) => d.tags.some((t) => got[0].tags.includes(t)))).toBe(true);
+    expect(runController.takeMatchPenalty()).toBe(20);
+
+    runController.startNewRun(77);
+    bless("catch");
+    const node = runController.getAvailableNode()!;
+    runController.enterNode(node.id);
+    const { goldEarned } = runController.resolveMatchNode(true);
+    expect(goldEarned).toBe(Math.round(node.reward * 1.5));
+    expect(runController.getState().pendingRewards!.items).toHaveLength(2);
+  });
+
+  it("بحر المشاريع's price: your team can't buy sun or call أشكل", () => {
+    const r = new Round(0, mulberry32(3), { noSunFor: 0 });
+    for (let i = 0; i < 8 && r.phase === "bidding"; i++) {
+      const calls = r.legalBids();
+      const seat = r.bidding.turnSeat;
+      if (teamOf(seat) === 0) expect(calls.some((c) => c.call === "sun" || c.call === "ashkal")).toBe(false);
+      else expect(calls.some((c) => c.call === "sun")).toBe(true);
+      r.bid({ seat, call: "pass" });
+    }
   });
 
   /** Walks to the first ديوانية and swaps in the event under test. */
   const atDiwaniya = (eventId: string) => {
-    runController.takeBlessing(2); // 65 gold
+    runController.addGold(60);
     const s = runController.getState();
     const target = s.nodes.find((n) => n.type === "diwaniya")!;
     const path = pathTo(s.nodes, target.id)!;

@@ -14,7 +14,6 @@ export interface EventRun {
   boostNext(points: number): void;
   /** The opponents start the next match this far ahead. */
   penalizeNext(points: number): void;
-  hasFreeSlot(): boolean;
   /** A random joker of this rarity you don't own; its name, or undefined if none could be given. */
   grantRandomJoker(rarity: "rare" | "legendary"): string | undefined;
   canUpgrade(): boolean;
@@ -107,7 +106,7 @@ export const EVENTS: EventDef[] = [
     options: [
       {
         label: `اشترِ جوكر نادر عشوائي بـ ${STALL_PRICE} ذهب`,
-        blocked: (run) => (run.gold() < STALL_PRICE ? "ذهبك ما يكفي" : run.hasFreeSlot() ? undefined : "الخانات مليانة"),
+        blocked: (run) => (run.gold() < STALL_PRICE ? "ذهبك ما يكفي" : undefined),
         apply: (run) => {
           const name = run.grantRandomJoker("rare");
           if (!name) return "ما لقى شي يبيعك إياه";
@@ -134,7 +133,6 @@ export const EVENTS: EventDef[] = [
     options: [
       {
         label: "خذه (جوكر أسطوري، والخصم الجاي يبدأ قدامك بـ 20)",
-        blocked: (run) => (run.hasFreeSlot() ? undefined : "الخانات مليانة"),
         apply: (run) => {
           const name = run.grantRandomJoker("legendary");
           if (!name) return "الورق اختفى";

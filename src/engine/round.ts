@@ -64,6 +64,8 @@ export interface RoundOptions {
   cancelProjectsOf?: Team;
   /** أهل الحكم: this seat's first five hold the Jack and 9 of the ground card's suit. */
   hokumSeat?: Seat;
+  /** This team may not buy sun (nor call أشكل, which buys it). */
+  noSunFor?: Team;
 }
 
 /**
@@ -195,6 +197,7 @@ export class Round {
       giveCards(this.initial, options.hokumSeat, rand, 2, (c) => c.suit === suit && (c.rank === "J" || c.rank === "9"));
     }
     this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
+    if (options.noSunFor !== undefined) this.bidding = { ...this.bidding, noSunTeams: [options.noSunFor] };
     this.hands = {
       0: [...this.initial.hands[0]],
       1: [...this.initial.hands[1]],

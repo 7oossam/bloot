@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
-import { BLESSING_GOLD, runController } from "../roguelike/RunController";
+import { runController } from "../roguelike/RunController";
+import { getBlessing } from "../roguelike/blessings";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
@@ -81,8 +82,9 @@ export class MapScene extends Phaser.Scene {
       .filter((x) => x.tier)
       .map((x) => `${x.tag} ${x.count}✓`)
       .join("  ");
+    const blessings = state.blessings.map((id) => getBlessing(id)?.icon ?? "").join(" ");
     this.hudText.setText(
-      `❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}\nالجوكرز: ${jokerNames}` +
+      `❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   🐋 ${blessings}` : ""}\nالجوكرز: ${jokerNames}` +
         (synergies ? `\nتآزر: ${synergies}` : ""),
     );
   }
@@ -133,7 +135,8 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
 
     const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
     const icon = this.add.text(0, -4, NODE_TYPE_ICON[node.type], { fontSize: "32px" }).setOrigin(0.5);
-    const label = arabicText(this, 0, radius + 20, NODE_TYPE_LABEL_AR[node.type] + (node.matchTarget !== undefined ? ` ${node.matchTarget}` : ""), {
+    const target = runController.matchTargetFor(node);
+    const label = arabicText(this, 0, radius + 20, NODE_TYPE_LABEL_AR[node.type] + (target !== undefined ? ` ${target}` : ""), {
       fontSize: "20px",
       color: state.isAvailable ? "#ffd54a" : "#bcd",
     });
@@ -201,7 +204,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     if (!def) return this.startMatch(node);
     const { panel, panelW } = this.openPanel(640, 0xd45a5a);
     const wrap = { wordWrap: { width: panelW - 70 } };
-    panel.add(arabicText(this, 0, -265, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${node.matchTarget}`, { fontSize: "26px", color: "#bcd" }));
+    panel.add(arabicText(this, 0, -265, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${runController.matchTargetFor(node)}`, { fontSize: "26px", color: "#bcd" }));
     panel.add(this.add.text(0, -190, def.icon, { fontSize: "64px" }).setOrigin(0.5));
     panel.add(arabicText(this, 0, -115, def.name, { fontSize: "40px", color: "#ffd54a" }));
     panel.add(arabicText(this, 0, -30, def.rule, { fontSize: "28px", ...wrap }));
@@ -271,11 +274,12 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       modifiers.rivalRule = rival.rule;
     }
     if (off) modifiers.disabledJoker = off;
-    const data: TableSceneData = { nodeType: node.type, matchTarget: node.matchTarget!, modifiers };
+    runController.applyBlessings(modifiers);
+    const data: TableSceneData = { nodeType: node.type, matchTarget: runController.matchTargetFor(node)!, modifiers };
     this.scene.start("table", data);
   }
 
-  /** الحوت: pick one gift before the first node. */
+  /** الحوت: pick one of three blessings before the first node. */
   private showBlessingPanel(state: RunState): void {
     const offers = state.blessing!;
     const panelW = WIDTH - 60;
@@ -283,31 +287,34 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     this.overlay = panel;
     const bg = this.add.graphics();
     bg.fillStyle(0x0d2a3a, 0.98);
-    bg.fillRoundedRect(-panelW / 2, -640, panelW, 1280, 28);
+    bg.fillRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
     bg.lineStyle(6, 0x4fb3d9, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -640, panelW, 1280, 28);
+    bg.strokeRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
     panel.add(bg);
-    panel.add(this.add.text(0, -560, "🐋", { fontSize: "80px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, -470, "الحوت يعطيك هدية قبل تبدأ", { fontSize: "34px", color: "#ffd54a" }));
-    panel.add(arabicText(this, 0, -420, "اختر وحدة", { fontSize: "25px", color: "#bcd" }));
-    const title: Record<string, string> = { rare: "🎁 جوكر نادر", pair: "🤝 باقة من عائلة", gold: "💰 كنز", cursed: "🌊 عرض خطير" };
-    offers.forEach((offer, i) => {
-      const y = -290 + i * 230;
-      const names = offer.items.map((id) => `${getJokerDef(id)?.icon ?? ""} ${getJokerDef(id)?.name ?? id}`).join(" + ");
-      const body =
-        offer.kind === "gold" ? `${BLESSING_GOLD} ذهب` : offer.kind === "cursed" ? `${names} (أسطوري) — مقابل حياة ❤️` : names;
+    panel.add(this.add.text(0, -470, "🐋", { fontSize: "80px" }).setOrigin(0.5));
+    panel.add(arabicText(this, 0, -380, "الحوت يعطيك بركة للرن كله", { fontSize: "34px", color: "#ffd54a" }));
+    panel.add(arabicText(this, 0, -330, "اختر وحدة", { fontSize: "25px", color: "#bcd" }));
+    const cardW = panelW - 80;
+    offers.forEach((id, i) => {
+      const def = getBlessing(id)!;
+      const y = -170 + i * 250;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
       cbg.fillStyle(0x163d52, 1);
-      cbg.fillRoundedRect(-(panelW - 80) / 2, -95, panelW - 80, 190, 22);
-      cbg.lineStyle(3, offer.kind === "cursed" ? 0xd45a5a : 0x4fb3d9, 1);
-      cbg.strokeRoundedRect(-(panelW - 80) / 2, -95, panelW - 80, 190, 22);
+      cbg.fillRoundedRect(-cardW / 2, -105, cardW, 210, 22);
+      cbg.lineStyle(3, def.price ? 0xe0a040 : 0x4fb3d9, 1);
+      cbg.strokeRoundedRect(-cardW / 2, -105, cardW, 210, 22);
       card.add(cbg);
-      card.add(arabicText(this, 0, -45, title[offer.kind], { fontSize: "28px", color: "#ffd54a" }));
-      card.add(arabicText(this, 0, 20, body, { fontSize: "25px", wordWrap: { width: panelW - 140 } }));
-      const tip = offer.items.length === 1 ? getJokerDef(offer.items[0])?.levels[0] : undefined;
-      if (tip) card.add(arabicText(this, 0, 62, tip, { fontSize: "19px", color: "#9fc4d6", wordWrap: { width: panelW - 140 } }));
-      setBoxHitArea(card, panelW - 80, 190);
+      card.add(arabicText(this, 0, -60, `${def.icon} ${def.name}`, { fontSize: "30px", color: "#ffd54a" }));
+      card.add(arabicText(this, 0, 0, `✨ ${def.gift}`, { fontSize: "25px", wordWrap: { width: cardW - 60 } }));
+      card.add(
+        arabicText(this, 0, 55, def.price ? `⚖️ ${def.price}` : "بدون ثمن", {
+          fontSize: "22px",
+          color: def.price ? "#ffc27a" : "#9be6a8",
+          wordWrap: { width: cardW - 60 },
+        }),
+      );
+      setBoxHitArea(card, cardW, 210);
       card.input!.cursor = "pointer";
       card.on("pointerdown", () => {
         runController.takeBlessing(i);

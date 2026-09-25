@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
-import { decideCard } from "../src/ai/play-ai";
+import { decideCard, defenderMayLeadTrump } from "../src/ai/play-ai";
 import { buildBeliefs, readDiscards } from "../src/ai/beliefs";
 import { startBidding, submitBid } from "../src/engine/bidding";
 import { dealInitial } from "../src/engine/deck";
@@ -351,5 +351,18 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
       ashkalSuits: ["D"],
     });
     expect(chosen.suit).toBe("D");
+  });
+
+  it("the side that didn't buy the hokum doesn't lead trumps (حل الحكم)", () => {
+    // Seat 0 defends seat 1's hokum in ♠, with two trumps and an ordinary hand.
+    const lead = decideCard(cards("JS", "9S", "8H", "KD", "7C"), trickOf(0), "hokum", "S", 0, { tricks: [], declarer: 1 });
+    expect(lead.suit).not.toBe("S");
+    // It may when long in trumps (4+), or with a strong sun-like hand (3+ sure side winners).
+    const none = buildBeliefs([], undefined, "hokum", "S");
+    expect(defenderMayLeadTrump(cards("JS", "9S", "8H", "KD", "7C"), "hokum", "S", none)).toBe(false);
+    expect(defenderMayLeadTrump(cards("JS", "9S", "AS", "8S", "7C"), "hokum", "S", none)).toBe(true);
+    expect(defenderMayLeadTrump(cards("8S", "AH", "AD", "AC", "7C"), "hokum", "S", none)).toBe(true);
+    // The buyer's side still pulls trumps.
+    expect(decideCard(cards("JS", "9S", "7S", "AH", "8D"), trickOf(0), "hokum", "S", 0, { tricks: [], declarer: 0 })).toEqual(c("JS"));
   });
 });

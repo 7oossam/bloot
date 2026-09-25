@@ -216,8 +216,14 @@ target and gold grow with its row (41 + 10×row, 20 + 3×row). You choose your r
 fights for more rewards, a ديوانية for a gamble, an elite for rarer spoils.
 
 ### السوا is for everyone
-The سوا button shows whenever you lead: right plays the rest out for you, wrong costs 6.
+The سوا button shows whenever you lead; either way the rest plays itself out. Right keeps the
+hand as it falls; **wrong hands the whole hand to the other side** (26 or 16, doubled if
+doubled, plus every project — only your own بلوت stays yours; your jokers' bonuses don't count).
 The السوا joker only adds a bonus on a right call.
+
+### Jokers are relics (no cap)
+Like Slay the Spire's relics there's no limit on how many jokers you hold. The row on the table
+and the chips in the shop shrink to fit. (The جيب زيادة upgrade is gone.)
 
 ### الديوانية (src/roguelike/events.ts)
 Map nodes with a short scene and a choice:
@@ -225,9 +231,22 @@ safe, a gamble, or a price now for something later. The events are فنجال ا
 الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
 with the reason, and every event has at least one choice that's always open.
 
-### الحوت (the whale)
-Before the first node the run offers four gifts: a rare joker, two commons of one family, 60
-gold, or a legendary joker that costs a life.
+### بركات الحوت (src/roguelike/blessings.ts)
+At the start of the map the whale offers three **blessings** — one free, two stronger ones
+with a price. They're not jokers: they hold for the whole run, never show in a shop, can't be
+sold. The player's taste: no blessing that costs a life, and no shop discount.
+
+| Blessing | Gift | Price |
+|---|---|---|
+| موجة البداية | every match starts 10 ahead | — |
+| قلب الحوت | +1 life | — |
+| كنز الحوت | 100 gold | the shop shows one joker fewer |
+| تاج الحوت | a legendary joker | every match's target +10 |
+| بحر المشاريع | your projects ×2 | you can't buy sun (nor call أشكل) |
+| صيد وفير | match gold ×1.5 | two spoils after a match instead of three |
+| سرب الجوكرات | three commons of one family | your first opponents start 20 ahead |
+
+It appears at the start of the map only (never in the middle).
 
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**

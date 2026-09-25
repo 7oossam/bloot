@@ -40,7 +40,7 @@ Ground rules when working on the game:
    right) — أشكل over it stays open to the usual callers.
 6. **الدبل** (`src/engine/doubling.ts`): after the full deal, before the first card. Hokum:
    دبل (open/مقفل) → ثري → فور (open/مقفل) → قهوة (wins the match); sun: دبل only, and only
-   by a side ≤100 against a side >100 (scaled to the target). The last raiser is judged as
+   by a side ≤100 against a side >100 (the real 100, never scaled to the match target — the player's call). The last raiser is judged as
    the buyer, a tie goes against them, and the winner takes the hand × level plus all
    projects (×2 only at دبل). مقفل = no trump lead while holding anything else.
 7. **Trumping:** a void player must trump, and must overtrump an opponent's trump if able —
@@ -59,5 +59,11 @@ Ground rules when working on the game:
    with, give your 10 to the partner's opening Ace, never leave a 10 bare, lead the 10 (or 9)
    of trumps for a partner who bought hokum. Logic lives in `src/ai/beliefs.ts` (reading)
    and `chooseDiscard`/`chooseLead` in `src/ai/play-ai.ts` (sending/answering).
-11. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+11. **حل الحكم (the player's rule for the AI):** the side that didn't buy the hokum never leads
+   trumps — it only spends its own cuts and helps the buyer — unless it's long in trumps (4+)
+   or holds a strong sun-like hand (3+ sure side winners) and wants the trumps gone fast.
+   `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too.
+12. **سوا غلط:** a wrong سوا hands the whole hand to the other side (its full value, doubled if
+   doubled, plus every project; only the claimer's own بلوت stays).
+13. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.

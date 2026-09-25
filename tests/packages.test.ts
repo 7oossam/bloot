@@ -179,14 +179,19 @@ describe("Reward jokers", () => {
 });
 
 describe("السوا", () => {
-  it("a right سوا pays its bonus; a wrong one costs points", () => {
+  it("a right سوا pays its bonus; a wrong one gives the whole hand to the other side", () => {
     let right = 0, wrong = 0;
     for (let seed = 1; seed <= 40 && (right < 3 || wrong < 3); seed++) {
-      const c = new GameController(mulberry32(seed), { matchTarget: 9999, sawa: { bonus: 6, penalty: 6 } });
+      const c = new GameController(mulberry32(seed), { matchTarget: 9999, sawa: { bonus: 6 } });
       let claim: boolean | undefined;
-      const outcomes: Array<{ claim?: boolean; bonus?: number }> = [];
+      const outcomes: Array<{ claim?: boolean; bonus?: number; ours: number; total: number }> = [];
       c.on("hand:complete", (e) => {
-        outcomes.push({ claim, bonus: e.bonuses.find((b) => b.label === "السوا" || b.label === "سوا غلط")?.points });
+        outcomes.push({
+          claim,
+          bonus: e.bonuses.find((b) => b.label === "السوا" || b.label === "سوا غلط")?.points,
+          ours: e.gained[0],
+          total: e.result.gamePoints[0] + e.result.gamePoints[1],
+        });
         claim = undefined;
       });
       c.startMatch();
@@ -204,7 +209,8 @@ describe("السوا", () => {
           expect(o.bonus).toBe(6);
         } else {
           wrong++;
-          expect(o.bonus ?? 0).toBeLessThanOrEqual(0);
+          // Nothing left for you but your own بلوت; they take the rest of the hand.
+          expect(o.ours).toBeLessThanOrEqual(2);
         }
       }
     }
@@ -215,7 +221,7 @@ describe("السوا", () => {
   it("after a right سوا every remaining trick goes to your team", () => {
     let checked = 0;
     for (let seed = 1; seed <= 200 && checked < 3; seed++) {
-      const c = new GameController(mulberry32(seed), { matchTarget: 9999, sawa: { bonus: 6, penalty: 6 } });
+      const c = new GameController(mulberry32(seed), { matchTarget: 9999, sawa: { bonus: 6 } });
       let claimed = false, lost = false, handDone = false;
       c.on("trick:complete", (e) => claimed && teamOf(e.winner) !== 0 && (lost = true));
       c.on("hand:complete", () => claimed && (handDone = true));

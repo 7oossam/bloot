@@ -2,7 +2,7 @@ import { mulberry32 } from "../engine/rng";
 import { EVENTS } from "./events";
 import { pickOpponents, type OpponentTier } from "./opponents";
 import type { MapNode, NodeType, RunState } from "./types";
-import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, SHOP_JOKER_SLOTS, STARTING_GOLD, STARTING_LIVES } from "./types";
+import { REROLL_BASE_COST, REROLL_STEP, SHOP_JOKER_SLOTS, STARTING_GOLD, STARTING_LIVES } from "./types";
 
 /** Rows of the map, bottom (0) to top: the last is the boss, the one before it a shop. */
 export const MAP_ROWS = 9;
@@ -84,7 +84,6 @@ export function generateMap(seed: number): RunState {
     gold: STARTING_GOLD,
     jokerIds: [],
     jokerLevels: {},
-    maxJokers: MAX_JOKERS,
     shopSlots: SHOP_JOKER_SLOTS,
     rerollBase: REROLL_BASE_COST,
     rerollStep: REROLL_STEP,
@@ -92,6 +91,7 @@ export function generateMap(seed: number): RunState {
     salary: 0,
     nextMatchBoost: 0,
     nextMatchPenalty: 0,
+    blessings: [],
     jokerCounters: {},
     nodeWon: nodes.map(() => false),
     shields: 0,

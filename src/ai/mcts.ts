@@ -2,7 +2,7 @@ import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, type PlayContext } from "./play-ai";
+import { decideCard, defenderMayLeadTrump, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -91,8 +91,15 @@ function followsConvention(round: Round, seat: Seat): boolean {
  */
 function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card): Card[] {
   const trick = round.currentTrick!;
-  if (trick.order.length === 0) return legal;
-  const { mode, trumpSuit } = round.bidding.result!;
+  const { mode, trumpSuit, declarer } = round.bidding.result!;
+  if (trick.order.length === 0) {
+    // The side that didn't buy the hokum doesn't lead trumps, bar the exceptions.
+    if (mode !== "hokum" || teamOf(declarer) === teamOf(seat)) return legal;
+    const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
+    if (defenderMayLeadTrump(round.hands[seat], mode, trumpSuit, beliefs)) return legal;
+    const side = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+    return side.length > 0 ? side : legal;
+  }
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);

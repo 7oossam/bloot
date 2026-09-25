@@ -14,7 +14,9 @@ import {
 } from "./jokers";
 import { getEvent, type EventDef, type EventRun } from "./events";
 import { getOpponent, type OpponentDef } from "./opponents";
-import { MAX_LIVES, type Blessing, type MapNode, type RunState } from "./types";
+import { CROWN_TARGET, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
+import type { MatchOptions } from "../game/GameController";
+import { MAX_LIVES, type MapNode, type RunState } from "./types";
 
 /** How often each rarity turns up in a shop slot. */
 const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, rare: 32, legendary: 8 };
@@ -29,8 +31,6 @@ const REWARD_RARITY: Record<"match" | "elite", Record<Rarity, number>> = {
   match: { common: 55, rare: 35, legendary: 10 },
   elite: { common: 15, rare: 55, legendary: 30 },
 };
-/** الحوت's treasure gift. */
-export const BLESSING_GOLD = 60;
 /** Jokers whose worth comes from the rest of your row. */
 const BUILD_MAKERS = new Set(["wild", "chief", "maestro", "copycat"]);
 
@@ -55,14 +55,55 @@ class RunController {
     this.shopRolls = 0;
   }
 
-  /** Takes one of الحوت's gifts (by its place in the offer). */
+  /** Takes one of الحوت's blessings (by its place in the offer); what's instant happens now. */
   takeBlessing(index: number): void {
-    const offer = this.state.blessing?.[index];
-    if (!offer) throw new Error(`No blessing ${index}`);
-    for (const id of offer.items) this.grant(id);
-    this.state.gold += offer.gold;
-    this.state.lives = Math.max(1, this.state.lives - offer.lifeCost);
-    this.state.blessing = undefined;
+    const s = this.state;
+    const id = s.blessing?.[index];
+    if (!id) throw new Error(`No blessing ${index}`);
+    const rand = mulberry32(s.seed * 23 + 5);
+    const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker" && !s.jokerIds.includes(d.id));
+    switch (id) {
+      case "heart":
+        s.lives = Math.min(MAX_LIVES, s.lives + 1);
+        break;
+      case "treasure":
+        s.gold += TREASURE_GOLD;
+        s.shopSlots = Math.max(1, s.shopSlots - 1);
+        break;
+      case "crown": {
+        const pool = jokers.filter((d) => d.rarity === "legendary");
+        this.grant(pool[Math.floor(rand() * pool.length)].id);
+        break;
+      }
+      case "school": {
+        const commons = jokers.filter((d) => d.rarity === "common");
+        const families = [...new Set(commons.flatMap((d) => d.tags))].filter((t) => commons.filter((d) => d.tags.includes(t)).length >= 2);
+        const family = families[Math.floor(rand() * families.length)];
+        commons.filter((d) => d.tags.includes(family)).sort(() => rand() - 0.5).slice(0, 3).forEach((d) => this.grant(d.id));
+        s.nextMatchPenalty += SCHOOL_PENALTY;
+        break;
+      }
+    }
+    s.blessings.push(id);
+    s.blessing = undefined;
+  }
+
+  hasBlessing(id: string): boolean {
+    return this.state.blessings.includes(id);
+  }
+
+  /** A fight's target, with تاج الحوت's price on it. */
+  matchTargetFor(node: MapNode): number | undefined {
+    return node.matchTarget === undefined ? undefined : node.matchTarget + (this.hasBlessing("crown") ? CROWN_TARGET : 0);
+  }
+
+  /** What the run's blessings add to a match's options. */
+  applyBlessings(o: MatchOptions): void {
+    if (this.hasBlessing("wave")) o.headStart = { ...o.headStart, 0: (o.headStart?.[0] ?? 0) + WAVE_HEAD_START };
+    if (this.hasBlessing("projects")) {
+      o.projectMultiplier = (o.projectMultiplier ?? 1) * 2;
+      o.noSun = true;
+    }
   }
 
   /** Who a fight node is played against. */
@@ -164,10 +205,9 @@ class RunController {
       addShield: () => void s.shields++,
       boostNext: (points) => void (s.nextMatchBoost += points),
       penalizeNext: (points) => void (s.nextMatchPenalty += points),
-      hasFreeSlot: () => s.jokerIds.length < s.maxJokers,
       grantRandomJoker: (rarity) => {
         const pool = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.rarity === rarity && !s.jokerIds.includes(d.id));
-        if (pool.length === 0 || s.jokerIds.length >= s.maxJokers) return undefined;
+        if (pool.length === 0) return undefined;
         const pick = pool[Math.floor(rand() * pool.length)];
         this.grant(pick.id);
         return `${pick.icon} ${pick.name}`;
@@ -223,7 +263,7 @@ class RunController {
     let goldEarned = 0;
 
     if (won) {
-      goldEarned = node.reward + this.state.salary;
+      goldEarned = Math.round(node.reward * (this.hasBlessing("catch") ? 1.5 : 1)) + this.state.salary;
       this.state.gold += goldEarned;
       if (node.type === "boss") {
         this.state.over = true;
@@ -276,7 +316,6 @@ class RunController {
     const lvl = this.levelOf(itemId);
     if (def.kind === "joker") {
       if (lvl >= maxLevel(def)) return "أعلى مستوى";
-      if (lvl === 0 && this.state.jokerIds.length >= this.state.maxJokers) return "الخانات مليانة";
     }
     if (def.kind === "upgrade" && lvl >= maxLevel(def)) return "مكتمل";
     if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
@@ -333,7 +372,6 @@ class RunController {
     const def = getJokerDef(itemId);
     if (!def) return "غير موجود";
     const lvl = this.levelOf(itemId);
-    if (def.kind === "joker" && lvl === 0 && this.state.jokerIds.length >= this.state.maxJokers) return "الخانات مليانة — بِع جوكر أول";
     if ((def.kind === "joker" || def.kind === "upgrade") && lvl >= maxLevel(def)) return "أعلى مستوى";
     if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
     if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك جوكر يترقى";
@@ -396,7 +434,8 @@ class RunController {
     };
     const pool = [...JOKER_CATALOG, ...UPGRADE_CATALOG, ...CONSUMABLE_CATALOG].map((def) => ({ def, w: weight(def) })).filter((x) => x.w > 0);
     const items: string[] = [];
-    while (items.length < 3 && pool.length > 0) {
+    const count = this.hasBlessing("catch") ? 2 : 3;
+    while (items.length < count && pool.length > 0) {
       const total = pool.reduce((n, x) => n + x.w, 0);
       let roll = rand() * total;
       const i = pool.findIndex((x) => (roll -= x.w) < 0);
@@ -409,9 +448,6 @@ class RunController {
   private applyUpgrade(itemId: string): void {
     const s = this.state;
     switch (itemId) {
-      case "joker-slot":
-        s.maxJokers++;
-        break;
       case "shop-slot":
         s.shopSlots++;
         break;
@@ -491,27 +527,7 @@ class RunController {
 
 export const runController = new RunController();
 
-/**
- * الحوت: four gifts before the first node — a rare joker, two commons from one family, a
- * pile of gold, or a legendary joker that costs a life.
- */
+/** الحوت: three blessings to choose from before the first node. */
 function withBlessing(state: RunState): RunState {
-  const rand = mulberry32(state.seed * 7 + 13);
-  const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)];
-  const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker");
-  const rare = pick(jokers.filter((d) => d.rarity === "rare"));
-  const legendary = pick(jokers.filter((d) => d.rarity === "legendary"));
-  const commons = jokers.filter((d) => d.rarity === "common");
-  const families = [...new Set(commons.flatMap((d) => d.tags))].filter((t) => commons.filter((d) => d.tags.includes(t)).length >= 2);
-  const family = pick(families);
-  const pair = commons.filter((d) => d.tags.includes(family));
-  const first = pick(pair);
-  const second = pick(pair.filter((d) => d.id !== first.id));
-  const offers: Blessing[] = [
-    { kind: "rare", items: [rare.id], gold: 0, lifeCost: 0 },
-    { kind: "pair", items: [first.id, second.id], gold: 0, lifeCost: 0 },
-    { kind: "gold", items: [], gold: BLESSING_GOLD, lifeCost: 0 },
-    { kind: "cursed", items: [legendary.id], gold: 0, lifeCost: 1 },
-  ];
-  return { ...state, blessing: offers };
+  return { ...state, blessing: rollBlessings(mulberry32(state.seed * 7 + 13)) };
 }

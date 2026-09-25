@@ -35,7 +35,11 @@ export function decideCard(
   const partner = ((seat + 2) % 4) as Seat;
 
   if (trick.order.length === 0) {
-    const lead = chooseLead(hand, mode, trumpSuit, seat, partner, beliefs, ctx);
+    // The defending side doesn't lead trumps (the player's rule), bar the two exceptions.
+    const defending = mode === "hokum" && ctx?.declarer !== undefined && teamOf(ctx.declarer) !== teamOf(seat);
+    const sideLeads = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+    const pool = defending && sideLeads.length > 0 && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs) ? sideLeads : hand;
+    const lead = chooseLead(pool, mode, trumpSuit, seat, partner, beliefs, ctx);
     // مقفل can rule out the trump lead the tactics wanted; pick again among what's allowed.
     return legal.some((c) => c.suit === lead.suit && c.rank === lead.rank)
       ? lead
@@ -153,6 +157,20 @@ function chooseDiscard(
     return score;
   };
   return minBy(pool, cost);
+}
+
+/**
+ * حل الحكم من غير المشتري: the side that didn't buy the hokum shouldn't lead trumps — it only
+ * pulls its own cuts and helps the buyer. The exceptions (the player's words): a hand long in
+ * trumps (4+), or a strong sun-like hand (3+ sure side-suit winners) that wants the trumps gone
+ * fast so its winners can't be cut.
+ */
+export function defenderMayLeadTrump(hand: Card[], mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): boolean {
+  if (mode !== "hokum" || !trumpSuit) return true;
+  const trumps = hand.filter((c) => c.suit === trumpSuit);
+  if (trumps.length >= 4) return true;
+  const sideWinners = hand.filter((c) => c.suit !== trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit)).length;
+  return trumps.length > 0 && sideWinners >= 3;
 }
 
 /** Will the side currently winning keep this trick whatever the players still to come do? */

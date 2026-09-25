@@ -11,7 +11,7 @@ import {
   sellPrice,
   UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
-import { MAX_JOKERS, REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
+import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -198,19 +198,18 @@ describe("shop", () => {
     }
   });
 
-  it("joker slots are capped", () => {
+  it("there's no cap on jokers (they're like STS relics)", () => {
     enterFirstShop();
     runController.addGold(10_000);
-    let bought = 0;
-    for (let i = 0; i < 20 && bought < MAX_JOKERS; i++) {
+    for (let i = 0; i < 20 && runController.getState().jokerIds.length < 8; i++) {
       for (const id of runController.shopOffering().slice(0, 3)) {
-        if (runController.canAfford(id)) { runController.buyJoker(id); bought++; }
+        if (runController.canAfford(id)) runController.buyJoker(id);
       }
       runController.reroll();
     }
-    expect(runController.getState().jokerIds).toHaveLength(MAX_JOKERS);
+    expect(runController.getState().jokerIds.length).toBeGreaterThanOrEqual(8);
     const more = JOKER_CATALOG.find((j) => !runController.getState().jokerIds.includes(j.id))!;
-    expect(runController.whyNot(more.id)).toBeDefined();
+    expect(runController.whyNot(more.id)).toBeUndefined();
   });
 
   it("a shield absorbs one lost match; an extra life adds a life", () => {
@@ -309,12 +308,6 @@ describe("run upgrades, selling and the new consumables", () => {
   it("upgrades are bought with gold, level by level, and change the run at once", () => {
     runController.addGold(1000);
     const s = runController.getState();
-    runController.buyJoker("joker-slot");
-    expect(s.maxJokers).toBe(MAX_JOKERS + 1);
-    expect(runController.priceOf("joker-slot")).toBe(45); // the second level costs more
-    runController.buyJoker("joker-slot");
-    expect(s.maxJokers).toBe(MAX_JOKERS + 2);
-    expect(runController.whyNot("joker-slot")).toBe("مكتمل");
     runController.buyJoker("shop-slot");
     expect(s.shopSlots).toBe(4);
     runController.buyJoker("cheap-reroll");

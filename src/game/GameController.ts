@@ -154,8 +154,8 @@ export interface MatchOptions {
   signalTrickBonus?: number;
   /** الآكه الذهبية: gold per آكه your team leads that takes its trick; points lost per one that gets cut. */
   akkaGamble?: { gold: number; penalty: number };
-  /** السوا joker: a right سوا pays `bonus`; a wrong one costs `penalty` (the button itself is for everyone). */
-  sawa?: { bonus: number; penalty: number };
+  /** السوا joker: a right سوا pays `bonus` (the button itself is for everyone). */
+  sawa?: { bonus: number };
   /** الجريء: your team may double a sun contract whatever the 100-point rule says. */
   freeSunDouble?: boolean;
   /** رأس المال: a doubled hand your team wins pays (double level × this) gold. */
@@ -175,6 +175,8 @@ export interface MatchOptions {
   rivalLabel?: string;
   /** Their rule as the table shows it (UI only). */
   rivalRule?: string;
+  /** بحر المشاريع (a blessing): your team may not buy sun. */
+  noSun?: boolean;
   /** المعطّل: the joker sitting this match out (UI only — it's already left out of these options). */
   disabledJoker?: string;
   /** UI-only effects, read by the table scene. */
@@ -184,8 +186,8 @@ export interface MatchOptions {
   memory?: number;
 }
 
-/** A wrong سوا costs this many game points (what's left of them). */
-export const SAWA_PENALTY = 6;
+/** 7-2: the score line for doubling a sun. */
+export const SUN_DOUBLE_LIMIT = 100;
 
 /** Something the human has to decide mid-hand because a joker fired: which card to use. */
 export type PendingAction =
@@ -381,8 +383,9 @@ export class GameController extends Emitter<EventMap> {
       guaranteedLow: o.guaranteedLow,
       completeRunTo: o.completeRunTo,
       lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
-      // 7-2's "100 of 152" scaled to this match's target.
-      doubling: { matchScore: { ...this.matchScore }, sunLimit: Math.round((this.matchTarget * 100) / 152) },
+      // 7-2: sun is doubled only by a side at 100 or under against a side past 100 — the real
+      // 100, whatever the match's target (the player's call), so short matches never see it.
+      doubling: { matchScore: { ...this.matchScore }, sunLimit: SUN_DOUBLE_LIMIT },
       ...this.jokerRoundRules(),
     });
     this.emit("hand:dealt", {
@@ -406,6 +409,7 @@ export class GameController extends Emitter<EventMap> {
     if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
+    if (o.noSun) rules.noSunFor = us;
     // The opponents' rules (src/roguelike/opponents.ts): the game bent against your team.
     const r = o.rival;
     const them: Team = us === 0 ? 1 : 0;
@@ -476,7 +480,7 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "playing") {
       const seat = this.round.turnSeat!;
       // A right سوا plays your sure winners out for you.
-      if (seat === HUMAN_SEAT && this.sawaClaim !== true) {
+      if (seat === HUMAN_SEAT && this.sawaClaim === undefined) {
         this.emit("play:turn", { seat, legal: this.round.legalMovesFor(seat) });
         return "waiting-human";
       }
@@ -593,8 +597,8 @@ export class GameController extends Emitter<EventMap> {
   /**
    * السوا: you lay your cards down, claiming every trick left. It's right when each card in your
    * hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody
-   * else to hold a trump) — then you play the rest out automatically. Wrong costs SAWA_PENALTY;
-   * the السوا joker pays a bonus for a right one.
+   * else to hold a trump). Either way the rest plays itself out: a right one keeps the hand as
+   * it falls (the السوا joker pays a bonus); a wrong one hands the whole hand to the other side.
    */
   claimSawa(): boolean {
     if (!this.canClaimSawa()) throw new Error("السوا isn't available now");
@@ -927,10 +931,9 @@ export class GameController extends Emitter<EventMap> {
       gained[us] -= lost;
       if (lost) bonuses.push({ label: "الآكه الذهبية", points: -lost });
     }
-    if (this.sawaClaim !== undefined) {
-      const pts = this.sawaClaim ? (o.sawa?.bonus ?? 0) : -Math.min(gained[us], o.sawa?.penalty ?? SAWA_PENALTY);
-      gained[us] += pts;
-      if (pts) bonuses.push({ label: this.sawaClaim ? "السوا" : "سوا غلط", points: pts });
+    if (this.sawaClaim && o.sawa?.bonus) {
+      gained[us] += o.sawa.bonus;
+      bonuses.push({ label: "السوا", points: o.sawa.bonus });
     }
     const wonDouble = !!sheet?.double && sheet.winner === us;
     if (o.doubleWinPoints && wonDouble) {
@@ -954,6 +957,17 @@ export class GameController extends Emitter<EventMap> {
     if (o.comeback && gained[us] > 0 && this.matchScore[them] - this.matchScore[us] >= o.comeback.deficit) {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
+    }
+    // سوا غلط: the hand goes to the other side — the whole of it, projects too (only your own
+    // بلوت stays yours), and none of your jokers' bonuses count.
+    if (this.sawaClaim === false) {
+      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
+      const total = result.gamePoints[us] + result.gamePoints[them];
+      const lost = gained[us] - ourBaloot;
+      gained[them] = total - ourBaloot;
+      gained[us] = ourBaloot;
+      bonuses.length = 0;
+      if (lost > 0) bonuses.push({ label: "سوا غلط", points: -lost });
     }
     return { gained, bonuses };
   }
