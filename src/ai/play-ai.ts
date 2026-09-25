@@ -13,6 +13,10 @@ export interface PlayContext {
   declarer?: Seat;
   /** مقفل: a closed دبل — no leading trumps while holding anything else. */
   closed?: boolean;
+  /** الشايب (a partner): answers the partner's التهريب before cashing his own winners. */
+  answerFirst?: boolean;
+  /** الغشيم (a partner): can't read the partner's signals or برقية. */
+  deaf?: boolean;
 }
 
 /**
@@ -33,6 +37,12 @@ export function decideCard(
   if (legal.length === 1) return legal[0];
   const beliefs = buildBeliefs(ctx?.tricks ?? [], trick, mode, trumpSuit);
   const partner = ((seat + 2) % 4) as Seat;
+  if (ctx?.deaf) {
+    beliefs.wants[partner] = [];
+    beliefs.rejects[partner] = [];
+    beliefs.barqiya[partner] = [];
+    beliefs.strong[partner] = [];
+  }
 
   if (trick.order.length === 0) {
     // The defending side doesn't lead trumps (the player's rule), bar the two exceptions.
@@ -267,6 +277,13 @@ function chooseLead(
   for (const suit of beliefs.strong[partner]) {
     if (by[suit].length > 0 && !opponentsCanRuff(suit) && !beliefs.rejects[partner].includes(suit) && !(mode === "hokum" && suit === trumpSuit)) {
       return highest(by[suit]);
+    }
+  }
+
+  // الشايب answers your signal before his own winners.
+  if (ctx?.answerFirst) {
+    for (const suit of beliefs.wants[partner]) {
+      if (by[suit].length > 0 && !opponentsCanRuff(suit)) return highest(by[suit]);
     }
   }
 

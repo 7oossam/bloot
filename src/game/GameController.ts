@@ -17,6 +17,7 @@ import { raiserTeam } from "../engine/doubling";
 import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
 import type { RivalOptions } from "../roguelike/opponents";
+import type { PartnerOptions } from "../roguelike/partners";
 
 export const HUMAN_SEAT: Seat = 0;
 export const MATCH_TARGET = 152;
@@ -169,6 +170,10 @@ export interface MatchOptions {
    * hidden hands and played out. Off, they play the rule-based AI straight. The table turns it on.
    */
   searchAI?: boolean;
+  /** Who sits across from you and how they play (src/roguelike/partners.ts). */
+  partner?: PartnerOptions;
+  /** Their name for the table (UI only). */
+  partnerLabel?: string;
   /** The opponents this match is played against and their rules (src/roguelike/opponents.ts). */
   rival?: RivalOptions;
   /** Their name and icon, for the table. */
@@ -410,6 +415,8 @@ export class GameController extends Emitter<EventMap> {
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
     if (o.noSun) rules.noSunFor = us;
+    // الجفرة: your partner is always dealt an Ace.
+    if (o.partner?.luckyAces) rules.luckyAces = { seat: partnerOf(HUMAN_SEAT), count: o.partner.luckyAces };
     // The opponents' rules (src/roguelike/opponents.ts): the game bent against your team.
     const r = o.rival;
     const them: Team = us === 0 ? 1 : 0;
@@ -454,7 +461,8 @@ export class GameController extends Emitter<EventMap> {
         });
         return "waiting-human";
       }
-      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding);
+      const eager = seat === partnerOf(HUMAN_SEAT) ? (this.options.partner?.bidEager ?? 0) : 0;
+      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding, eager);
       this.applyBid(bid);
       return "advanced";
     }
@@ -479,7 +487,10 @@ export class GameController extends Emitter<EventMap> {
           return "advanced";
         }
       }
-      this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, res.trumpSuit));
+      // Your partner's temper: الشايب never raises, المتحمس raises on a lower bar.
+      const p = seat === partnerOf(HUMAN_SEAT) ? this.options.partner : undefined;
+      const call: DoubleBid = cowed || p?.neverDoubles ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, res.trumpSuit, p?.doubleEager ?? 0);
+      this.applyDouble(call);
       return "advanced";
     }
 
@@ -502,9 +513,11 @@ export class GameController extends Emitter<EventMap> {
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
         ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
         closed: this.round.closed,
+        answerFirst: seat === partnerOf(HUMAN_SEAT) && !!this.options.partner?.answerFirst,
+        deaf: seat === partnerOf(HUMAN_SEAT) && !!this.options.partner?.deaf,
       };
       // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
-      const think = this.options.searchAI && seat !== HUMAN_SEAT;
+      const think = this.options.searchAI && seat !== HUMAN_SEAT && !(seat === partnerOf(HUMAN_SEAT) && this.options.partner?.noSearch);
       if (think && !this.searchRand) this.searchRand = mulberry32(Math.floor(this.rand() * 2147483647));
       const card = think
         ? searchCard(this.round, seat, {

@@ -309,7 +309,9 @@ export class TableScene extends Phaser.Scene {
         fontSize: "24px",
         color: "#dbeee1",
       }).setDepth(5);
-      this.seatLabels[seat] = arabicText(this, anchor.x, anchor.y - back.displayH / 2 - 26, SEAT_LABEL_AR[seat], {
+      // Your partner goes by their name (شخصيات الخوي).
+      const name = seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat];
+      this.seatLabels[seat] = arabicText(this, anchor.x, anchor.y - back.displayH / 2 - 26, name, {
         fontSize: "24px",
         color: SEAT_LABEL_COLOR,
       }).setDepth(5);

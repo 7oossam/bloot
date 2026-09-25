@@ -14,9 +14,10 @@ export const TRIPLE = 95;
 export const FOUR = 65;
 export const QAHWA = 110;
 
-export function decideDouble(seat: Seat, hand: Card[], state: DoublingState, trumpSuit?: Suit): DoubleBid {
+/** `eager` lowers the bar to raise by that much (المتحمس, a partner). */
+export function decideDouble(seat: Seat, hand: Card[], state: DoublingState, trumpSuit?: Suit, eager = 0): DoubleBid {
   const options = legalDoubles(state);
-  const strength = state.mode === "hokum" ? hokumStrength(hand, trumpSuit!) : sunStrength(hand);
+  const strength = (state.mode === "hokum" ? hokumStrength(hand, trumpSuit!) : sunStrength(hand)) + eager;
   const trumps = trumpSuit ? hand.filter((c) => c.suit === trumpSuit).length : 0;
   // مقفل keeps the buyer from pulling trumps — worth it when we hold trumps of our own.
   const closed = trumps >= 2;

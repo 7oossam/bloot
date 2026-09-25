@@ -14,6 +14,7 @@ import {
 } from "./jokers";
 import { getEvent, type EventDef, type EventRun } from "./events";
 import { getOpponent, type OpponentDef } from "./opponents";
+import { getPartner } from "./partners";
 import { CROWN_TARGET, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
 import type { MatchOptions } from "../game/GameController";
 import { MAX_LIVES, type MapNode, type RunState } from "./types";
@@ -88,6 +89,12 @@ class RunController {
     s.blessing = undefined;
   }
 
+  /** Picks who sits across from you this run (before الحوت). */
+  choosePartner(id: string): void {
+    if (!getPartner(id)) throw new Error(`No partner ${id}`);
+    this.state.partner = id;
+  }
+
   hasBlessing(id: string): boolean {
     return this.state.blessings.includes(id);
   }
@@ -99,6 +106,11 @@ class RunController {
 
   /** What the run's blessings add to a match's options. */
   applyBlessings(o: MatchOptions): void {
+    const partner = getPartner(this.state.partner);
+    if (partner) {
+      o.partner = partner.options;
+      o.partnerLabel = `${partner.name} ${partner.icon}`;
+    }
     if (this.hasBlessing("wave")) o.headStart = { ...o.headStart, 0: (o.headStart?.[0] ?? 0) + WAVE_HEAD_START };
     if (this.hasBlessing("projects")) {
       o.projectMultiplier = (o.projectMultiplier ?? 1) * 2;
@@ -263,7 +275,8 @@ class RunController {
     let goldEarned = 0;
 
     if (won) {
-      goldEarned = Math.round(node.reward * (this.hasBlessing("catch") ? 1.5 : 1)) + this.state.salary;
+      const mult = (this.hasBlessing("catch") ? 1.5 : 1) * (getPartner(this.state.partner)?.goldMultiplier ?? 1);
+      goldEarned = Math.round(node.reward * mult) + this.state.salary;
       this.state.gold += goldEarned;
       if (node.type === "boss") {
         this.state.over = true;
@@ -434,7 +447,7 @@ class RunController {
     };
     const pool = [...JOKER_CATALOG, ...UPGRADE_CATALOG, ...CONSUMABLE_CATALOG].map((def) => ({ def, w: weight(def) })).filter((x) => x.w > 0);
     const items: string[] = [];
-    const count = this.hasBlessing("catch") ? 2 : 3;
+    const count = (this.hasBlessing("catch") ? 2 : 3) + (getPartner(s.partner)?.extraRewards ?? 0);
     while (items.length < count && pool.length > 0) {
       const total = pool.reduce((n, x) => n + x.w, 0);
       let roll = rand() * total;
