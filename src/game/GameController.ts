@@ -171,10 +171,12 @@ export interface MatchOptions {
   searchAI?: boolean;
   /** The opponents this match is played against and their rules (src/roguelike/opponents.ts). */
   rival?: RivalOptions;
-  /** Their name and icon, for the hand summary. */
+  /** Their name and icon, for the table. */
   rivalLabel?: string;
   /** Their rule as the table shows it (UI only). */
   rivalRule?: string;
+  /** المعطّل: the joker sitting this match out (UI only — it's already left out of these options). */
+  disabledJoker?: string;
   /** UI-only effects, read by the table scene. */
   spyCards?: number;
   revealPartner?: boolean;
@@ -239,8 +241,6 @@ interface EventMap {
   "projects:declared": ProjectsOutcome;
   "trick:complete": { trick: Trick; winner: Seat };
   "hand:complete": {
-    /** What the opponents' own rule added to their side this hand. */
-    rivalBonus?: HandBonus;
     result: HandResult;
     matchScore: Record<Team, number>;
     /** Game points each team actually banked this hand, joker bonuses included. */
@@ -298,10 +298,6 @@ export class GameController extends Emitter<EventMap> {
   private streakPoints = 0;
   /** The suits your discards ask your partner for (latest first), read by the rules of التهريب. */
   private humanAsks: Suit[] = [];
-  /** Hands dealt this match: a weakened opponent's rule is only on every other one. */
-  private handNo = 0;
-  /** Tricks the opponents took with their كنز السبيت suit this hand. */
-  private rivalSuitTricks = 0;
   private signalHits = 0;
   private akkaCuts = 0;
   /** السوا this hand: undefined = not claimed, true = claimed right (you auto-play the rest), false = wrong. */
@@ -351,7 +347,6 @@ export class GameController extends Emitter<EventMap> {
     this.matchOver = false;
     this.goldEarned = 0;
     this.dealer = 0;
-    this.handNo = 0;
     this.dealHand();
   }
 
@@ -371,8 +366,6 @@ export class GameController extends Emitter<EventMap> {
     this.streak = 0;
     this.streakPoints = 0;
     this.humanAsks = [];
-    this.handNo++;
-    this.rivalSuitTricks = 0;
     this.signalHits = 0;
     this.akkaCuts = 0;
     this.sawaClaim = undefined;
@@ -410,16 +403,15 @@ export class GameController extends Emitter<EventMap> {
     if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
-    // The opponents' rules: the same powers, on their seats.
-    const r = this.activeRival();
-    if (r?.trump || r?.lowSeats) {
-      rules.trickRules = { ...rules.trickRules, rival: { trump: r.trump, low: r.lowSeats, lowSunOnly: r.lowSunOnly } };
-    }
-    if (r?.projectSeats) {
-      const rule = r.projectShort ? { shortSira: true } : { phantomProjects: true };
-      for (const seat of r.projectSeats) rules.projectRules = { ...rules.projectRules, [seat]: rule };
-    }
-    if (r?.lastCardSeats) rules.rivalLastCardTop = r.lastCardSeats;
+    // The opponents' rules (src/roguelike/opponents.ts): the game bent against your team.
+    const r = o.rival;
+    const them: Team = us === 0 ? 1 : 0;
+    if (r?.weakJack) rules.trickRules = { ...rules.trickRules, rival: { weakJack: us, jackBottom: r.weakJack === "bottom" } };
+    if (r?.voidFirstAce) rules.voidFirstAce = us;
+    if (r?.groundTheirs) rules.groundTo = them;
+    if (r?.cancelProjects) rules.cancelProjectsOf = us;
+    // The one on your right: you still get a say (sun, or over their hokum) before the hand is theirs.
+    if (r?.hokumHands) rules.hokumSeat = nextSeat(HUMAN_SEAT);
     return rules;
   }
 
@@ -445,8 +437,7 @@ export class GameController extends Emitter<EventMap> {
         });
         return "waiting-human";
       }
-      const eager = !!this.activeRival()?.sunEager && teamOf(seat) !== teamOf(HUMAN_SEAT);
-      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding, { sunEager: eager });
+      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding);
       this.applyBid(bid);
       return "advanced";
     }
@@ -461,6 +452,7 @@ export class GameController extends Emitter<EventMap> {
       // الوجه البارد: once your team has raised, the other side won't raise back.
       const us = teamOf(HUMAN_SEAT);
       const cowed = this.options.pokerFace && teamOf(seat) !== us && state.level > 1 && raiserTeam(state) === us;
+
       this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
       return "advanced";
     }
@@ -494,7 +486,6 @@ export class GameController extends Emitter<EventMap> {
             rand: this.searchRand,
             worlds: 40,
             timeBudgetMs: 150,
-            peek: teamOf(seat) !== teamOf(HUMAN_SEAT) ? this.activeRival()?.peek : undefined,
           })
         : decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, ctx);
       this.applyCard(seat, card);
@@ -664,8 +655,6 @@ export class GameController extends Emitter<EventMap> {
       this.akkaWins++;
       if (o.akkaTrickBonus) this.emit("joker:fired", { label: "ملك الآكه", points: o.akkaTrickBonus });
     }
-    const rivalSuit = this.activeRival()?.suitTrick?.suit;
-    if (!ours && rivalSuit && card.suit === rivalSuit) this.rivalSuitTricks++;
     if (ours && o.suitTrickBonus && card.suit === o.suitTrickBonus.suit) {
       this.suitTricks++;
       this.emit("joker:fired", { label: "كنز السبيت", points: o.suitTrickBonus.points });
@@ -753,43 +742,6 @@ export class GameController extends Emitter<EventMap> {
         if (this.options.duckBonus) this.emit("joker:fired", { label: "المخلّي", points: this.options.duckBonus });
       }
     }
-  }
-
-  /**
-   * The opponents' rule at the end of a hand (src/roguelike/opponents.ts): what it moves to
-   * their side of `gained`, for the hand summary.
-   */
-  private applyRival(result: HandResult, gained: Record<Team, number>): HandBonus | undefined {
-    const r = this.activeRival();
-    if (!r) return undefined;
-    const us = teamOf(HUMAN_SEAT);
-    const them: Team = us === 0 ? 1 : 0;
-    const label = this.options.rivalLabel ?? "الخصوم";
-    const theyBought = result.declarerTeam === them;
-    let total = 0;
-    const give = (points: number) => {
-      gained[them] += points;
-      total += points;
-    };
-    // سيد الأرض on their side: الأرض takes the hand — all but your own بلوت and your jokers' bonuses.
-    if (r.groundWins && !this.lastTrickOurs && (!r.groundWinsOnlyBought || theyBought)) {
-      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
-      const moved = Math.max(0, result.gamePoints[us] - ourBaloot);
-      gained[us] -= moved;
-      give(moved);
-    }
-    const theirProjects = result.projectPoints?.[them] ?? 0;
-    if (r.projectMultiplier && theirProjects > 0) give(Math.round(theirProjects * (r.projectMultiplier - 1)));
-    if (r.suitTrick && this.rivalSuitTricks > 0) give(r.suitTrick.points * this.rivalSuitTricks);
-    const multiplier = (r.buyMultiplier ?? 1) * (result.mode === "sun" ? (r.sunMultiplier ?? 1) : 1);
-    if (multiplier > 1 && theyBought && buyerWonEarly(result) && gained[them] > 0) give(Math.round(gained[them] * (multiplier - 1)));
-    return total > 0 ? { label, points: total } : undefined;
-  }
-
-  /** The opponents' rule, if it's on this hand (a weakened one is only on every other hand). */
-  activeRival(): RivalOptions | undefined {
-    const r = this.options.rival;
-    return r && (!r.alternate || this.handNo % 2 === 1) ? r : undefined;
   }
 
   /** Turns a hand's base game points into what each team banks, after the run's jokers. */
@@ -1020,7 +972,9 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "complete") {
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
-      const rivalBonus = this.applyRival(result, gained);
+      // المدبّلين: a hand your team bought and lost counts double for them.
+      const ourTeam = teamOf(HUMAN_SEAT);
+      if (this.options.rival?.lossDoubled && result.declarerTeam === ourTeam && !buyerWonEarly(result)) gained[ourTeam === 0 ? 1 : 0] *= 2;
       // Match targets are in game points (abnat), not card points — adding raw card points
       // (162 a hokum hand) against a target of 41 ended every match on its first hand.
       this.matchScore = {
@@ -1029,7 +983,7 @@ export class GameController extends Emitter<EventMap> {
       };
       const us = teamOf(HUMAN_SEAT);
       const kaboot = result.tricksWon[us] === 8;
-      this.emit("hand:complete", { result, matchScore: this.matchScore, gained, bonuses, kaboot, rivalBonus });
+      this.emit("hand:complete", { result, matchScore: this.matchScore, gained, bonuses, kaboot });
 
       // قهوة: whoever took the hand takes the match.
       if (result.sheet?.double?.level === 5 && result.sheet.winner !== undefined) {

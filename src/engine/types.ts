@@ -54,17 +54,14 @@ export interface TrickRules {
   topCard?: Seat;
   /** This team's 7s and 8s outside the trump suit beat the rest of their suit (ثورة الصغار). The deck is shared, so it never helps the other side. */
   trashBeatsAce?: Team;
-  /** Opponent rules (see src/roguelike/opponents.ts): the same powers as the jokers above, per seat. */
+  /** Opponent rules (see src/roguelike/opponents.ts). */
   rival?: {
-    /** These seats' cards of `suit` act as trumps, like ملك السبيت (in sun hands only, with `sunOnly`). */
-    trump?: { seats: Seat[]; suit: Suit; sunOnly?: boolean };
-    /** These seats' 7s and 8s outside the trump suit beat the rest of their suit. */
-    low?: Seat[];
-    /** …and only in sun hands. */
-    lowSunOnly?: boolean;
-    /** These seats' cards count as the top of their suit (set on the last trick only). */
-    top?: Seat[];
+    /** This team's trump Jack drops below the trump 9 (خاطفين الولد)… */
+    weakJack?: Team;
+    /** …or all the way to the bottom of the trumps. */
+    jackBottom?: boolean;
   };
+
 }
 
 export interface Trick {

@@ -58,8 +58,13 @@ export interface RoundOptions {
   trickRules?: TrickRules;
   /** الورقة الأخيرة: this seat's card in the last trick counts as the top of its suit. */
   lastCardTop?: Seat;
-  /** حرّاس الأرض: these (opponent) seats' cards in the last trick count as the top of their suit. */
-  rivalLastCardTop?: Seat[];
+  /** Opponent rules (src/roguelike/opponents.ts), scored at the end of the hand. */
+  voidFirstAce?: Team;
+  groundTo?: Team;
+  /** ماسحين المشاريع: this team's projects don't count (بلوت still does). */
+  cancelProjectsOf?: Team;
+  /** أهل الحكم: this seat's first five hold the Jack and 9 of the ground card's suit. */
+  hokumSeat?: Seat;
 }
 
 /**
@@ -186,6 +191,10 @@ export class Round {
         completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
       }
     }
+    if (options.hokumSeat !== undefined) {
+      const suit = this.initial.stock[0].suit;
+      giveCards(this.initial, options.hokumSeat, rand, 2, (c) => c.suit === suit && (c.rank === "J" || c.rank === "9"));
+    }
     this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
     this.hands = {
       0: [...this.initial.hands[0]],
@@ -226,7 +235,9 @@ export class Round {
       const leader = this.options.firstLeader ?? nextSeat(this.dealer);
       this.currentTrick = this.newTrick(leader);
       const { mode, trumpSuit } = this.bidding.result;
-      this.projects = resolveProjects(this.hands, mode, leader, this.options.projectRules);
+      const cancelled = this.options.cancelProjectsOf;
+      const counted = cancelled === undefined ? this.hands : (Object.fromEntries(([0, 1, 2, 3] as Seat[]).map((s) => [s, teamOf(s) === cancelled ? [] : this.hands[s]])) as Record<Seat, Card[]>);
+      this.projects = resolveProjects(counted, mode, leader, this.options.projectRules);
       if (mode === "hokum") {
         const holder = ([0, 1, 2, 3] as Seat[]).find((seat) =>
           (["K", "Q"] as const).every((rank) => this.hands[seat].some((c) => c.suit === trumpSuit && c.rank === rank)),
@@ -247,7 +258,6 @@ export class Round {
     const last = this.tricks.length === 7;
     const rules: TrickRules = { ...this.options.trickRules };
     if (last && this.options.lastCardTop !== undefined) rules.topCard = this.options.lastCardTop;
-    if (last && this.options.rivalLastCardTop?.length) rules.rival = { ...rules.rival, top: this.options.rivalLastCardTop };
     return Object.keys(rules).length ? { leader, cards: {}, order: [], rules } : { leader, cards: {}, order: [] };
   }
 
@@ -337,6 +347,8 @@ export class Round {
         this.result = scoreHand(this.tricks, mode, trumpSuit, this.bidding.result.declarerTeam, this.lastTrickBonus, {
           projects: this.projects,
           baloot,
+          voidFirstAce: this.options.voidFirstAce,
+          groundTo: this.options.groundTo,
           double:
             this.doubling && this.doubling.level > 1
               ? { level: this.doubling.level, raiserTeam: raiserTeam(this.doubling), closed: this.doubling.closed }

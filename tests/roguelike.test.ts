@@ -22,10 +22,10 @@ describe("generateMap", () => {
     expect(map.currentIndex).toBe(-1);
   });
 
-  it("gives every non-shop node a matchTarget and every node a defined reward", () => {
+  it("gives every fight node a matchTarget and every node a defined reward", () => {
     const map = generateMap(2);
     for (const node of map.nodes) {
-      if (node.type === "shop") {
+      if (node.type === "shop" || node.type === "diwaniya") {
         expect(node.matchTarget).toBeUndefined();
       } else {
         expect(node.matchTarget).toBeGreaterThan(0);

@@ -83,6 +83,7 @@ const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
   elite: "نخبة",
   shop: "متجر",
   boss: "الزعيم",
+  diwaniya: "الديوانية",
 };
 
 export interface TableSceneData {
@@ -102,7 +103,6 @@ type HandCompleteEvent = {
   gained: Record<Team, number>;
   bonuses: HandBonus[];
   kaboot: boolean;
-  rivalBonus?: HandBonus;
   /** Filled in by the scene: the contract came from أشكل. */
   ashkal?: boolean;
 };
@@ -447,6 +447,12 @@ export class TableScene extends Phaser.Scene {
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       const icon = this.add.text(0, -2, def.icon, { fontSize: "36px" }).setOrigin(0.5);
       const parts: Phaser.GameObjects.GameObject[] = [bg, icon];
+      // المعطّل: this joker sits the match out.
+      const off = this.nodeData.modifiers.disabledJoker === id;
+      if (off) {
+        icon.setAlpha(0.3);
+        parts.push(this.add.text(0, 0, "🔒", { fontSize: "30px" }).setOrigin(0.5));
+      }
       if (def.levels.length > 1) {
         parts.push(arabicText(this, JOKER_ICON / 2 - 12, JOKER_ICON / 2 - 12, String(level), { fontSize: "18px", color: "#ffd54a", fontStyle: "bold" }));
       }
@@ -587,20 +593,11 @@ export class TableScene extends Phaser.Scene {
     this.relayoutHand();
   }
 
-  /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
-  /** The opponents' line under the header; a weakened rule says whether it's on this hand. */
+  /** The opponents' line under the header. */
   private refreshRival(): void {
     const mods = this.nodeData.modifiers;
     if (!this.rivalText || !mods.rivalLabel) return;
-    const on = !mods.rival?.alternate || !!this.controller?.activeRival();
-    const status = mods.rival?.alternate ? (on ? "  (شغال هاليد)" : "  (معطّل هاليد 🔓)") : "";
-    this.rivalText.setText(`${mods.rivalLabel}: ${mods.rival?.alternate ? this.ruleOnly(mods.rivalRule) : mods.rivalRule ?? ""}${status}`);
-    this.rivalText.setColor(on ? "#ffb3b3" : "#9be6a8");
-  }
-
-  /** The rule without the "weakened" note (the status says it). */
-  private ruleOnly(rule: string | undefined): string {
-    return (rule ?? "").split(" — بس يد ويد")[0];
+    this.rivalText.setText(`${mods.rivalLabel}: ${mods.rivalRule ?? ""}`);
   }
 
   /** المترجم: over each player, what their discards ask their partner for (docs/baloot-guide.md §4أ). */
@@ -622,6 +619,7 @@ export class TableScene extends Phaser.Scene {
     }
   }
 
+  /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
   private refreshMemory(): void {
     if (!this.memoryText) return;
     const round = this.controller.getRound();
@@ -1700,10 +1698,6 @@ export class TableScene extends Phaser.Scene {
       }).setAlpha(0),
     );
     y += e.bonuses.length * 42;
-    if (e.rivalBonus) {
-      put(CENTER_X, y, `${e.rivalBonus.label}: +${e.rivalBonus.points} لهم`, { fontSize: "25px", color: "#ff9a9a" });
-      y += 42;
-    }
     const gainedLine = (n: number) => `المكتسب: لنا ${n} — لهم ${e.gained[them]}`;
     const gainedText = e.bonuses.length > 0 ? put(CENTER_X, y, gainedLine(running), { fontSize: "27px", color: "#ffffff", fontStyle: "bold" }) : undefined;
     if (gainedText) y += 46;

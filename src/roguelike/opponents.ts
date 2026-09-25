@@ -1,48 +1,29 @@
-import type { Seat, Suit } from "../engine/types";
-import type { Tag } from "./jokers";
-
 /**
  * The opponents a run's matches are played against (the design bible, PART 7).
  *
- * Every pair wields a power from the joker catalog — the same rule you could buy — so the
- * items and the enemies are one system:
- * - their `family` is the joker family their power comes from;
- * - owning any joker of that family weakens them (you know the trick): their rule is only on
- *   every other hand. It never becomes impossible without one, just easier with one;
- * - beating them tilts your rewards to that family, and after an elite or a boss their
- *   `signature` joker is always one of the three on offer.
+ * Like a Balatro boss blind, each one bends a rule of the game against you: your first Ace is
+ * worth nothing, they double everything you buy, your projects don't count… Each rule hits one
+ * way of playing, so the jokers you've gathered make some fights harder and others easier —
+ * the link between enemies and items is what they attack, not a counter you have to own.
+ * The map doesn't say who's where: you find out when you walk in.
  */
 export interface RivalOptions {
-  /** These seats' cards of `suit` act as trumps (ملك السبيت) — in sun hands only, with `sunOnly`. */
-  trump?: { suit: Suit; seats: Seat[]; sunOnly?: boolean };
-  /** These seats' projects count one size up (الورقة الشبح)… */
-  projectSeats?: Seat[];
-  /** …or only get the smaller boost: two in a row make a سرا (نص سرا). */
-  projectShort?: boolean;
-  /** These seats' cards in the last trick count as the top of their suit (الورقة الأخيرة). */
-  lastCardSeats?: Seat[];
-  /** These seats' 7s and 8s outside the trump suit beat the Ace (ثورة الصغار)… */
-  lowSeats?: Seat[];
-  /** …in sun hands only. */
-  lowSunOnly?: boolean;
-  /** They buy sun on hands a careful player would pass. */
-  sunEager?: boolean;
-  /** A sun hand they buy and make counts this many times for them. */
-  sunMultiplier?: number;
-  /** Any hand they buy and make counts this many times for them. */
-  buyMultiplier?: number;
-  /** Taking الأرض (the last trick) takes the whole hand for them (سيد الأرض). */
-  groundWins?: boolean;
-  /** …but only on a hand they bought. */
-  groundWinsOnlyBought?: boolean;
-  /** Their search AI knows these seats' hands instead of guessing them (الجاسوس). */
-  peek?: Seat[];
-  /** Their projects are worth this many times their points (مهندس المشاريع). */
-  projectMultiplier?: number;
-  /** Points to them for every trick they take with a card of `suit` (كنز السبيت). */
-  suitTrick?: { suit: Suit; points: number };
-  /** Weakened: the rule is only on every other hand (the first hand of a match it's on). */
-  alternate?: boolean;
+  /** The first Ace your team takes in a hand counts for nothing. */
+  voidFirstAce?: boolean;
+  /** Any hand your team buys and loses counts double for them. */
+  lossDoubled?: boolean;
+  /** Your team's projects don't count (بلوت still does). */
+  cancelProjects?: boolean;
+  /** الأرض (the last-trick bonus) is theirs whoever takes the last trick. */
+  groundTheirs?: boolean;
+  /** One of them is dealt the Jack and 9 of the ground card's suit: buy sun, or they buy hokum. */
+  hokumHands?: boolean;
+  /** Your team's trump Jack drops below the trump 9 ("bottom": below every trump). */
+  weakJack?: boolean | "bottom";
+  /** They start the match this far ahead. */
+  headStart?: number;
+  /** Your strongest joker sits this match out (applied when the match is set up). */
+  disableJoker?: boolean;
 }
 
 export type OpponentTier = "match" | "elite" | "boss";
@@ -52,87 +33,74 @@ export interface OpponentDef {
   name: string;
   icon: string;
   tier: OpponentTier;
-  /** The joker family their power comes from: owning one weakens them. */
-  family: Tag;
-  /** The joker they drop after an elite/boss, and whose power they use. */
-  signature: string;
   /** What they do, as the player reads it. */
   rule: string;
-  /** Their options; `weak` = you own a joker of their family, so the rule is only on every other hand. */
-  rules(weak: boolean): RivalOptions;
+  /** The way of playing it hurts (and so, which jokers feel it) — shown under the rule. */
+  hits: string;
+  rules: RivalOptions;
 }
 
-/** The opponents sit at seats 1 and 3; "one of them" is the one on your right, who plays after you. */
-const ONE: Seat[] = [1];
-
 /**
- * Each rule's strength was measured with the rule-based AI in your seat (sim, 1500 hands):
- * a match costs you about 3 points a hand at full strength, an elite about 5, a boss about 6;
- * weakened (only every other hand) takes roughly half of that away. No opponent needs its
- * counter to be beaten.
+ * Measured with the rule-based AI in your seat (1500 hands; −0.8 a hand with no rule): a match
+ * costs you about 3 points a hand, an elite about 4.5, a boss about 6. Doubling your contracts
+ * was tried and dropped: a buyer who usually makes it only gains from a دبل.
  */
 export const OPPONENTS: OpponentDef[] = [
   // ---- matches
   {
-    id: "spade-lords",
-    name: "ملوك السبيت",
-    icon: "♠️",
+    id: "ace-eaters",
+    name: "آكلين الإكك",
+    icon: "🅰️",
     tier: "match",
-    family: "سبيت",
-    signature: "spade-treasure",
-    rule: "كل أكلة ياخذونها بورقة سبيت: +3 لهم",
-    rules: (weak) => ({ suitTrick: { suit: "S", points: 3 }, alternate: weak }),
+    rule: "أول إكة تاكلونها في كل يد ما تنحسب أبناطها",
+    hits: "يتعب بناء الإكك",
+    rules: { voidFirstAce: true },
   },
   {
-    id: "sharks",
-    name: "الحرّيفة",
-    icon: "📜",
+    id: "project-erasers",
+    name: "ماسحين المشاريع",
+    icon: "🧽",
     tier: "match",
-    family: "مشروع",
-    signature: "project-engineer",
-    rule: "مشاريعهم تنحسب ×2",
-    rules: (weak) => ({ projectMultiplier: 2, alternate: weak }),
+    rule: "مشاريعكم ما تنحسب (البلوت ينحسب)",
+    hits: "يتعب بناء المشاريع",
+    rules: { cancelProjects: true },
   },
   {
-    id: "ground-keepers",
-    name: "حرّاس الأرض",
+    id: "ground-takers",
+    name: "أهل الأرض",
     icon: "🏁",
     tier: "match",
-    family: "أرض",
-    signature: "last-card",
-    rule: "ورقة اللي على يمينك في آخر أكلة أكبر ورقة في شكلها",
-    rules: (weak) => ({ lastCardSeats: ONE, alternate: weak }),
+    rule: "عشرة الأرض لهم دائماً، أياً كان اللي أخذ آخر أكلة",
+    hits: "يتعب بناء الأرض",
+    rules: { groundTheirs: true },
   },
   {
-    id: "sun-folk",
-    name: "أهل الصن",
-    icon: "☀️",
+    id: "jack-snatchers",
+    name: "خاطفين الولد",
+    icon: "🪝",
     tier: "match",
-    family: "دفاع",
-    signature: "breaker",
-    rule: "يشترون صن بسهولة، وكل صن يشترونه ويكسبونه ×1.75 لهم",
-    rules: (weak) => ({ sunEager: true, sunMultiplier: 1.75, alternate: weak }),
+    rule: "ولد الحكم حقكم صار أضعف ورقة حكم (أبناطه تنحسب)",
+    hits: "يتعب بناء الولد",
+    rules: { weakJack: "bottom" },
   },
   // ---- elites
   {
-    id: "little-rebels",
-    name: "ثوار الصغار",
-    icon: "7️⃣",
+    id: "hokum-folk",
+    name: "أهل الحكم",
+    icon: "♦️",
     tier: "elite",
-    family: "صغار",
-    signature: "trash-beats-ace",
-    rule: "في الصن: سبعات وثمانيات اللي على يمينك تاكل الإكة",
-    rules: (weak) => ({ lowSeats: ONE, lowSunOnly: true, alternate: weak }),
+    rule: "اللي على يمينك دايم معه الولد والتسعة من شكل ورقة الأرض: إذا ما شريت صن بيشترون حكم",
+    hits: "لازم تعرف متى تشتري صن",
+    rules: { hokumHands: true },
   },
   {
-    id: "watchers",
-    name: "العيون",
-    icon: "👁️",
+    id: "doublers",
+    name: "المدبّلين",
+    icon: "✖️",
     tier: "elite",
-    family: "عين",
-    signature: "spy",
-    rule: "يلعبون وهم شايفين ورقك وورق خويك",
-    rules: (weak) => ({ peek: [0, 2], alternate: weak }),
+    rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل",
+    hits: "لا تشتري إلا وأنت ضامن",
+    rules: { lossDoubled: true },
   },
   // ---- bosses
   {
@@ -140,46 +108,32 @@ export const OPPONENTS: OpponentDef[] = [
     name: "أبو قهوة",
     icon: "☕",
     tier: "boss",
-    family: "دبل",
-    signature: "qahwaji",
-    rule: "كل يد يشترونها ويكسبونها ×1.7 لهم",
-    rules: (weak) => ({ buyMultiplier: 1.7, alternate: weak }),
+    rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل، وأول إكة تاكلونها ما تنحسب",
+    hits: "الشراء لازم يكون مضمون",
+    rules: { lossDoubled: true, voidFirstAce: true },
   },
   {
-    id: "sheikh-alard",
-    name: "شيخ الأرض",
-    icon: "🏜️",
+    id: "front-runners",
+    name: "السبّاقين",
+    icon: "🏃",
     tier: "boss",
-    family: "أرض",
-    signature: "ground-lord",
-    rule: "في يد يشترونها: اللي ياخذ الأرض منهم ياخذ اليد كلها",
-    rules: (weak) => ({ groundWins: true, groundWinsOnlyBought: true, alternate: weak }),
+    rule: "يبدؤون المباراة قدامكم بـ 40",
+    hits: "لازم تجيب نقاط بسرعة",
+    rules: { headStart: 40 },
   },
   {
-    id: "spade-sultan",
-    name: "سلطان السبيت",
-    icon: "🗡️",
+    id: "disabler",
+    name: "المعطّل",
+    icon: "🔒",
     tier: "boss",
-    family: "سبيت",
-    signature: "spade-king",
-    rule: "في الصن: سبيت اللي على يمينك يقطع مثل الحكم",
-    rules: (weak) => ({ trump: { suit: "S", seats: ONE, sunOnly: true }, alternate: weak }),
+    rule: "يعطّل أقوى جوكر عندك طول المباراة، وعشرة الأرض لهم دائماً",
+    hits: "لا تعتمد على جوكر واحد",
+    rules: { disableJoker: true, groundTheirs: true },
   },
 ];
 
-/** What's left of a rule once you own a joker of its family. */
-export function weakRuleText(def: OpponentDef): string {
-  return `${def.rule} — بس يد ويد: جوكرك يعطّله كل يد ثانية`;
-}
-
 export function getOpponent(id: string | undefined): OpponentDef | undefined {
   return OPPONENTS.find((o) => o.id === id);
-}
-
-/** Owning any joker of their family weakens them. */
-export function isWeakened(def: OpponentDef, jokerFamilies: Iterable<Tag>): boolean {
-  for (const tag of jokerFamilies) if (tag === def.family) return true;
-  return false;
 }
 
 /** One opponent per fight node, no repeats within a run where the pool allows. */

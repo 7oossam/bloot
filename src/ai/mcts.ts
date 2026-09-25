@@ -27,8 +27,6 @@ export interface SearchOptions {
   /** Stop early once this many milliseconds have gone (the game stays responsive on a phone). */
   timeBudgetMs?: number;
   rand?: () => number;
-  /** العيون (an opponent rule): these seats' hands are known to the searcher, not guessed. */
-  peek?: Seat[];
   /** What the rule-based AI is told for this seat (أشكل signal, مقفل…). */
   ctx?: PlayContext;
 }
@@ -49,7 +47,6 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   if (candidates.length === 1) return candidates[0];
 
   const constraints = inferConstraints(round, seat);
-  for (const s of opts.peek ?? []) if (s !== seat) constraints.known[s] = [...round.hands[s]];
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
   const started = Date.now();
   let worlds = 0;

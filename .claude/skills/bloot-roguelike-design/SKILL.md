@@ -176,41 +176,45 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - **Your hand**: a "🔀 ترتيب" button cycles suit / strongest first / alternating colours, and dragging a card sideways reorders it by hand.
 - **Every joker pick is optional** (a تخطّي button), and picks that would change nothing are greyed out.
 
-## PART 7: Opponents and الحوت (src/roguelike/opponents.ts)
+## PART 7: Opponents, الديوانية and الحوت
 
-### The law: enemies and items are one system
-Every opponent pair wields a power **from the joker catalog** (the same rule a player could
-buy), so learning the jokers teaches you the enemies and vice versa:
-- **Family:** each opponent has a joker family. Owning **any** joker of that family weakens
-  them: their rule is only on **every other hand** (يد ويد; the table says شغال/معطّل هاليد).
-- **Never a hard counter.** The player's rule: a counter makes the fight *easier*, it's never
-  required. Every rule is tuned so it can be beaten without its counter.
-- **Beating them pays in their family:** after a match the rewards weigh their family ×4;
-  after an elite, their **signature joker** is always one of the three rewards.
-- **Known in advance:** every fight node shows its opponent on the map from the start
-  (🔓 = already weakened), and entering one shows their rule, the counter family and the reward.
+### Opponents bend the game against YOU (src/roguelike/opponents.ts)
+The player's design, like Balatro's boss blinds: an opponent isn't a stronger player with a
+power of its own, it's a rule that changes the game on you (your first Ace scores nothing,
+your projects don't count, الأرض is theirs…). Each rule hits one way of playing, so the
+jokers you gathered make some fights harder and others easier. That is the whole link
+between enemies and items; there is no "own a joker of their family to weaken them"
+mechanic (tried and rejected by the player).
+- **Hidden:** the map never says who is where. You find out as you walk in (a reveal panel
+  with their rule and the way of playing it hurts).
+- **Never impossible:** every rule is measured so a run can beat it without a counter.
 
-### The roster (margin per hand for the rule-based AI in your seat; no rule = −0.8)
-| Tier | Opponent | Rule | Family → signature | Full | Weakened |
-|---|---|---|---|---|---|
-| match | ملوك السبيت | +3 per trick they take with a spade | سبيت → كنز السبيت | −3.8 | ≈ −2.3 |
-| match | الحرّيفة | their projects count ×2 | مشروع → مهندس المشاريع | −3.1 | ≈ −1.9 |
-| match | حرّاس الأرض | right-hand opponent's last-trick card is top | أرض → الورقة الأخيرة | −3.0 | −2.2 |
-| match | أهل الصن | buy sun readily; a sun they make ×1.75 | دفاع → الكاسر | −3.1 | ≈ −2 |
-| elite | ثوار الصغار | in sun, right-hand opponent's 7s/8s beat the Ace | صغار → ثورة الصغار | −5.7 | −3.5 |
-| elite | العيون | their search AI sees your and your partner's hands | عين → الجاسوس | (search only) | |
-| boss | أبو قهوة | a hand they buy and make ×1.7 | دبل → القهوجي | −6.1 | −3.8 |
-| boss | شيخ الأرض | on a hand they bought, الأرض takes the whole hand | أرض → سيد الأرض | −5.4 | −3.2 |
-| boss | سلطان السبيت | in sun, right-hand opponent's spades cut like trumps | سبيت → ملك السبيت | −6.8 | −3.9 |
+| Tier | Opponent | Rule | Margin/hand |
+|---|---|---|---|
+| match | آكلين الإكك | the first Ace your team takes each hand scores nothing | −2.8 |
+| match | ماسحين المشاريع | your projects don't count (بلوت does) | −4.1 |
+| match | أهل الأرض | الأرض's 10 is theirs whoever takes the last trick | −3.1 |
+| match | خاطفين الولد | your trump Jack is the weakest trump (still worth 20) | −2.8 |
+| elite | أهل الحكم | the one on your right is dealt the J and 9 of the ground suit: buy sun or they buy hokum | −4.8 |
+| elite | المدبّلين | a hand you buy and lose counts double for them | −4.4 |
+| boss | أبو قهوة | المدبّلين + آكلين الإكك | −6.7 |
+| boss | السبّاقين | they start 40 ahead | (fixed) |
+| boss | المعطّل | your strongest joker is off for the match + أهل الأرض | (depends on your row) |
 
-Tuning targets: match ≈ −3, elite ≈ −5, boss ≈ −6 at full; weakened takes about half of the
-extra away. The trick-changing powers (both opponents' spades as trumps, both seats' 7s/8s
-beating Aces, projects one size up) measured −10 to −14 a hand, far too strong, which is why
-they're scoped to one seat, sun only, or moved up a tier. Re-measure any new rule the same way.
+Margins: the rule-based AI in your seat over 1500 hands; with no rule it's −0.8.
+Measured and **rejected**: "they double everything you buy" (+5: a buyer who usually makes
+it only gains from a دبل, even when the buyer stays the judged side), "you can't buy sun"
+(≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
+
+### الديوانية (src/roguelike/events.ts)
+Two map nodes per run (after the 1st and 3rd match) with a short scene and a choice:
+safe, a gamble, or a price now for something later. The events are فنجال المعزّب، الرهان،
+الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
+with the reason, and every event has at least one choice that's always open.
 
 ### الحوت (the whale)
 Before the first node the run offers four gifts: a rare joker, two commons of one family, 60
-gold, or a legendary joker that costs a life. The first hand of a run is already not plain Baloot.
+gold, or a legendary joker that costs a life.
 
 # ⚠️ CRITICAL SYSTEM RULE: THE "SHARED DECK" LAW ⚠️
 **NEVER EVER refer to "Your Deck" or "The Player's Deck".**

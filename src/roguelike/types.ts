@@ -1,4 +1,4 @@
-export type NodeType = "match" | "elite" | "shop" | "boss";
+export type NodeType = "match" | "elite" | "shop" | "boss" | "diwaniya";
 
 export interface MapNode {
   id: string;
@@ -8,6 +8,8 @@ export interface MapNode {
   reward: number; // gold earned on winning this node (match/elite/boss)
   /** Who you play here (src/roguelike/opponents.ts) — fight nodes only. */
   opponent?: string;
+  /** What happens here (src/roguelike/events.ts) — ديوانية nodes only. */
+  event?: string;
 }
 
 /** One of الحوت's gifts at the start of a run. */
@@ -45,6 +47,8 @@ export interface RunState {
   salary: number;
   /** A start-ahead bonus for the next match only (the دفعة consumable). */
   nextMatchBoost: number;
+  /** The opponents start the next match this far ahead (a ديوانية choice's price). */
+  nextMatchPenalty: number;
   /** The joker the last تذكرة ترقية levelled up, for the shop to announce. */
   lastTicket?: string;
   /** Run-long counters some jokers grow (الحصالة). */

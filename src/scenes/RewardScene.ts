@@ -76,7 +76,7 @@ export class RewardScene extends Phaser.Scene {
     const style = RARITY_STYLE[def.rarity];
     const owned = runController.levelOf(id);
     const reason = runController.whyNotReward(id);
-    const hint = runController.rivalHint(id) ?? runController.rewardHint(id);
+    const hint = runController.rewardHint(id);
     const levelUp = (def.kind === "joker" || def.kind === "upgrade") && owned > 0;
     const cardW = WIDTH - 80;
 

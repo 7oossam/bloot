@@ -14,6 +14,10 @@ export interface HandExtras {
   baloot?: Seat;
   /** The دبل, if the hand was doubled: its level and the side that raised last. */
   double?: { level: DoubleLevel; raiserTeam: Team; closed: boolean };
+  /** An opponent rule: the first Ace this team takes in a trick counts for nothing. */
+  voidFirstAce?: Team;
+  /** An opponent rule: الأرض (the last-trick bonus) goes to this team whoever takes it. */
+  groundTo?: Team;
 }
 
 /**
@@ -47,12 +51,20 @@ export function scoreHand(
   const ground: Record<Team, number> = { 0: 0, 1: 0 };
   const tricksWon: Record<Team, number> = { 0: 0, 1: 0 };
 
+  let aceVoided = false;
   tricks.forEach((trick, index) => {
     if (trick.winner === undefined) throw new Error(`Trick ${index} has no winner`);
     const winningTeam = teamOf(trick.winner);
     tricksWon[winningTeam]++;
-    for (const seat of trick.order) cards[winningTeam] += cardPoints(trick.cards[seat]!, mode, trumpSuit);
-    if (index === tricks.length - 1) ground[winningTeam] += lastTrickBonus;
+    for (const seat of trick.order) {
+      const card = trick.cards[seat]!;
+      if (!aceVoided && extras.voidFirstAce === winningTeam && card.rank === "A") {
+        aceVoided = true;
+        continue;
+      }
+      cards[winningTeam] += cardPoints(card, mode, trumpSuit);
+    }
+    if (index === tricks.length - 1) ground[extras.groundTo ?? winningTeam] += lastTrickBonus;
   });
   const rawPoints: Record<Team, number> = { 0: cards[0] + ground[0], 1: cards[1] + ground[1] };
 

@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
 import { BLESSING_GOLD, runController } from "../roguelike/RunController";
-import { weakRuleText } from "../roguelike/opponents";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
@@ -12,6 +11,7 @@ const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
   elite: "نخبة",
   shop: "متجر",
   boss: "الزعيم",
+  diwaniya: "الديوانية",
 };
 
 const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
@@ -19,6 +19,7 @@ const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
   elite: "♛",
   shop: "🛒",
   boss: "👑",
+  diwaniya: "🫖",
 };
 
 const RADIUS = 54;
@@ -131,17 +132,9 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
         ? arabicText(this, radius + 92, 22, `هدف ${node.matchTarget}`, { fontSize: "21px", color: "#8fae9a" })
         : null;
 
+    // Who you'll play stays a surprise until you walk in.
     const parts: Phaser.GameObjects.GameObject[] = [circle, icon, label];
     if (targetLabel) parts.push(targetLabel);
-    const rival = runController.opponentFor(node);
-    if (rival) {
-      parts.push(
-        arabicText(this, radius + 92, 56, `${rival.def.icon} ${rival.def.name}${rival.weak ? " 🔓" : ""}`, {
-          fontSize: "21px",
-          color: rival.weak ? "#9be6a8" : "#ffb3b3",
-        }),
-      );
-    }
     if (state.isCleared) {
       parts.push(this.add.text(radius - 18, -radius + 4, "✓", { fontSize: "32px", color: "#5ad469" }));
     }
@@ -174,61 +167,105 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       this.scene.start("shop");
       return;
     }
+    if (node.type === "diwaniya") {
+      runController.enterNode(node.id);
+      this.showEventPanel(node);
+      return;
+    }
     this.showRivalPanel(node);
   }
 
-  /** Who you're about to play, what their rule is, and whether your jokers have weakened it. */
-  private showRivalPanel(node: MapNode): void {
-    const rival = runController.opponentFor(node);
-    if (!rival) return this.startMatch(node);
+  /** A panel in the middle of the map; returns it with its width. */
+  private openPanel(height: number, border: number): { panel: Phaser.GameObjects.Container; panelW: number } {
     this.overlay?.destroy();
-    const { def, weak } = rival;
     const panelW = WIDTH - 80;
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
     const bg = this.add.graphics();
     bg.fillStyle(THEME_NODE, 0.97);
-    bg.fillRoundedRect(-panelW / 2, -330, panelW, 660, 28);
-    bg.lineStyle(6, weak ? 0x5ad469 : 0xd45a5a, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -330, panelW, 660, 28);
+    bg.fillRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
+    bg.lineStyle(6, border, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
     panel.add(bg);
+    return { panel, panelW };
+  }
+
+  /** Who you're about to play, revealed as you walk in, and what their rule does to you. */
+  private showRivalPanel(node: MapNode): void {
+    const def = runController.opponentFor(node);
+    if (!def) return this.startMatch(node);
+    const { panel, panelW } = this.openPanel(640, 0xd45a5a);
     const wrap = { wordWrap: { width: panelW - 70 } };
-    panel.add(arabicText(this, 0, -270, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${node.matchTarget}`, { fontSize: "26px", color: "#bcd" }));
-    panel.add(this.add.text(0, -195, def.icon, { fontSize: "64px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, -120, def.name, { fontSize: "40px", color: "#ffd54a" }));
-    panel.add(arabicText(this, 0, -40, weak ? weakRuleText(def) : def.rule, { fontSize: "27px", ...wrap }));
-    const hint = weak
-      ? `🔓 جوكرك من عائلة «${def.family}» أضعفهم`
-      : `💡 أي جوكر من عائلة «${def.family}» يضعفهم`;
-    panel.add(arabicText(this, 0, 60, hint, { fontSize: "24px", color: weak ? "#9be6a8" : "#9cc3ff", ...wrap }));
-    const signature = getJokerDef(def.signature);
-    if (signature && node.type === "elite") {
-      panel.add(arabicText(this, 0, 130, `إذا فزت: ${signature.icon} ${signature.name} ضمن الجوايز`, { fontSize: "23px", color: "#e0c3ff", ...wrap }));
-    } else if (node.type === "match") {
-      panel.add(arabicText(this, 0, 130, `إذا فزت: جوايزك تميل لعائلة «${def.family}»`, { fontSize: "23px", color: "#e0c3ff", ...wrap }));
+    panel.add(arabicText(this, 0, -265, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${node.matchTarget}`, { fontSize: "26px", color: "#bcd" }));
+    panel.add(this.add.text(0, -190, def.icon, { fontSize: "64px" }).setOrigin(0.5));
+    panel.add(arabicText(this, 0, -115, def.name, { fontSize: "40px", color: "#ffd54a" }));
+    panel.add(arabicText(this, 0, -30, def.rule, { fontSize: "28px", ...wrap }));
+    panel.add(arabicText(this, 0, 60, `💡 ${def.hits}`, { fontSize: "23px", color: "#9cc3ff", ...wrap }));
+    const off = def.rules.disableJoker ? runController.strongestJoker() : undefined;
+    const offDef = off ? getJokerDef(off) : undefined;
+    if (offDef) panel.add(arabicText(this, 0, 125, `🔒 يتعطّل: ${offDef.icon} ${offDef.name}`, { fontSize: "24px", color: "#ffb3b3", ...wrap }));
+    panel.add(makeButton(this, 0, 235, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
+  }
+
+  /** الديوانية: the scene, its choices, then what happened. */
+  private showEventPanel(node: MapNode): void {
+    const event = runController.eventFor(node);
+    if (!event) {
+      runController.leaveShopNode();
+      return this.refresh();
     }
-    panel.add(makeButton(this, 80, 245, "ابدأ", () => this.startMatch(node), { width: 220 }).container);
-    panel.add(
-      makeButton(this, -170, 245, "رجوع", () => {
-        panel.destroy();
-        this.overlay = undefined;
-      }, { width: 180, color: 0x5d5d5d }).container,
-    );
+    const n = event.options.length;
+    const height = 380 + n * 130;
+    const { panel, panelW } = this.openPanel(height, 0x4fb3d9);
+    const top = -height / 2;
+    const wrap = { wordWrap: { width: panelW - 90 } };
+    panel.add(this.add.text(0, top + 80, event.icon, { fontSize: "64px" }).setOrigin(0.5));
+    panel.add(arabicText(this, 0, top + 160, `الديوانية — ${event.name}`, { fontSize: "34px", color: "#ffd54a" }));
+    panel.add(arabicText(this, 0, top + 240, event.text, { fontSize: "26px", ...wrap }));
+    event.options.forEach((option, i) => {
+      const reason = runController.whyNotEventOption(i);
+      const y = top + 360 + i * 130;
+      const btn = makeButton(this, 0, y, option.label, () => this.showEventResult(runController.chooseEventOption(i)), {
+        width: panelW - 90,
+        height: 100,
+        fontSize: "23px",
+        color: reason ? 0x3a3a3a : 0x2d4a5e,
+      });
+      if (reason) {
+        btn.container.disableInteractive();
+        btn.container.setAlpha(0.55);
+        panel.add(arabicText(this, 0, y + 58, reason, { fontSize: "19px", color: "#ff9a9a" }));
+      }
+      panel.add(btn.container);
+    });
+  }
+
+  private showEventResult(text: string): void {
+    const { panel } = this.openPanel(420, 0x4fb3d9);
+    panel.add(arabicText(this, 0, -80, text, { fontSize: "30px", wordWrap: { width: WIDTH - 170 } }));
+    panel.add(makeButton(this, 0, 110, "كمّل", () => this.refresh(), { width: 260 }).container);
   }
 
   private startMatch(node: MapNode): void {
     const rival = runController.opponentFor(node);
+    // المعطّل: your strongest joker sits this match out.
+    const off = rival?.rules.disableJoker ? runController.strongestJoker() : undefined;
     runController.enterNode(node.id);
     const run = runController.getState();
-    const modifiers = matchOptionsFromJokers(run.jokerIds, run.jokerLevels, { counters: run.jokerCounters, gold: run.gold });
+    const jokerIds = run.jokerIds.filter((id) => id !== off);
+    const modifiers = matchOptionsFromJokers(jokerIds, run.jokerLevels, { counters: run.jokerCounters, gold: run.gold });
     // دفعة: a one-off head start for this match, on top of any joker's.
     const boost = runController.takeMatchBoost();
     if (boost) modifiers.headStart = { ...modifiers.headStart, 0: (modifiers.headStart?.[0] ?? 0) + boost };
+    // The opponents' head start: their own (السبّاقين) plus a ديوانية choice's price.
+    const behind = (rival?.rules.headStart ?? 0) + runController.takeMatchPenalty();
+    if (behind) modifiers.headStart = { ...modifiers.headStart, 1: (modifiers.headStart?.[1] ?? 0) + behind };
     if (rival) {
-      modifiers.rival = rival.def.rules(rival.weak);
-      modifiers.rivalLabel = `${rival.def.icon} ${rival.def.name}`;
-      modifiers.rivalRule = rival.weak ? weakRuleText(rival.def) : rival.def.rule;
+      modifiers.rival = rival.rules;
+      modifiers.rivalLabel = `${rival.icon} ${rival.name}`;
+      modifiers.rivalRule = rival.rule;
     }
+    if (off) modifiers.disabledJoker = off;
     const data: TableSceneData = { nodeType: node.type, matchTarget: node.matchTarget!, modifiers };
     this.scene.start("table", data);
   }

@@ -12,7 +12,8 @@ import {
   type Rarity,
   type ShopItemDef,
 } from "./jokers";
-import { getOpponent, isWeakened, type OpponentDef } from "./opponents";
+import { getEvent, type EventDef, type EventRun } from "./events";
+import { getOpponent, type OpponentDef } from "./opponents";
 import { MAX_LIVES, type Blessing, type MapNode, type RunState } from "./types";
 
 /** How often each rarity turns up in a shop slot. */
@@ -64,12 +65,16 @@ class RunController {
     this.state.blessing = undefined;
   }
 
-  /** Who a fight node is played against, and whether your jokers have weakened them. */
-  opponentFor(node: MapNode): { def: OpponentDef; weak: boolean } | undefined {
-    const def = getOpponent(node.opponent);
-    if (!def) return undefined;
-    const families = this.state.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []);
-    return { def, weak: isWeakened(def, families) };
+  /** Who a fight node is played against. */
+  opponentFor(node: MapNode): OpponentDef | undefined {
+    return getOpponent(node.opponent);
+  }
+
+  /** المعطّل: your strongest joker — the rarest, then the highest level, then the first bought. */
+  strongestJoker(): string | undefined {
+    const rank = { common: 0, rare: 1, legendary: 2 } as const;
+    const score = (id: string) => rank[getJokerDef(id)?.rarity ?? "common"] * 10 + this.levelOf(id);
+    return [...this.state.jokerIds].sort((a, b) => score(b) - score(a))[0];
   }
 
   getState(): Readonly<RunState> {
@@ -99,6 +104,85 @@ class RunController {
       this.payInterest();
       this.rollShop();
     }
+  }
+
+  /** How far ahead the opponents start the match about to begin (a ديوانية's price); used up by asking. */
+  takeMatchPenalty(): number {
+    const penalty = this.state.nextMatchPenalty;
+    this.state.nextMatchPenalty = 0;
+    return penalty;
+  }
+
+  /** What's happening at a ديوانية node. */
+  eventFor(node: MapNode): EventDef | undefined {
+    return getEvent(node.event);
+  }
+
+  /** Why a ديوانية choice can't be picked, if it can't. */
+  whyNotEventOption(index: number): string | undefined {
+    const event = getEvent(this.state.nodes[this.state.currentIndex]?.event);
+    return event?.options[index]?.blocked?.(this.eventRun());
+  }
+
+  /** Makes a ديوانية choice at the current node; returns what happened. */
+  chooseEventOption(index: number): string {
+    const node = this.state.nodes[this.state.currentIndex];
+    const option = getEvent(node?.event)?.options[index];
+    if (!option || node.type !== "diwaniya") throw new Error("No event choice here");
+    const reason = this.whyNotEventOption(index);
+    if (reason) throw new Error(reason);
+    const text = option.apply(this.eventRun(), mulberry32(this.state.seed * 13 + this.state.currentIndex * 101 + this.state.gold));
+    this.state.cleared[this.state.currentIndex] = true;
+    return text;
+  }
+
+  /** The run as a ديوانية event sees it. */
+  private eventRun(): EventRun {
+    const s = this.state;
+    const rand = mulberry32(s.seed * 17 + s.currentIndex * 7 + s.jokerIds.length);
+    const cheapest = () => {
+      const owned = s.jokerIds.map((id) => ({ id, value: this.sellValue(id) })).sort((a, b) => a.value - b.value);
+      return owned[0];
+    };
+    return {
+      gold: () => s.gold,
+      addGold: (amount) => (s.gold = Math.max(0, s.gold + amount)),
+      addLife: () => (s.lives < MAX_LIVES ? (s.lives++, true) : false),
+      addShield: () => void s.shields++,
+      boostNext: (points) => void (s.nextMatchBoost += points),
+      penalizeNext: (points) => void (s.nextMatchPenalty += points),
+      hasFreeSlot: () => s.jokerIds.length < s.maxJokers,
+      grantRandomJoker: (rarity) => {
+        const pool = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.rarity === rarity && !s.jokerIds.includes(d.id));
+        if (pool.length === 0 || s.jokerIds.length >= s.maxJokers) return undefined;
+        const pick = pool[Math.floor(rand() * pool.length)];
+        this.grant(pick.id);
+        return `${pick.icon} ${pick.name}`;
+      },
+      canUpgrade: () => this.upgradeable().length > 0,
+      upgradeRandomJoker: () => {
+        const pool = this.upgradeable();
+        if (pool.length === 0) return undefined;
+        const pick = pool[Math.floor(rand() * pool.length)];
+        s.jokerLevels[pick] = this.levelOf(pick) + 1;
+        const def = getJokerDef(pick)!;
+        return `${def.icon} ${def.name}`;
+      },
+      cheapestJoker: () => {
+        const c = cheapest();
+        return c ? { name: getJokerDef(c.id)!.name, value: c.value } : undefined;
+      },
+      sellCheapest: (times) => {
+        const c = cheapest();
+        if (!c) return undefined;
+        const gold = c.value * times;
+        s.jokerIds = s.jokerIds.filter((id) => id !== c.id);
+        delete s.jokerLevels[c.id];
+        s.gold += gold;
+        const def = getJokerDef(c.id)!;
+        return { name: `${def.icon} ${def.name}`, gold };
+      },
+    };
   }
 
   /** The دفعة bonus for the match about to start; it's used up by asking. */
@@ -285,14 +369,9 @@ class RunController {
     const rand = mulberry32(s.seed * 31 + s.currentIndex * 1009 + s.gold);
     const rarity = REWARD_RARITY[elite ? "elite" : "match"];
     const ownedTags = new Set(s.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
-    // Beaten opponents leave their secrets behind: their family is favoured, and an elite's
-    // own joker is always on offer.
-    const rival = getOpponent(s.nodes[s.currentIndex]?.opponent);
-    const signature = elite && rival && !this.whyNotReward(rival.signature) ? rival.signature : undefined;
     const weight = (def: ShopItemDef): number => {
-      if (this.whyNotReward(def.id) || def.id === signature) return 0;
+      if (this.whyNotReward(def.id)) return 0;
       let w = def.kind === "joker" ? rarity[def.rarity] : def.kind === "upgrade" ? 14 : 10;
-      if (def.kind === "joker" && rival && def.tags.includes(rival.family)) w *= 4;
       if (def.kind === "joker") {
         if (this.levelOf(def.id) > 0) w *= 2;
         else if (def.tags.some((t) => ownedTags.has(t))) w *= 3;
@@ -303,7 +382,7 @@ class RunController {
       return w;
     };
     const pool = [...JOKER_CATALOG, ...UPGRADE_CATALOG, ...CONSUMABLE_CATALOG].map((def) => ({ def, w: weight(def) })).filter((x) => x.w > 0);
-    const items: string[] = signature ? [signature] : [];
+    const items: string[] = [];
     while (items.length < 3 && pool.length > 0) {
       const total = pool.reduce((n, x) => n + x.w, 0);
       let roll = rand() * total;
@@ -312,14 +391,6 @@ class RunController {
       items.push(picked.def.id);
     }
     s.pendingRewards = { items, skipGold: elite ? 15 : 8, elite };
-  }
-
-  /** Why this reward is here, if an opponent left it (shown on the reward screen). */
-  rivalHint(itemId: string): string | undefined {
-    const rival = getOpponent(this.state.nodes[this.state.currentIndex]?.opponent);
-    if (!rival) return undefined;
-    if (itemId === rival.signature) return `سر ${rival.name}`;
-    return getJokerDef(itemId)?.tags.includes(rival.family) ? `من عائلة ${rival.name}` : undefined;
   }
 
   private applyUpgrade(itemId: string): void {
