@@ -95,7 +95,8 @@ Example: a joker that makes the **8** the strongest card needs these alongside i
    - **Forge** changes a card in **your hand for this hand only**. The next deal uses the normal 32 cards again. Duplicates are fine (the engine already handles a duplicated Jack: the first one played keeps the trick).
    - **Payoff** applies to **your team only**. Underdog was broken until it was scoped this way: its first version made the opponents' 7s and 8s beat Aces too.
 5. **Check the numbers with `sim.ts`.** A Reward that fires on 70%+ of hands is just a flat buff; one under 5% is dead. Aim for 30–60% for commons, 10–30% (with a big payoff) for rule-breakers. With the Supply owned, the target should roughly double.
-6. **Anti-synergies are allowed and should be visible.** If two jokers fight each other (الحكم المقفول stops doubling; a doubling build wants it), say so in the text so the player learns rather than feels cheated.
+6. **Don't cut a joker without asking the player.** A review once removed المخلّي, الحكم المقفول, الوجه البارد and زبون مميز and was reverted: المخلّي is a risk you get paid for, the anti-double pair protects you from opponents who double a lot, and زبون مميز is a good shop upgrade (it was only weak as a whale blessing).
+7. **Anti-synergies are allowed and should be visible.** If two jokers fight each other (الحكم المقفول stops doubling; a doubling build wants it), say so in the text so the player learns rather than feels cheated.
 
 The **Jack (الولد) family** is the model package the rest should copy: الولد المضمون (Supply), الولد المزوّر (Forge), جامع الأولاد (Reward), صيد الولد and الحرقة (Payoffs).
 
@@ -144,7 +145,7 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - ملك الآكه (Reward), الجاسوس (see opponents' cards).
 
 ### 9. الكبوت — run every trick (skill build)
-- **السوا**: on your lead, a "سوا ✋" button. It's right when every card in your hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody else to hold a trump). Right = +6 / +10 / +15 and the rest plays itself; wrong = −6. Knowing when is the skill.
+- **السوا**: the سوا button is part of the game now (see PART 7); this joker pays +6 / +10 / +15 for a right call.
 - **الزحف**: from the third trick in a row, each trick pays 1, 1, 2, 2, 3, 3 (level 2: 1, 2, 3, 4, 5, 6).
 - ملك الكبوت (Payoff): a كبوت wins the match. صاحب الحلة helps start a run.
 - Synergy: 2 = +10 per كبوت; 3 = ملك الكبوت free.

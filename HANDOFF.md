@@ -1,27 +1,40 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Claude Code
-**Current Phase:** The 10 builds are in, the live-site crash is fixed, and the computer players now think ahead (search AI). Next: playtest balance, art (JokerView), and the open design items.
+**Current Phase:** The run is a real roguelike now: a branching map, opponents that bend the rules on you, الديوانية events and بركات الحوت. Next: three maps (acts), playtest balance, art (JokerView).
 
 ## 1. What We Just Did
-- **Search AI (`src/ai/mcts.ts`, `searchCard`) now plays the computer seats in the game** (`searchAI: true`, set by `TableScene`; tests keep the plain rule AI unless they ask). For each legal card it tries 40 guesses at the hidden hands, plays each out with the rule-based `decideCard` in every seat, and scores with the real `scoreHand`; best average game-point margin wins. Guesses respect what the table showed: voids, "couldn't trump" / "couldn't overtrump", the ground card's taker, projects laid down (`inferConstraints`, `sampleWorld`). The player's AI rules stay hard rules (no Ace fed to a winning partner or thrown away bar a برقية; a partner's برقية / المترجم ask is always answered). Measured on the same mirrored deals vs the rule AI: +3.75 game points per hand at 20 guesses, +4.71 at 60 (the old random-rollout MCTS was −0.48). About 27 ms per move on a phone-speed CPU, capped at 150 ms. `tests/mcts.test.ts` covers: never touching the real round, guesses fitting the table, the player's rules, and beating the rule AI.
-- **Live-site crash fixed.** The red "تعذّر تشغيل اللعبة" screen came from `cloneRound` in `src/ai/mcts.ts`: it copied each trick but shared its `order` array, so every simulated card was pushed into the REAL trick. The next `legalMovesFor` then read a seat with no card and threw `Cannot read properties of undefined (reading 'suit')`. The copy is fixed and `tests/mcts.test.ts` guards it (it fails on the old code with that exact error).
-- **The first MCTS (Gemini's) was retired:** its random play-outs ignored the player's AI rules (برقية, keeping Aces, answering أشكل — `.claude/skills/baloot-rules/SKILL.md` §9) and the المترجم joker, and it tied the rule AI at best. The search AI above replaced it; `decideCard` is still its play-out policy and the fallback. `GameController.step()` is synchronous; `TableScene.driveAI` awaits it harmlessly.
-- **Tests are back in the gates:** `tsconfig.json` includes `tests` again, and the deploy workflow runs `npm test` before building. Removing them is how the crash reached the live site.
-- **أشكل fix:** a hokum on an Ace ground card (4-1) only blocks flipping it to sun; أشكل over it stays open to the dealer and the dealer's left.
-- **All 10 builds are in the game** as full packages (Payoff / Supply / Forge / Reward) — `.claude/skills/bloot-roguelike-design/SKILL.md` PART 4–6 is the source of truth. 55 jokers; four new families (الصغار، التهريب، الكبوت، الدبل). `docs/jokers.md` is generated: `npx vite-node scripts/gen-jokers-doc.ts`.
-- **Table UI:** joker row (tap to read, pulses when it pays), one-by-one bonus count-up, hand sort button + sideways drag, سوا button, memory line, skip on joker picks.
-- **Art (from Gemini):** theme is "Clean, Vector-style Royal Palace / Mystic Desert" — Midnight Velvet `0x2a1a3a`, Dark Royal `0x1c102a`, Gold `0xd4af37`. Table and map now use it. Joker art: `public/assets/jokers/smuggler.jpg`, `executioner.jpg`.
+
+### Baloot play and AI
+- **التهريب follows the player's video** (`docs/baloot-guide.md` §4 is the source): a discarded suit is NOT wanted and asks for its brother (ديمن → هاص); two suits of one colour, or the led suit's brother, ask for the other colour; climbing in one suit (7→8→بنت) asks for that suit. Reading: `src/ai/beliefs.ts`; sending/answering: `chooseDiscard` / `chooseLead` in `src/ai/play-ai.ts`. The partner answers your signal with its biggest card once it has no winners of its own; a برقية comes first always.
+- **حل الحكم:** the side that didn't buy the hokum never leads trumps, unless it holds 4+ trumps or 3+ sure side winners (`defenderMayLeadTrump`, obeyed by the search AI's hard rules too). +0.3 to +0.5 a hand over the previous AI.
+- **السوا is part of the game** (not a joker): whenever you lead. Either way the rest plays itself out; a wrong one hands the whole hand to the other side (full value, doubled if doubled, plus every project; only your own بلوت stays). The السوا joker just pays a bonus on a right call.
+- **Sun doubling uses the regulation's real 100** (7-2), no longer scaled to the match target.
+
+### The run (src/roguelike/)
+- **Branching map** (`mapgen.ts`): 9 rows × 2–3 nodes in 3 lanes, links never cross; row 0 matches, elites and shops from row 3, a shop row before the boss. Targets/gold grow with the row. `pathTo()` finds a route (used by tests). `RunController.getAvailableNodes()`.
+- **Opponents** (`opponents.ts`): each is a rule bent against YOU (Balatro boss-blind style), hidden on the map, revealed as you walk in. Every rule's difficulty was measured by simulation (match ≈ −3 a hand, elite ≈ −4.5, boss ≈ −6); rejected rules and why are in the design bible PART 7.
+- **الديوانية** (`events.ts`): six events with a choice each (safe / gamble / price now, pay-off later).
+- **بركات الحوت** (`blessings.ts`): at the start of the map, three blessings (one free, two with a price). Permanent for the run, not jokers. The player's taste: no blessing costs a life, no shop discount.
+- **Jokers are relics:** no cap (the جيب زيادة upgrade is gone); the table row and shop chips shrink to fit.
+- **Item review — the player's verdict:** every joker and item stays. An attempt to cut four was reverted on the player's word, and the reasons are worth keeping: **المخلّي** is a gamble (you risk the trick and get paid for the risk); **الحكم المقفول** and **الوجه البارد** protect you from opponents who double a lot; **زبون مميز** is a good *shop* upgrade (it was only weak as a whale blessing). Don't remove them without asking. المترجم now shows you every player's تهريب instead of making your partner understand you (that's normal play now).
+
+### Where the truth lives
+- Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
+- Design: `.claude/skills/bloot-roguelike-design/SKILL.md` — PART 7 covers opponents, map, الديوانية, blessings, سوا, relics.
+- Jokers: `docs/jokers.md` is generated — `npx vite-node scripts/gen-jokers-doc.ts`.
 
 ## 2. Current Blockers / Open Questions
-- **Balance:** ثورة الصغار is the strongest Payoff (≈ +6.7 base points per hand on its own; measured table in the design bible PART 5).
-- **Search AI next steps:** it doesn't yet read the bidding (who bought, who passed, أشكل) into its guesses, or the partner's تهريب beyond what the rule AI does in the play-outs. Both would make the guesses sharper.
+- **Balance of the uncapped jokers:** with no cap, the build-makers (شيخ القبيلة، المايسترو، الوايلد) scale further. Watch them in playtests.
+- **Opponent strength for a human:** the margins were measured with the rule-based AI in the player's seat; a real player may find حرّاس الإكك or المدبّلين harder or easier. Retune from playtests.
+- **Hokum doubling** has no score limit (the regulation only limits sun). The player noticed doubles "under 100" — the sun case is fixed; ask if they also want hokum limited.
+- **Deploys only from `main` or `claude/gamedev-skills-install-9ybem7`** (`.github/workflows/deploy-pages.yml`). Work on another branch shows up on the page only after its PR is merged.
 
 ## 3. Next Steps (Where to pick up)
-- Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`) and regenerate `docs/jokers.md`.
+- **Three maps (acts)** — the player wants it, "but not now": after the boss, a harder map; الحوت appears at the start of each map (never mid-map) with stronger blessings.
+- Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`), `opponents.ts` and `blessings.ts`.
 - Build `JokerView.ts` to show the joker art (row above the table, shop cards).
-- Open design items: explicit scoring pipeline with reorderable multipliers, boss/elite rule modifiers, a branching map.
-- Before pushing: `npm test` and `npm run build` must pass — CI blocks the deploy otherwise.
+- Before pushing: `npm test` and `npm run build` must pass — CI blocks the deploy otherwise. UI changes get a Playwright check at 359×685 (the player's phone).
 
 ---
 *Note to AI Agent: Please update this file with your progress, edited files, and the next step before you finish your turn so the other model can seamlessly take over. Save it as UTF-8.*
