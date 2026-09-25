@@ -37,6 +37,7 @@ import {
   sortHandForDisplay,
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
 // and attributed to a seat before the next one lands.
@@ -155,6 +156,8 @@ export class TableScene extends Phaser.Scene {
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
+  /** Hands finished this match (the first one gets its own line). */
+  private handsPlayed = 0;
   /** Who you're playing and whether their rule is on this hand. */
   private rivalText?: Phaser.GameObjects.Text;
   /** المترجم: what each seat's التهريب asks for, shown over its name. */
@@ -208,6 +211,7 @@ export class TableScene extends Phaser.Scene {
     this.highlightedSeat = null;
     this.revealViews = [];
     this.signalTexts = [];
+    this.handsPlayed = 0;
     this.spied = {};
     this.actionPrompt = undefined;
     this.actionSkip = undefined;
@@ -982,6 +986,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onBiddingResolved(e: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> }): void {
+    this.chat(contractLines(e.declarer, e.mode));
     this.clearBidButtons();
     this.groundLabel?.destroy();
     this.groundLabel = undefined;
@@ -1311,6 +1316,14 @@ export class TableScene extends Phaser.Scene {
    */
   private onProjectsDeclared(e: ProjectsOutcome): void {
     this.projects = e;
+    this.chat(projectLines(e), 1400);
+  }
+
+  /** سوالف الطاولة: the computer players' lines, as bubbles a moment after what they react to. */
+  private chat(lines: ChatLine[], delay = 900): void {
+    for (const line of lines) {
+      this.time.delayedCall(delay, () => this.showSeatBubble(line.seat, line.text, 0xffd54a));
+    }
   }
 
   /** Which trick (0-based) the card `seat` just played belongs to. */
@@ -1530,6 +1543,8 @@ export class TableScene extends Phaser.Scene {
 
   private onTrickComplete(e: { trick: Trick; winner: Seat }): void {
     this.trickSettling = true;
+    const contract = this.controller.getRound().bidding.result;
+    if (contract) this.chat(trickLines(e.trick, e.winner, contract.mode, contract.trumpSuit), 300);
     const isLast = this.controller.getRound().tricks.length === 8;
     // The last trick carries the 10-point bonus, which Baloot players call "الأرض".
     this.log(isLast ? `الأرض: ${SEAT_LABEL_AR[e.winner]} (+${this.lastTrickBonus()})` : `الأكلة: ${SEAT_LABEL_AR[e.winner]}`);
@@ -1581,6 +1596,8 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onHandComplete(e: HandCompleteEvent): void {
+    this.chat(handLines(e.result, this.handsPlayed === 0), 200);
+    this.handsPlayed++;
     this.showingHandSummary = true;
     // The controller deals the next hand right after this event, so read the finished
     // round's contract now.
@@ -1758,6 +1775,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onMatchComplete(e: { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean }): void {
+    this.chat(matchLines(e.winner), 200);
     this.matchOver = true;
     const end = { winner: e.winner, matchScore: { ...e.matchScore }, qahwa: e.qahwa };
     // The hand that ended the match still gets its النشرة; the match panel follows it.
