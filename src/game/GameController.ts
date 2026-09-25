@@ -1,7 +1,7 @@
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard, type PlayContext } from "../ai/play-ai";
 import { buildBeliefs } from "../ai/beliefs";
-import { searchCard } from "../ai/mcts";
+import { buyerWouldLose, searchCard } from "../ai/mcts";
 import { mulberry32 } from "../engine/rng";
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
@@ -427,6 +427,8 @@ export class GameController extends Emitter<EventMap> {
     if (r?.cancelProjects) rules.cancelProjectsOf = us;
     // The one on your right: you still get a say (sun, or over their hokum) before the hand is theirs.
     if (r?.hokumHands) rules.hokumSeat = nextSeat(HUMAN_SEAT);
+    // العارفين may double your sun at any score.
+    if (r?.doubleKnown) rules.freeSunDoubleFor = them;
     return rules;
   }
 
@@ -468,7 +470,16 @@ export class GameController extends Emitter<EventMap> {
       const us = teamOf(HUMAN_SEAT);
       const cowed = this.options.pokerFace && teamOf(seat) !== us && state.level > 1 && raiserTeam(state) === us;
 
-      this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
+      // العارفين: they see how the hand would go, and double exactly the contracts you'd lose.
+      const res = this.round.bidding.result!;
+      if (this.options.rival?.doubleKnown && teamOf(seat) !== us && state.level === 1 && !cowed) {
+        const double = this.round.legalDoubleCalls().find((c) => c.call === "double");
+        if (double && buyerWouldLose(this.round)) {
+          this.applyDouble({ seat, call: "double", closed: double.closed === undefined ? undefined : res.mode === "hokum" });
+          return "advanced";
+        }
+      }
+      this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, res.trumpSuit));
       return "advanced";
     }
 

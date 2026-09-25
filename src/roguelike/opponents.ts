@@ -12,6 +12,8 @@ export interface RivalOptions {
   noAceLead?: boolean;
   /** Any hand your team buys and loses counts double for them. */
   lossDoubled?: boolean;
+  /** They see how the hand would go and double exactly the contracts you'd lose (sun too, at any score). */
+  doubleKnown?: boolean;
   /** Your team's projects don't count (بلوت still does). */
   cancelProjects?: boolean;
   /** الأرض (the last-trick bonus) is theirs whoever takes the last trick. */
@@ -82,6 +84,15 @@ export const OPPONENTS: OpponentDef[] = [
     rule: "ولد الحكم حقكم صار أضعف ورقة حكم (أبناطه تنحسب)",
     hits: "يتعب بناء الولد",
     rules: { weakJack: "bottom" },
+  },
+  {
+    id: "knowers",
+    name: "العارفين",
+    icon: "🧿",
+    tier: "match",
+    rule: "يعرفون متى بتخسر: يدبلون على كل يد تشترونها وأنتم خسرانين (حتى الصن)",
+    hits: "لا تشتري إلا وأنت ضامن — والحكم المقفول يحميك منهم",
+    rules: { doubleKnown: true },
   },
   // ---- elites
   {

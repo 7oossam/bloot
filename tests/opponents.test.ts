@@ -110,6 +110,17 @@ describe("the opponents' rules in a real match", () => {
     expect(doubled[first].gained[0]).toBe(plain[first].gained[0]);
   });
 
+  it("العارفين: they double the contracts you'd lose — and الحكم المقفول stops them", () => {
+    const done = playHands({ rival: { doubleKnown: true } }, 5, 60);
+    const doubled = done.filter((h) => h.result.declarerTeam === teamOf(HUMAN_SEAT) && h.result.sheet?.double);
+    expect(doubled.length).toBeGreaterThan(0);
+    // They only double when the play-out says you lose; the real play mostly agrees.
+    const theyWon = doubled.filter((h) => h.result.sheet!.winner !== teamOf(HUMAN_SEAT)).length;
+    expect(theyWon / doubled.length).toBeGreaterThanOrEqual(0.7);
+    const locked = playHands({ rival: { doubleKnown: true }, noDoubleAgainst: true }, 5, 60);
+    expect(locked.some((h) => h.result.declarerTeam === teamOf(HUMAN_SEAT) && h.result.sheet?.double)).toBe(false);
+  });
+
   it("ماسحين المشاريع: your projects never count", () => {
     const done = playHands({ rival: { cancelProjects: true } }, 7, 40);
     for (const h of done) expect(h.round.projects?.declared.some((p) => teamOf(p.seat) === teamOf(HUMAN_SEAT)) ?? false).toBe(false);
