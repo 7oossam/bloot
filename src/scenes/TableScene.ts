@@ -1490,7 +1490,7 @@ export class TableScene extends Phaser.Scene {
     // A quick pop on the winning card sells the moment before everything collects.
     const winningView = views[e.winner];
     this.cameras.main.shake(150, 0.005);
-    this.floatText(dest.x, dest.y, isLast ? '+10 O U,OOO ' : 'OO_US!', '#ffd54a');
+    this.floatText(dest.x, dest.y, isLast ? `+${this.lastTrickBonus()} الأرض` : "أكلة!", '#ffd54a');
     this.createImpactJuice(CENTER_X, CENTER_Y, 0xd4af37);
     if (winningView) {
       this.tweens.add({
