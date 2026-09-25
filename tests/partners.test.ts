@@ -5,7 +5,7 @@ import { startBidding } from "../src/engine/bidding";
 import { mulberry32 } from "../src/engine/rng";
 import { Round } from "../src/engine/round";
 import type { Card, Seat, Trick } from "../src/engine/types";
-import type { MatchOptions } from "../src/game/GameController";
+import { GameController, type MatchOptions } from "../src/game/GameController";
 import { getPartner, PARTNERS } from "../src/roguelike/partners";
 import { runController } from "../src/roguelike/RunController";
 
@@ -59,6 +59,27 @@ describe("شخصيات الخوي", () => {
     expect(lead({})).toEqual(c("AD")); // normal: cash first
     expect(lead({ answerFirst: true })).toEqual(c("KC")); // الشايب: your suit first
     expect(lead({ deaf: true, answerFirst: true }).suit).not.toBe("C"); // can't read you at all
+  });
+
+  it("المتحمس: a hand he buys and makes pays +50%", () => {
+    const g = new GameController(mulberry32(3), { matchTarget: 9999, partner: getPartner("eager")!.options });
+    const paid: number[] = [];
+    g.on("hand:complete", (e) => {
+      const b = e.bonuses.find((x) => x.label === "المتحمس");
+      if (b) paid.push(b.points);
+    });
+    g.startMatch();
+    for (let i = 0; i < 40000 && paid.length < 2; i++) {
+      const st = g.step();
+      if (st !== "waiting-human") continue;
+      const r = g.getRound();
+      if (g.getPendingAction() && r.phase === "playing") g.skipPlayerAction();
+      else if (r.phase === "bidding") g.submitPlayerBid({ seat: 0, call: "pass" });
+      else if (r.phase === "doubling") g.submitPlayerDouble({ seat: 0, call: "pass" });
+      else g.submitPlayerCard(r.legalMovesFor(0)[0]);
+    }
+    expect(paid.length).toBeGreaterThan(0);
+    for (const p of paid) expect(p).toBeGreaterThan(0);
   });
 
   beforeEach(() => runController.startNewRun(11));

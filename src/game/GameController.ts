@@ -809,6 +809,12 @@ export class GameController extends Emitter<EventMap> {
       gained[us] += extra;
       bonuses.push({ label: "الحكم الأعزل", points: extra });
     }
+    // المتحمس: a hand your partner bought and made pays more.
+    if (o.partner?.buyBonus && this.round.bidding.result?.declarer === partnerOf(HUMAN_SEAT) && buyerWonEarly(result) && gained[us] > 0) {
+      const extra = Math.round(gained[us] * o.partner.buyBonus);
+      gained[us] += extra;
+      bonuses.push({ label: "المتحمس", points: extra });
+    }
     if (o.gamblerMultiplier && gained[us] > 0) {
       const extra = Math.round(gained[us] * (o.gamblerMultiplier - 1));
       if (extra > 0) {

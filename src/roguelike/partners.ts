@@ -12,6 +12,8 @@ export interface PartnerOptions {
   bidEager?: number;
   /** Raises in the دبل round on a bar this much lower. */
   doubleEager?: number;
+  /** A hand he buys and makes pays your team this fraction more. */
+  buyBonus?: number;
   /** Always dealt at least this many Aces in his first five (from the shared deck). */
   luckyAces?: number;
   /** Plays by habit — the rule-based AI, without thinking ahead. */
@@ -46,9 +48,9 @@ export const PARTNERS: PartnerDef[] = [
     id: "eager",
     name: "المتحمس",
     icon: "🔥",
-    perk: "يشتري ويدبل بسهولة — الأيادي الكبيرة تجي معه",
-    quirk: "حماسه أحياناً يطيّح عليكم خسرانة",
-    options: { bidEager: 10, doubleEager: 20 },
+    perk: "كل يد يشتريها هو وتكسبونها: نتيجتكم +50٪",
+    quirk: "يشتري ويدبل بسهولة، وحماسه أحياناً يطيّح عليكم خسرانة",
+    options: { bidEager: 10, doubleEager: 20, buyBonus: 0.5 },
   },
   {
     id: "lucky",
