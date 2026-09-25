@@ -241,21 +241,21 @@ describe("joker levels and synergies", () => {
   it("every family's third tier hands you its rule-breaker", () => {
     // حكم 3: buy hokum in any suit, either round.
     expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).extraHokumSuits).toBeUndefined();
-    expect(matchOptionsFromJokers(["bare-hokum", "cutter", "locked-hokum"]).extraHokumSuits).toEqual(["S", "H", "D", "C"]);
+    expect(matchOptionsFromJokers(["bare-hokum", "cutter", "forged-jack"]).extraHokumSuits).toEqual(["S", "H", "D", "C"]);
     // الأرض 3: your last card is the top of its suit.
-    expect(matchOptionsFromJokers(["ducker", "ard-gold", "ground-lord"]).lastCardTop).toBe(true);
+    expect(matchOptionsFromJokers(["ard-gold", "ground-lord", "wild"]).lastCardTop).toBe(true);
     // مشروع 3: سرا with two cards.
     expect(matchOptionsFromJokers(["sira-maker", "low-fours", "project-engineer"]).shortSira).toBe(true);
     // الحلة 3: you always lead.
     expect(matchOptionsFromJokers(["first-strike", "akka-king", "oracle"]).alwaysLead).toBe(true);
     // السبيت 3: your spades are trumps.
     expect(matchOptionsFromJokers(["spade-always", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
-    // الدفاع 3: nobody doubles you.
-    expect(matchOptionsFromJokers(["trap", "qahwaji", "loud-voice"]).noDoubleAgainst).toBe(true);
+    // الدفاع 3: anything they buy and lose doubles your result.
+    expect(matchOptionsFromJokers(["trap", "qahwaji", "loud-voice"]).breakAll).toBe(2);
   });
 
   it("second tiers boost the family's style", () => {
-    expect(matchOptionsFromJokers(["ducker", "last-card"]).lastTrickBonus).toBe(20); // الأرض +10
+    expect(matchOptionsFromJokers(["ground-lord", "last-card"]).lastTrickBonus).toBe(20); // الأرض +10
     expect(matchOptionsFromJokers(["first-strike", "akka-king"]).firstTrickBonus).toBe(4 + 3);
     expect(matchOptionsFromJokers(["spade-treasure", "spade-always"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
     expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).hokumSynergyBonus).toBe(4);
@@ -320,13 +320,6 @@ describe("run upgrades, selling and the new consumables", () => {
     expect(s.gold).toBe(gold + node.reward + 4);
   });
 
-  it("زبون مميز takes 15% off everything", () => {
-    runController.addGold(1000);
-    const before = runController.priceOf("royal-sun");
-    runController.buyJoker("vip");
-    expect(runController.priceOf("royal-sun")).toBe(Math.round(before * 0.85));
-  });
-
   it("selling a joker frees its slot and pays half its worth", () => {
     runController.addGold(1000);
     runController.buyJoker("cutter");
@@ -357,11 +350,9 @@ describe("run upgrades, selling and the new consumables", () => {
 describe("play-changing jokers turn into their rules", () => {
   it("each one maps to its option, scaling with level", () => {
     expect(matchOptionsFromJokers(["ground-lord"]).groundWins).toBe(true);
-    expect(matchOptionsFromJokers(["ducker"], { ducker: 3 }).duckBonus).toBe(5);
     expect(matchOptionsFromJokers(["last-card"]).lastCardTop).toBe(true);
     expect(matchOptionsFromJokers(["bare-hokum"], { "bare-hokum": 2 }).bareHokumMultiplier).toBe(2.5);
     expect(matchOptionsFromJokers(["free-hokum"]).extraHokumSuits).toHaveLength(4);
-    expect(matchOptionsFromJokers(["locked-hokum"])).toMatchObject({ lockedHokum: true, noDoubleAgainst: true });
     expect(matchOptionsFromJokers(["short-sira"]).shortSira).toBe(true);
     expect(matchOptionsFromJokers(["sira-maker"]).siraBonus).toEqual({ points: 4, gold: 2 });
     expect(matchOptionsFromJokers(["low-fours"]).lowFours).toBe(true);
@@ -390,7 +381,7 @@ describe("build-makers: jokers that depend on your row", () => {
     const mono = matchOptionsFromJokers(["chief", "cutter", "bare-hokum", "free-hokum"]);
     expect(mono.winBonuses).toContainEqual({ label: "شيخ القبيلة", points: 3 });
     // حكم 2 and الأرض 2 are both on: 2 tiers × 2.
-    const wide = matchOptionsFromJokers(["maestro", "cutter", "bare-hokum", "ducker", "last-card"]);
+    const wide = matchOptionsFromJokers(["maestro", "cutter", "bare-hokum", "ard-gold", "last-card"]);
     expect(wide.winBonuses).toContainEqual({ label: "المايسترو", points: 4 });
   });
 

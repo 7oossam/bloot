@@ -95,7 +95,8 @@ Example: a joker that makes the **8** the strongest card needs these alongside i
    - **Forge** changes a card in **your hand for this hand only**. The next deal uses the normal 32 cards again. Duplicates are fine (the engine already handles a duplicated Jack: the first one played keeps the trick).
    - **Payoff** applies to **your team only**. Underdog was broken until it was scoped this way: its first version made the opponents' 7s and 8s beat Aces too.
 5. **Check the numbers with `sim.ts`.** A Reward that fires on 70%+ of hands is just a flat buff; one under 5% is dead. Aim for 30–60% for commons, 10–30% (with a big payoff) for rule-breakers. With the Supply owned, the target should roughly double.
-6. **Anti-synergies are allowed and should be visible.** If two jokers fight each other (الحكم المقفول stops doubling; a doubling build wants it), say so in the text so the player learns rather than feels cheated.
+6. **Anti-synergies are allowed and should be visible.** If two jokers fight each other, say so in the text so the player learns rather than feels cheated.
+7. **A joker must change a decision.** Cut or rework anything that only nudges a total the player never thinks about, anything that rewards bad play (the old المخلّي paid you for letting tricks go), and anything whose trigger almost never happens (الحكم المقفول and الوجه البارد once doubling became rare). The player also rejected flat shop discounts (زبون مميز).
 
 The **Jack (الولد) family** is the model package the rest should copy: الولد المضمون (Supply), الولد المزوّر (Forge), جامع الأولاد (Reward), صيد الولد and الحرقة (Payoffs).
 
@@ -123,13 +124,14 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 نص سرا / **الورقة الشبح** (Payoffs: projects count one size up), **المرتّب** (Supply: at the deal, two in a row get their third; level 2 also three get their fourth), صانع السرا (Reward), مهندس المشاريع, الصوت العالي.
 
 ### 5. الأرض — the last-trick build
-سيد الأرض (Payoff), الورقة الأخيرة (Forge), الأرض الذهبية (Reward), المخلّي (pays for saving strength). A good player already plans the last trick; this build makes it the win condition.
+سيد الأرض (Payoff), الورقة الأخيرة (Forge), الأرض الذهبية (Reward). A good player already plans the last trick; this build makes it the win condition.
 
 ### 6. الدفاع — the defender (skill build)
 - الفخ: +6 / +10 / +15 when the opponents buy and lose.
 - **الكاسر**: the opponents buy **Sun** and lose → your result ×2 / ×3. Rare, big (fires on ~9% of hands).
 - **الصبر**: +3 / +5 / +8 gold every hand the opponents buy and you out-score them.
 - القهوجي: winning a doubled hand pays +50% / +100%.
+- Synergy: 2 = +4 when the opponents buy and lose; 3 = **any contract they buy and lose, your result ×2** (الكاسر for hokum too).
 
 ### 7. التهريب — signalling (skill build)
 - **المترجم**: shows you over each player what their التهريب (and any برقية) asks for. Understanding your signals is normal play, not a joker: your partner comes to your asked suit once it has no winners of its own.
@@ -144,7 +146,7 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 - ملك الآكه (Reward), الجاسوس (see opponents' cards).
 
 ### 9. الكبوت — run every trick (skill build)
-- **السوا**: on your lead, a "سوا ✋" button. It's right when every card in your hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody else to hold a trump). Right = +6 / +10 / +15 and the rest plays itself; wrong = −6. Knowing when is the skill.
+- **السوا**: the سوا button is part of the game now (see PART 7); this joker pays +6 / +10 / +15 for a right call.
 - **الزحف**: from the third trick in a row, each trick pays 1, 1, 2, 2, 3, 3 (level 2: 1, 2, 3, 4, 5, 6).
 - ملك الكبوت (Payoff): a كبوت wins the match. صاحب الحلة helps start a run.
 - Synergy: 2 = +10 per كبوت; 3 = ملك الكبوت free.
@@ -152,9 +154,8 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 ### 10. الدبل — the doubling build (push-your-luck)
 - **الجريء** (Payoff): your team may double the opponents' Sun at any score.
 - **رأس المال** (Reward): every doubled hand you win pays (double level × 4 / × 7) gold.
-- **الوجه البارد**: once your team raises, the opponents never raise back.
 - القهوجي: +50% / +100% on doubled hands won.
-- ⚠️ Anti-synergy (stated in its text): الحكم المقفول stops anyone doubling you, which removes the doubled hands this build feeds on.
+- The player drives this build: you may double the opponents' hokum any time (and their sun past 100, or always with الجريء).
 - Synergy: 2 = +5 per doubled hand won; 3 = الجريء free.
 
 ### Measured balance (300 simulated hands, AI playing your seat)

@@ -316,23 +316,6 @@ describe("combo jokers", () => {
     expect(seen.some((h) => h.jacks > 0)).toBe(true);
   });
 
-  it("a locked hokum (حكم synergy) is never taken over as sun", () => {
-    for (let seed = 1; seed <= 80; seed++) {
-      const c = new GameController(mulberry32(seed), { matchTarget: 999, lockedHokum: true });
-      c.on("bidding:turn", (e) => {
-        if (e.challenge) expect(teamOf(e.challenge.seat)).toBe(1);
-      });
-      c.on("bidding:resolved", (e) => {
-        const hokumBids = c.getRound().bidding.history.filter((b) => b.call === "hokum");
-        if (hokumBids.length && teamOf(hokumBids[0].seat) === 0) expect(e.mode).toBe("hokum");
-      });
-      c.startMatch();
-      autoplay(c, (x) => x.getRound().phase === "playing");
-    }
-  });
-});
-
-describe("the shop-rework jokers in play", () => {
   it("حارس الأرض pays for الأرض, الصبر مفتاح for lost hands, مهندس المشاريع doubles our projects", () => {
     const reasons: Record<string, number> = {};
     let projectBonus = 0, ourProjects = 0;
@@ -402,31 +385,6 @@ describe("play-changing jokers in a match", () => {
     c.startMatch();
     autoplay(c, () => checked >= 3, 6000);
     expect(checked).toBeGreaterThanOrEqual(3);
-  });
-
-  it("المخلّي pays per trick you could have taken from them and didn't", () => {
-    let paid = 0;
-    const c = new GameController(mulberry32(8), { matchTarget: 999, duckBonus: 3 });
-    c.on("hand:complete", (e) => {
-      const b = e.bonuses.find((x) => x.label === "المخلّي");
-      if (b) {
-        expect(b.points % 3).toBe(0);
-        paid++;
-      }
-    });
-    c.startMatch();
-    // Play your seat as a ducker: always the weakest legal card.
-    for (let i = 0; i < 8000 && paid < 2; i++) {
-      const status = c.step();
-      if (status !== "waiting-human") continue;
-      const r = c.getRound();
-      if (r.phase === "playing" && !c.getPendingAction()) {
-        const legal = r.legalMovesFor(HUMAN_SEAT);
-        const res = r.bidding.result!;
-        c.submitPlayerCard(legal.reduce((a, b) => (rankStrength(b, res.mode, res.trumpSuit) < rankStrength(a, res.mode, res.trumpSuit) ? b : a)));
-      } else answerHuman(c);
-    }
-    expect(paid).toBeGreaterThanOrEqual(2);
   });
 
   it("سارق السبيت trades your chosen card for an opponent's spade (their best at level 2)", () => {

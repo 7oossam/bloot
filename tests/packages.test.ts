@@ -280,14 +280,13 @@ describe("Defence and doubling jokers", () => {
     expect(closed).toBeGreaterThan(0); // without it, 0–0 is below the 100 rule
   });
 
-  it("الوجه البارد: once you raise, the other side never raises back; رأس المال pays level × gold", () => {
+  it("رأس المال pays level × gold for a doubled hand you win", () => {
     let raises = 0;
     for (let seed = 1; seed <= 300 && raises < 5; seed++) {
-      const c = new GameController(mulberry32(seed), { matchTarget: 9999, pokerFace: true, doubleGold: 4 });
+      const c = new GameController(mulberry32(seed), { matchTarget: 9999, doubleGold: 4 });
       let weRaised = false;
       c.on("double:call", (e) => {
         if (teamOf(e.bid.seat) === 0 && e.bid.call !== "pass") weRaised = true;
-        else if (weRaised && e.bid.call !== "pass") throw new Error("the opponents raised back");
       });
       c.on("gold:earned", (e) => {
         if (e.reason !== "رأس المال") return;
@@ -367,8 +366,8 @@ describe("the new families", () => {
     expect(matchOptionsFromJokers(["golden-signal", "messenger", "partner-eyes"]).translator).toBe(true);
     expect(matchOptionsFromJokers(["sawa", "crawl"]).kabootBonus).toEqual({ points: 10, gold: 0 });
     expect(matchOptionsFromJokers(["sawa", "crawl", "kaboot-king"]).kabootWinsMatch).toBe(true);
-    expect(matchOptionsFromJokers(["capital", "poker-face"]).doubleWinPoints).toBe(5);
-    expect(matchOptionsFromJokers(["capital", "poker-face", "qahwaji"]).freeSunDouble).toBe(true);
+    expect(matchOptionsFromJokers(["capital", "bold"]).doubleWinPoints).toBe(5);
+    expect(matchOptionsFromJokers(["capital", "bold", "qahwaji"]).freeSunDouble).toBe(true);
   });
 
   it("النسخة copying المرتّب doesn't turn a سرا into a nonsense run length", () => {

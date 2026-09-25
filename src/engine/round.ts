@@ -52,7 +52,7 @@ export interface RoundOptions {
   firstLeader?: Seat;
   /** Per-seat project rules (نص سرا، الأربع الصغار). */
   projectRules?: Partial<Record<Seat, ProjectRules>>;
-  /** Nobody may double this team's contract (الحكم المقفول). */
+  /** Nobody may double this team's contract. */
   noDoubleAgainst?: Team[];
   /** Rules that bend who wins a trick, every trick (ملك السبيت). */
   trickRules?: TrickRules;

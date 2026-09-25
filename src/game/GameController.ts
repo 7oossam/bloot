@@ -12,8 +12,7 @@ import type { Bid, BiddingResult, Card, HandResult, Mode, Seat, Suit, Team, Tric
 import { nextSeat, teamOf } from "../engine/types";
 import { rankStrength } from "../engine/cards";
 import { BALOOT_VALUE, PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
-import { currentWinner, isAkka, wouldWinAgainstCurrent } from "../engine/trick";
-import { raiserTeam } from "../engine/doubling";
+import { currentWinner, isAkka } from "../engine/trick";
 import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
 import type { RivalOptions } from "../roguelike/opponents";
@@ -42,8 +41,6 @@ export interface MatchOptions {
   guaranteedJacks?: number;
   /** Taking all eight tricks in a hand wins the match on the spot. */
   kabootWinsMatch?: boolean;
-  /** Your team's hokum can't be taken over as sun. */
-  lockedHokum?: boolean;
   /** Extra game points whenever your team buys sun and scores in it. */
   sunBuyBonus?: number;
   /** In sun, extra game points per trick your team takes that has an Ace in it. */
@@ -97,16 +94,12 @@ export interface MatchOptions {
   // ---- play-changing jokers
   /** سيد الأرض: taking الأرض (the last trick) takes the whole hand. */
   groundWins?: boolean;
-  /** المخلّي: points every time you could have taken a trick from the opponents and didn't. */
-  duckBonus?: number;
   /** الورقة الأخيرة: your card in the last trick counts as the top of its suit. */
   lastCardTop?: boolean;
   /** الحكم الأعزل: a hokum you buy without the trump Jack and 9 and make pays this multiple. */
   bareHokumMultiplier?: number;
   /** الحكم الحر / سبيت دايم: you may buy hokum in these suits in either round. */
   extraHokumSuits?: Suit[];
-  /** الحكم المقفول: nobody may double your team's contract. */
-  noDoubleAgainst?: boolean;
   /** نص سرا: two cards in sequence make a سرا for you. */
   shortSira?: boolean;
   /** الأربع الصغار: four 7s/8s/9s are a مئة for you. */
@@ -144,6 +137,8 @@ export interface MatchOptions {
   streakBonus?: number;
   /** الكاسر: when the other team buys sun and loses, your hand result is multiplied by this. */
   sunBreakMultiplier?: number;
+  /** The دفاع synergy's rule-breaker: any contract the other team buys and loses multiplies your result. */
+  breakAll?: number;
   /** الصبر: gold for every hand the other team bought and you out-scored them. */
   defenseGold?: number;
   /** المترجم: the table shows you what every player's التهريب (and برقية) asks for. */
@@ -160,8 +155,6 @@ export interface MatchOptions {
   freeSunDouble?: boolean;
   /** رأس المال: a doubled hand your team wins pays (double level × this) gold. */
   doubleGold?: number;
-  /** الوجه البارد: once your team has raised, the opponents never raise back. */
-  pokerFace?: boolean;
   /** The دبل synergy: points on every doubled hand your team wins. */
   doubleWinPoints?: number;
   /**
@@ -288,7 +281,6 @@ export class GameController extends Emitter<EventMap> {
   private jackTricks = 0;
   private sunAceTricks = 0;
   private ruffTricks = 0;
-  private ducks = 0;
   private akkaWins = 0;
   private suitTricks = 0;
   private firstTrickOurs = false;
@@ -360,7 +352,6 @@ export class GameController extends Emitter<EventMap> {
     this.jackTricks = 0;
     this.sunAceTricks = 0;
     this.ruffTricks = 0;
-    this.ducks = 0;
     this.akkaWins = 0;
     this.suitTricks = 0;
     this.firstTrickOurs = false;
@@ -382,7 +373,6 @@ export class GameController extends Emitter<EventMap> {
       guaranteedJacks: o.guaranteedJacks ?? 0,
       guaranteedLow: o.guaranteedLow,
       completeRunTo: o.completeRunTo,
-      lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
       // 7-2: sun is doubled only by a side at 100 or under against a side past 100 — the real
       // 100, whatever the match's target (the player's call), so short matches never see it.
       doubling: { matchScore: { ...this.matchScore }, sunLimit: SUN_DOUBLE_LIMIT },
@@ -404,7 +394,6 @@ export class GameController extends Emitter<EventMap> {
     if (o.extraHokumSuits?.length) rules.extraHokum = { seat: HUMAN_SEAT, suits: o.extraHokumSuits };
     if (o.alwaysLead) rules.firstLeader = HUMAN_SEAT;
     if (o.shortSira || o.lowFours || o.phantomProjects) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours, phantomProjects: o.phantomProjects } };
-    if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }
     if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
@@ -464,11 +453,7 @@ export class GameController extends Emitter<EventMap> {
         this.emit("double:turn", { seat, calls: this.round.legalDoubleCalls(), level: state.level });
         return "waiting-human";
       }
-      // الوجه البارد: once your team has raised, the other side won't raise back.
-      const us = teamOf(HUMAN_SEAT);
-      const cowed = this.options.pokerFace && teamOf(seat) !== us && state.level > 1 && raiserTeam(state) === us;
-
-      this.applyDouble(cowed ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
+      this.applyDouble(decideDouble(seat, this.round.hands[seat], state, this.round.bidding.result!.trumpSuit));
       return "advanced";
     }
 
@@ -739,9 +724,8 @@ export class GameController extends Emitter<EventMap> {
     }
   }
 
-  /** Tallies for the play-changing jokers, read off the human's card before it's played. */
-  private noteHumanPlay(card: Card): void {
-    const trick = this.round.currentTrick!;
+  /** Tallies for the play-changing jokers, read before the human's card is played. */
+  private noteHumanPlay(): void {
     const { mode, trumpSuit, declarer } = this.round.bidding.result!;
     if (this.bareHokum === undefined) {
       const hand = this.round.hands[HUMAN_SEAT];
@@ -749,14 +733,6 @@ export class GameController extends Emitter<EventMap> {
         mode === "hokum" &&
         declarer === HUMAN_SEAT &&
         !hand.some((c) => c.suit === trumpSuit && (c.rank === "J" || c.rank === "9"));
-    }
-    // المخلّي: the opponents have the trick, you could take it, and you don't.
-    if (trick.order.length > 0 && teamOf(currentWinner(trick, mode, trumpSuit)) !== teamOf(HUMAN_SEAT)) {
-      const couldWin = this.round.legalMovesFor(HUMAN_SEAT).some((c) => wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
-      if (couldWin && !wouldWinAgainstCurrent(card, trick, mode, trumpSuit)) {
-        this.ducks++;
-        if (this.options.duckBonus) this.emit("joker:fired", { label: "المخلّي", points: this.options.duckBonus });
-      }
     }
   }
 
@@ -854,10 +830,6 @@ export class GameController extends Emitter<EventMap> {
       bonuses.push({ label: "الكبوت الذهبي", points: o.kabootBonus.points });
       this.emit("gold:earned", { amount: o.kabootBonus.gold, reason: "الكبوت الذهبي" });
     }
-    if (o.duckBonus && this.ducks > 0) {
-      gained[us] += o.duckBonus * this.ducks;
-      bonuses.push({ label: "المخلّي", points: o.duckBonus * this.ducks });
-    }
     if (o.firstTrickBonus && this.firstTrickOurs) {
       gained[us] += o.firstTrickBonus;
       bonuses.push({ label: "الضربة الأولى", points: o.firstTrickBonus });
@@ -944,10 +916,12 @@ export class GameController extends Emitter<EventMap> {
     if (o.defenseGold && result.declarerTeam === them && gained[us] > gained[them]) {
       this.emit("gold:earned", { amount: o.defenseGold, reason: "الصبر" });
     }
-    if (o.sunBreakMultiplier && result.mode === "sun" && result.declarerTeam === them && !buyerWon && gained[us] > 0) {
-      const extra = Math.round(gained[us] * (o.sunBreakMultiplier - 1));
+    // الكاسر (their sun) and the دفاع synergy's rule-breaker (any contract): they bought and lost.
+    const breakBy = Math.max(result.mode === "sun" ? (o.sunBreakMultiplier ?? 1) : 1, o.breakAll ?? 1);
+    if (breakBy > 1 && result.declarerTeam === them && !buyerWon && gained[us] > 0) {
+      const extra = Math.round(gained[us] * (breakBy - 1));
       gained[us] += extra;
-      bonuses.push({ label: "الكاسر", points: extra });
+      bonuses.push({ label: breakBy === o.breakAll ? "تآزر الدفاع" : "الكاسر", points: extra });
     }
     if (o.signalMultiplier && this.signalHits > 0 && gained[us] > 0) {
       const extra = Math.round(gained[us] * (o.signalMultiplier - 1));
@@ -977,7 +951,7 @@ export class GameController extends Emitter<EventMap> {
     const { mode, trumpSuit } = this.round.bidding.result!;
     const leading = this.round.currentTrick!.order.length === 0;
     const akka = leading && isAkka(card, this.round.tricks.flatMap((t) => Object.values(t.cards) as Card[]), mode, trumpSuit);
-    if (seat === HUMAN_SEAT) this.noteHumanPlay(card);
+    if (seat === HUMAN_SEAT) this.noteHumanPlay();
     if (akka && teamOf(seat) === teamOf(HUMAN_SEAT)) this.akkaCards.add(cardId(card));
     const balootBefore = this.round.balootDeclared;
     this.round.playCard(seat, card);
