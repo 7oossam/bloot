@@ -144,6 +144,19 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["أرض"],
   }),
   joker({
+    id: "ducker",
+    name: "المخلّي",
+    icon: "🙈",
+    levels: [
+      "كل مرة الأكلة للخصم وتقدر تاكلها وتخليها = +2 بنط.",
+      "+3 لكل تخلية.",
+      "+5 لكل تخلية.",
+    ],
+    cost: 12,
+    rarity: "common",
+    tags: ["أرض"],
+  }),
+  joker({
     id: "last-card",
     name: "الورقة الأخيرة",
     icon: "🎯",
@@ -184,6 +197,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     cost: 26,
     rarity: "rare",
     tags: ["حكم"],
+  }),
+  joker({
+    id: "locked-hokum",
+    name: "الحكم المقفول",
+    icon: "🔒",
+    levels: ["حكمكم محد ياخذه صن، ومحد يقدر يدبل عليكم. (يضر بناء الدبل: محد يدبل = ما فيه يد مدبلة.)"],
+    cost: 14,
+    rarity: "common",
+    tags: ["حكم", "دفاع"],
   }),
   joker({
     id: "cutter",
@@ -473,6 +495,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     rarity: "common",
     tags: ["دبل"],
   }),
+  joker({
+    id: "poker-face",
+    name: "الوجه البارد",
+    icon: "😐",
+    levels: ["إذا رفعتوا (دبل، ثري، فور)، الخصم ما يرفع عليكم بعدها."],
+    cost: 20,
+    rarity: "rare",
+    tags: ["دبل"],
+  }),
 
   // ---- الكبوت: take every trick
   joker({
@@ -624,6 +655,17 @@ export const UPGRADE_CATALOG: ShopItemDef[] = [
     rarity: "common",
     tags: [],
   },
+  {
+    id: "vip",
+    kind: "upgrade",
+    name: "زبون مميز",
+    icon: "🏷️",
+    levels: ["خصم 15٪ على كل شي في المتجر."],
+    cost: 22,
+    costs: [22],
+    rarity: "rare",
+    tags: [],
+  },
 ];
 
 export function getJokerDef(id: string): ShopItemDef | undefined {
@@ -687,7 +729,7 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
   سرقة: [{ count: 2, text: "الصيد والحرقة يشتغلون كمان لما شريكك ياكل بالولد" }],
   دفاع: [
     { count: 2, text: "خسرانة الخصم +4 أبناط لكم" },
-    { count: 3, text: "كسر قانون: أي شي يشتريه الخصم ويخسره، نتيجتكم ×2" },
+    { count: 3, text: "كسر قانون: محد يقدر يدبل عليكم" },
   ],
   صغار: [
     { count: 2, text: "كل أكلة بسبعة أو ثمانية +1 بنط" },
@@ -814,6 +856,7 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (lv("bold") || doubleTier >= 2) o.freeSunDouble = true;
   const capital = pick("capital", [4, 7]);
   if (capital) o.doubleGold = capital;
+  if (lv("poker-face")) o.pokerFace = true;
   if (doubleTier >= 1) o.doubleWinPoints = 5;
 
   // ---- الولد
@@ -835,6 +878,8 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   const ard = (pick("ard-gold", [20, 30, 40]) ?? 10) + (groundTier >= 1 ? 10 : 0);
   if (ard !== 10) o.lastTrickBonus = ard;
   if (lv("ground-lord")) o.groundWins = true;
+  const duck = pick("ducker", [2, 3, 5]);
+  if (duck) o.duckBonus = duck;
   if (lv("last-card") || groundTier >= 2) o.lastCardTop = true;
 
   // ---- الحكم
@@ -846,6 +891,10 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (lv("free-hokum") || hokumTier >= 2) for (const x of ["S", "H", "D", "C"] as Suit[]) suits.add(x);
   if (lv("spade-always")) suits.add("S");
   if (suits.size) o.extraHokumSuits = [...suits];
+  if (lv("locked-hokum")) {
+    o.lockedHokum = true;
+    o.noDoubleAgainst = true;
+  }
   const cut = pick("cutter", [2, 3, 5]);
   if (cut) o.ruffBonus = cut;
 
@@ -901,8 +950,7 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (trap) o.rivalLossBonus = trap;
   const qahwa = pick("qahwaji", [0.5, 1]);
   if (qahwa) o.doubleWinBonus = qahwa;
-  // The tier-3 rule-breaker: الكاسر for any contract, not just sun.
-  if (defenseTier >= 2) o.breakAll = 2;
+  if (defenseTier >= 2) o.noDoubleAgainst = true;
   const breaker = pick("breaker", [2, 3]);
   if (breaker) o.sunBreakMultiplier = breaker;
   const patience = pick("patience", [3, 5, 8]);
@@ -941,6 +989,7 @@ const PAYOUT_SOURCE: Record<string, string | Tag> = {
   "ملك الآكه": "akka-king",
   "كنز السبيت": "spade-treasure",
   "القطّاع": "cutter",
+  "المخلّي": "ducker",
   "سيد الأرض": "ground-lord",
   "الحكم الأعزل": "bare-hokum",
   "مهندس المشاريع": "project-engineer",

@@ -22,6 +22,8 @@ import { MAX_LIVES, type MapNode, type RunState } from "./types";
 const RARITY_WEIGHT: Record<Rarity, number> = { common: 60, rare: 32, legendary: 8 };
 /** Treasury joker: 1 gold per 10 held, capped by level. */
 const TREASURY_CAP = [5, 8, 12];
+/** زبون مميز: everything in the shop costs this much. */
+const VIP_DISCOUNT = 0.85;
 /** The دفعة consumable: start the next match this far ahead. */
 const BOOST_POINTS = 10;
 /** Rewards after a match: rarer after the elite. */
@@ -292,6 +294,10 @@ class RunController {
     this.state.cleared[this.state.currentIndex] = true;
   }
 
+  private discount(): number {
+    return this.state.upgrades["vip"] ? VIP_DISCOUNT : 1;
+  }
+
   /** What an item costs right now: a new joker, a level of one you own, a consumable, or an upgrade. */
   priceOf(itemId: string): number {
     const def = getJokerDef(itemId);
@@ -300,7 +306,7 @@ class RunController {
     let base = def.cost;
     if (def.kind === "joker" && lvl > 0) base = upgradeCost(def, lvl);
     if (def.kind === "upgrade") base = def.costs?.[lvl] ?? Infinity;
-    return base;
+    return Math.round(base * this.discount());
   }
 
   /** Why an item can't be bought right now, or undefined if it can. */

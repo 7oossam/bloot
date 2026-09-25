@@ -17,7 +17,7 @@
 - **الديوانية** (`events.ts`): six events with a choice each (safe / gamble / price now, pay-off later).
 - **بركات الحوت** (`blessings.ts`): at the start of the map, three blessings (one free, two with a price). Permanent for the run, not jokers. The player's taste: no blessing costs a life, no shop discount.
 - **Jokers are relics:** no cap (the جيب زيادة upgrade is gone); the table row and shop chips shrink to fit.
-- **Item review:** removed المخلّي (paid for bad play), الحكم المقفول and الوجه البارد (doubling is rare now, so they did nothing), زبون مميز (flat discount). The دفاع synergy's tier 3 is now a rule-breaker: any contract the opponents buy and lose, your result ×2. المترجم now shows you every player's تهريب instead of making your partner understand you (that's normal play now).
+- **Item review — the player's verdict:** every joker and item stays. An attempt to cut four was reverted on the player's word, and the reasons are worth keeping: **المخلّي** is a gamble (you risk the trick and get paid for the risk); **الحكم المقفول** and **الوجه البارد** protect you from opponents who double a lot; **زبون مميز** is a good *shop* upgrade (it was only weak as a whale blessing). Don't remove them without asking. المترجم now shows you every player's تهريب instead of making your partner understand you (that's normal play now).
 
 ### Where the truth lives
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
