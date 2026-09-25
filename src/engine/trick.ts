@@ -112,7 +112,16 @@ export function legalMoves(
 
   const ledSuit = trick.cards[trick.order[0]]!.suit;
   const followSuit = hand.filter((c) => c.suit === ledSuit);
-  if (followSuit.length > 0) return followSuit;
+  if (followSuit.length > 0) {
+    // اللعب طلوع: when trumps are led, follow with a higher trump than the best one on the table
+    // if you hold one.
+    if (mode === "hokum" && ledSuit === trumpSuit) {
+      const best = Math.max(...playedInOrder(trick).map((p) => p.card).filter((c) => c.suit === trumpSuit).map((c) => rankStrength(c, mode, trumpSuit)));
+      const higher = followSuit.filter((c) => rankStrength(c, mode, trumpSuit) > best);
+      if (higher.length > 0) return higher;
+    }
+    return followSuit;
+  }
 
   if (mode === "sun") return hand;
 

@@ -956,3 +956,20 @@ describe("joker rules that bend the game", () => {
     throw new Error("no team-0 hokum found");
   });
 });
+
+describe("اللعب طلوع — following a trump lead", () => {
+  const card = (s: string): Card => ({ suit: s.slice(-1) as Card["suit"], rank: s.slice(0, -1) as Card["rank"] });
+  it("you must play a higher trump than the best on the table if you hold one", () => {
+    // Hokum ♦. Seat 1 leads A♦; seat 2 holds 9♦ and 7♦: the 9 (above the Ace) is forced.
+    const t: Trick = { leader: 1, order: [1], cards: { 1: card("AD") } };
+    expect(legalMoves([card("9D"), card("7D"), card("KS")], t, "hokum", "D", 2)).toEqual([card("9D")]);
+  });
+  it("any trump will do when none of yours beats it", () => {
+    const t: Trick = { leader: 1, order: [1], cards: { 1: card("JD") } };
+    expect(legalMoves([card("9D"), card("7D"), card("KS")], t, "hokum", "D", 2)).toEqual([card("9D"), card("7D")]);
+  });
+  it("it's about trumps only: a side suit is followed with any card", () => {
+    const t: Trick = { leader: 1, order: [1], cards: { 1: card("KS") } };
+    expect(legalMoves([card("AS"), card("7S")], t, "hokum", "D", 2)).toEqual([card("AS"), card("7S")]);
+  });
+});

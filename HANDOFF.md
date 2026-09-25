@@ -9,6 +9,8 @@
 - **التهريب follows the player's video** (`docs/baloot-guide.md` §4 is the source): a discarded suit is NOT wanted and asks for its brother (ديمن → هاص); two suits of one colour, or the led suit's brother, ask for the other colour; climbing in one suit (7→8→بنت) asks for that suit. Reading: `src/ai/beliefs.ts`; sending/answering: `chooseDiscard` / `chooseLead` in `src/ai/play-ai.ts`. The partner answers your signal with its biggest card once it has no winners of its own; a برقية comes first always.
 - **حل الحكم:** the side that didn't buy the hokum never leads trumps, unless it holds 4+ trumps or 3+ sure side winners (`defenderMayLeadTrump`, obeyed by the search AI's hard rules too). +0.3 to +0.5 a hand over the previous AI.
 - **السوا is part of the game** (not a joker): whenever you lead. Either way the rest plays itself out; a wrong one hands the whole hand to the other side (full value, doubled if doubled, plus every project; only your own بلوت stays). The السوا joker just pays a bonus on a right call.
+- **اللعب طلوع** (from the player's terms video): when trumps are led in hokum you must follow with a higher trump than the best on the table if you hold one (`legalMoves` in `src/engine/trick.ts`).
+- **سوالف الطاولة** (`src/game/chatter.ts`): the computer players react in the words Baloot players use — فن / حكيم when their partner buys, تعيش سنين for a خمسين, بالزنوبة when an Ace is ruffed with a tiny trump, خسرانة, كبوت, الأولى للغشمان, قامت. Your seat never talks for you.
 - **Sun doubling uses the regulation's real 100** (7-2), no longer scaled to the match target.
 
 ### The run (src/roguelike/)
@@ -30,6 +32,8 @@
 - **Opponent strength for a human:** the margins were measured with the rule-based AI in the player's seat; a real player may find حرّاس الإكك or المدبّلين harder or easier. Retune from playtests.
 - **Hokum doubling** has no score limit (the regulation only limits sun). The player noticed doubles "under 100" — the sun case is fixed; ask if they also want hokum limited. (العارفين doubles your sun at any score on purpose — it's their rule.)
 - **Deploys only from `main` or `claude/gamedev-skills-install-9ybem7`** (`.github/workflows/deploy-pages.yml`). Work on another branch shows up on the page only after its PR is merged.
+
+- **Ideas from the player's terms video, waiting on the player:** partner personalities, opponents built on table culture (الجفرة، أهل الرصّة، ياخذون القلم…), and the bidding rules قبلك / ما لك ثالث (a later seat's sun in round 1 can be claimed by an earlier seat who passed, not from your partner; after ولا you can't buy a third time). The terms themselves: `docs/` has no copy — ask the player for the video file if needed.
 
 ## 3. Next Steps (Where to pick up)
 - **Three maps (acts)** — the player wants it, "but not now": after the boss, a harder map; الحوت appears at the start of each map (never mid-map) with stronger blessings.
