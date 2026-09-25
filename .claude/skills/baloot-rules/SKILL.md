@@ -51,5 +51,13 @@ Ground rules when working on the game:
    "come back to me in this suit", sent only when every card left is a sure winner. Keep
    Aces and sure winners in hand as entries; don't throw them away. Read a partner's برقية
    and lead that suit back.
-10. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+10. **التهريب (docs/baloot-guide.md §4, from the player's video — it wins over older notes):**
+   a discarded suit is NOT wanted and asks for its brother (هرّب ديمن = يبي هاص); two suits of
+   one colour, or the led suit's brother, ask for the other colour; climbing in one suit
+   (7→8→بنت) asks for that suit and overrides the rest. Answer with your BIGGEST card of the
+   asked suit. Also: lead your project's suit first, return to the suit the partner opened
+   with, give your 10 to the partner's opening Ace, never leave a 10 bare, lead the 10 (or 9)
+   of trumps for a partner who bought hokum. Logic lives in `src/ai/beliefs.ts` (reading)
+   and `chooseDiscard`/`chooseLead` in `src/ai/play-ai.ts` (sending/answering).
+11. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.

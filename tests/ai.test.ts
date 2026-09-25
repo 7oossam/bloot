@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
+import { buildBeliefs, readDiscards } from "../src/ai/beliefs";
 import { startBidding, submitBid } from "../src/engine/bidding";
 import { dealInitial } from "../src/engine/deck";
 import { mulberry32 } from "../src/engine/rng";
@@ -180,19 +181,111 @@ describe("buying — معايير الشراء والحلة (§3)", () => {
 });
 
 describe("card play — التهريب, الأبناط, السرد (§4, §5)", () => {
-  it("in sun, signals with a 7/8 from the suit it holds the Ace in when it can't follow", () => {
-    // Seat 0 is void in hearts; the opponents are winning.
+  it("discards so the partner reads a request for its strong suit, never a refusal of it", () => {
+    // Seat 0 is void in hearts and the opponents are winning; its strength is spades. 9♦ (the
+    // led suit's brother → "black") and Q♣ (spades' brother) both ask for spades; 7♠ would refuse it.
     const t = trickOf(1, "AH");
     const chosen = decideCard(cards("AS", "KS", "7S", "9D", "QC"), t, "sun", undefined, 0, { tricks: [] });
-    expect(chosen).toEqual(c("7S"));
+    const read = readDiscards([{ card: chosen, led: "H" }]);
+    expect(read.wants[0]).toBe("S");
+    expect(read.rejects).not.toContain("S");
   });
 
-  it("the partner then leads the suit that was asked for", () => {
-    // Earlier trick: seat 3 led A♥ and seat 0, void, threw 7♠ — asking for spades. Now seat 2 leads.
+  it("the partner then leads the brother of the discarded suit — with its biggest card", () => {
+    // Earlier trick: seat 3 led A♥ and seat 0, void, threw 7♠ — not spades: it wants clubs.
     const earlier = trickOf(3, "AH", "7S", "8H", "9H");
     earlier.winner = 3;
     const chosen = decideCard(cards("8S", "KD", "QD", "9C", "10C"), trickOf(2), "sun", undefined, 2, { tricks: [earlier] });
-    expect(chosen.suit).toBe("S");
+    expect(chosen).toEqual(c("10C"));
+  });
+
+  it("reads the table's discards the way the video teaches", () => {
+    const read = (mode: "sun" | "hokum", ...played: Trick[]) => buildBeliefs(played, undefined, mode, mode === "hokum" ? "S" : undefined);
+    // Rule 1: a lone discard asks for its brother (led ♠, threw ♦ → wants ♥), and ♦ isn't wanted.
+    const one = read("sun", trickOf(1, "AS", "8S", "9S", "7D"));
+    expect(one.wants[0]).toEqual(["H"]);
+    expect(one.rejects[0]).toEqual(["D"]);
+    // Rule 3: led ♥, threw ♦ (its brother) → wants the black suits.
+    expect(read("sun", trickOf(1, "AH", "8H", "9H", "7D")).wants[0]).toEqual(["S", "C"]);
+    // Rule 2: on ♣ leads, threw ♥ then ♦ (both red) → wants black: ♠ (it has no ♣).
+    expect(read("sun", trickOf(1, "AC", "8C", "9C", "7H"), trickOf(1, "KC", "QC", "JC", "8D")).wants[0]).toEqual(["S"]);
+    // Rule 4: climbing in ♦ (7 then 8 then بنت) asks for ♦ itself.
+    const up = read("sun", trickOf(1, "AS", "8S", "9S", "7D"), trickOf(1, "AC", "8C", "9C", "8D"), trickOf(1, "KS", "7S", "QS", "QD"));
+    expect(up.wants[0][0]).toBe("D");
+    expect(up.rejects[0]).not.toContain("D");
+    // …and coming down (10 then 9) doesn't: ♦ is refused, its brother ♥ is asked for.
+    const down = read("sun", trickOf(1, "AS", "8S", "9S", "10D"), trickOf(1, "AC", "8C", "9C", "9D"));
+    expect(down.rejects[0]).toContain("D");
+    expect(down.wants[0]).toEqual(["H"]);
+    // A ruff in hokum is not a message.
+    expect(read("hokum", trickOf(1, "AH", "8H", "9H", "7S")).wants[0]).toEqual([]);
+  });
+
+  it("builds a climb when its strong suit's brother is the led suit's colour", () => {
+    // Earlier seat 0 threw 7♦ (led ♠). Now ♥ is led and ♦ is its strength: the next ♦ up says "♦".
+    const earlier = trickOf(1, "AS", "8S", "9S", "7D");
+    earlier.winner = 1;
+    const chosen = decideCard(cards("AD", "8D", "KD", "8C", "9C"), trickOf(1, "AH"), "sun", undefined, 0, { tricks: [earlier] });
+    expect(chosen).toEqual(c("8D"));
+  });
+
+  it("never leaves a 10 bare (لا تعلّق عشرتك)", () => {
+    // Void in ♥. Throwing 7♦ would leave 10♦ alone for the opponents' Ace to catch.
+    const chosen = decideCard(cards("7D", "10D", "8C", "KC"), trickOf(1, "AH"), "sun", undefined, 0, { tricks: [] });
+    expect(chosen.suit).toBe("C");
+  });
+
+  it("stops everything for a برقية — even holding its own winners", () => {
+    const earlier = trickOf(0, "AS", "7S", "AH", "8S");
+    earlier.winner = 0;
+    const lead = decideCard(cards("7H", "QH", "AD", "10D", "AC"), trickOf(0), "sun", undefined, 0, { tricks: [earlier] });
+    expect(lead).toEqual(c("QH"));
+  });
+
+  it("leads its project's suit on the first lead (حل مشروعك)", () => {
+    // سرا 8-9-10♣: lead low to draw the big clubs out.
+    const lead = decideCard(cards("8C", "9C", "10C", "AH", "7D", "KS", "QS", "8H"), trickOf(0), "sun", undefined, 0, { tricks: [] });
+    expect(lead).toEqual(c("8C"));
+  });
+
+  it("goes back to the suit the partner opened with", () => {
+    // Partner (seat 2) led ♠ first; seat 3 won it. Now seat 0 leads.
+    const earlier = trickOf(2, "QS", "AS", "7S", "8S");
+    earlier.winner = 3;
+    const lead = decideCard(cards("9S", "JS", "8H", "7D", "9C"), trickOf(0), "sun", undefined, 0, { tricks: [earlier] });
+    expect(lead).toEqual(c("JS"));
+  });
+
+  it("goes in with its biggest card behind the partner's lead to force the last player", () => {
+    // Partner led ولد ♠, seat 3 followed low; A♠ and 10♠ are still out and seat 1 plays last.
+    const t = trickOf(2, "JS", "7S");
+    const chosen = decideCard(cards("KS", "8S", "9H", "7D"), t, "sun", undefined, 0, { tricks: [] });
+    expect(chosen).toEqual(c("KS"));
+  });
+
+  it("gives its 10 to the partner's opening Ace so they keep cashing", () => {
+    const t = trickOf(2, "AD", "7D");
+    const chosen = decideCard(cards("10D", "8D", "9H", "7C"), t, "sun", undefined, 0, { tricks: [] });
+    expect(chosen).toEqual(c("10D"));
+  });
+
+  it("reads a 10 on its Ace in the middle of the hand as a request", () => {
+    const tricks = [trickOf(1, "7C", "8C", "9C", "JC"), trickOf(0, "KH", "AH", "7H", "8H"), trickOf(0, "AD", "7D", "10D", "8D")];
+    expect(buildBeliefs(tricks, undefined, "sun").wants[2]).toContain("D");
+  });
+
+  it("leads trumps for the partner who bought hokum: the 10, or the 9 from شايب-9 (ربّع له)", () => {
+    const ten = decideCard(cards("10D", "8D", "AS", "7C", "9H"), trickOf(0), "hokum", "D", 0, { tricks: [], declarer: 2 });
+    expect(ten).toEqual(c("10D"));
+    const nine = decideCard(cards("KH", "9H", "AS", "7C", "8D"), trickOf(0), "hokum", "H", 0, { tricks: [], declarer: 2 });
+    expect(nine).toEqual(c("9H"));
+  });
+
+  it("as the hokum buyer, doesn't throw a side suit's last card (مقطوعك)", () => {
+    // Seat 0 bought ♦ and has no trump left to... it holds trumps but partner is winning, so it may discard.
+    const t = trickOf(2, "AS", "7S");
+    const chosen = decideCard(cards("7C", "8H", "9H", "JD", "9D"), t, "hokum", "D", 0, { tricks: [], declarer: 0 });
+    expect(chosen).not.toEqual(c("7C"));
   });
 
   it("keeps 10s and Aces out of a trick its side might still lose (حماية الأبناط)", () => {
