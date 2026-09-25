@@ -154,6 +154,8 @@ export class TableScene extends Phaser.Scene {
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
+  /** المترجم: what each seat's التهريب asks for, shown over its name. */
+  private signalTexts: Phaser.GameObjects.Text[] = [];
   /** Which of each opponent's cards the spy joker is showing this hand. */
   private spied: Partial<Record<Seat, string[]>> = {};
   private actionPrompt?: Phaser.GameObjects.Text;
@@ -202,6 +204,7 @@ export class TableScene extends Phaser.Scene {
     this.dealerChip = undefined;
     this.highlightedSeat = null;
     this.revealViews = [];
+    this.signalTexts = [];
     this.spied = {};
     this.actionPrompt = undefined;
     this.actionSkip = undefined;
@@ -577,6 +580,25 @@ export class TableScene extends Phaser.Scene {
   }
 
   /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
+  /** المترجم: over each player, what their discards ask their partner for (docs/baloot-guide.md §4أ). */
+  private refreshSignals(): void {
+    for (const t of this.signalTexts) t.destroy();
+    this.signalTexts = [];
+    if (!this.nodeData.modifiers.translator) return;
+    const signals = this.controller.getSignals();
+    if (!signals) return;
+    for (const seat of [0, 1, 2, 3] as Seat[]) {
+      const { wants, barqiya } = signals[seat];
+      const parts: string[] = [];
+      if (barqiya.length) parts.push("برقية " + barqiya.map((x) => SUIT_SYMBOL[x]).join(""));
+      if (wants.length) parts.push("يبي " + wants.map((x) => SUIT_SYMBOL[x]).join(""));
+      const label = this.seatLabels[seat];
+      if (!parts.length || !label) continue;
+      const text = arabicText(this, label.x, label.y - 34, "🗣️ " + parts.join(" · "), { fontSize: "22px", color: "#ffd54a" }).setDepth(5);
+      this.signalTexts.push(text);
+    }
+  }
+
   private refreshMemory(): void {
     if (!this.memoryText) return;
     const round = this.controller.getRound();
@@ -1330,7 +1352,10 @@ export class TableScene extends Phaser.Scene {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
     }
-    this.time.delayedCall(0, () => this.refreshMemory());
+    this.time.delayedCall(0, () => {
+      this.refreshMemory();
+      this.refreshSignals();
+    });
     this.projectMoment(e.seat);
     let juiceColor = 0xffffff;
     let shouldJuice = false;

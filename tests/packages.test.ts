@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
+import { buildBeliefs } from "../src/ai/beliefs";
 import { decideDouble } from "../src/ai/doubling-ai";
 import { GameController, HUMAN_SEAT, actionTarget, type MatchOptions } from "../src/game/GameController";
 import { cardId, rankStrength } from "../src/engine/cards";
@@ -303,13 +304,37 @@ describe("Defence and doubling jokers", () => {
 });
 
 describe("التهريب", () => {
-  it("المترجم: the partner answers what your discards ask for first, with its biggest card", () => {
-    const hand: Card[] = [{ suit: "S", rank: "A" }, { suit: "H", rank: "7" }, { suit: "H", rank: "K" }, { suit: "D", rank: "8" }, { suit: "D", rank: "9" }];
-    const trick: Trick = { leader: 2, order: [], cards: {} };
-    const asked = decideCard(hand, trick, "sun", undefined, 2, { tricks: [], partnerAsks: ["D"] });
-    expect(asked).toEqual({ suit: "D", rank: "9" });
-    const plain = decideCard(hand, trick, "sun", undefined, 2, { tricks: [] });
-    expect(plain.suit).not.toBe("D");
+  it("your partner comes to your التهريب once it has no winners of its own", () => {
+    // Seat 0 threw 7♠ on a ♥ lead: it wants ♣. Seat 2 has no sure winner, so it leads its biggest ♣.
+    const earlier: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: { suit: "H", rank: "A" }, 2: { suit: "H", rank: "8" }, 3: { suit: "H", rank: "9" }, 0: { suit: "S", rank: "7" } }, winner: 1 };
+    const hand: Card[] = [{ suit: "S", rank: "8" }, { suit: "D", rank: "Q" }, { suit: "C", rank: "9" }, { suit: "C", rank: "K" }];
+    const lead = decideCard(hand, { leader: 2, order: [], cards: {} }, "sun", undefined, 2, { tricks: [earlier] });
+    expect(lead).toEqual({ suit: "C", rank: "K" });
+    // Holding a sure winner (A♦), it cashes that first.
+    const strong = decideCard([...hand, { suit: "D", rank: "A" }], { leader: 2, order: [], cards: {} }, "sun", undefined, 2, { tricks: [earlier] });
+    expect(strong).toEqual({ suit: "D", rank: "A" });
+  });
+
+  it("المترجم reads every seat's التهريب for you, the same way the AI does", () => {
+    let seen = 0;
+    for (let seed = 1; seed <= 10 && seen === 0; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 9999, translator: true });
+      c.startMatch();
+      autoplay(c, () => {
+        const round = c.getRound();
+        const signals = c.getSignals();
+        if (!signals || round.phase !== "playing") return false;
+        const res = round.bidding.result!;
+        const b = buildBeliefs(round.tricks, round.currentTrick, res.mode, res.trumpSuit);
+        for (const seat of [0, 1, 2, 3] as Seat[]) {
+          expect(signals[seat].wants).toEqual(b.wants[seat]);
+          expect(signals[seat].barqiya).toEqual(b.barqiya[seat]);
+          if (signals[seat].wants.length) seen++;
+        }
+        return seen > 0;
+      });
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 
   it("الإشارة الذهبية multiplies a hand where a signal paid off", () => {

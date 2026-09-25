@@ -104,7 +104,8 @@ describe("the search AI", () => {
 
   it("out-scores the rule-based AI on the same deals (each side playing both seat pairs)", () => {
     let margin = 0, hands = 0;
-    for (let seed = 1; hands < 60; seed++) {
+    // 120 hands: at 60 the sample was too small to tell a real regression from luck.
+    for (let seed = 1; hands < 120; seed++) {
       for (const team of [0, 1] as const) {
         const r = playable(seed);
         if (!r) continue;
@@ -118,5 +119,5 @@ describe("the search AI", () => {
       }
     }
     expect(margin / hands).toBeGreaterThan(1);
-  });
+  }, 60_000);
 });

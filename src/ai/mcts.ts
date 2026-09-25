@@ -27,7 +27,7 @@ export interface SearchOptions {
   /** Stop early once this many milliseconds have gone (the game stays responsive on a phone). */
   timeBudgetMs?: number;
   rand?: () => number;
-  /** What the rule-based AI is told for this seat (أشكل signal, المترجم, مقفل…). */
+  /** What the rule-based AI is told for this seat (أشكل signal, مقفل…). */
   ctx?: PlayContext;
 }
 
@@ -40,8 +40,8 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
   const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
   const legal = round.legalMovesFor(seat);
   if (legal.length <= 1) return legal[0] ?? ruleChoice;
-  // A partner's برقية (or المترجم's ask) is a convention, not a calculation: answer it.
-  if (followsConvention(round, seat, ctx)) return ruleChoice;
+  // A partner's برقية is a convention, not a calculation: answer it.
+  if (followsConvention(round, seat)) return ruleChoice;
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
   if (candidates.length === 1) return candidates[0];
@@ -74,16 +74,15 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
 
 // ------------------------------------------------------------------ the player's rules
 
-/** The partner sent a برقية (or you asked through المترجم) and this seat is leading: follow it. */
-function followsConvention(round: Round, seat: Seat, ctx: PlayContext): boolean {
+/** The partner sent a برقية and this seat is leading: follow it. */
+function followsConvention(round: Round, seat: Seat): boolean {
   const trick = round.currentTrick!;
   if (trick.order.length !== 0) return false;
   const res = round.bidding.result!;
   const partner = ((seat + 2) % 4) as Seat;
   const beliefs = buildBeliefs(round.tricks, trick, res.mode, res.trumpSuit);
   const hand = round.hands[seat];
-  const asked = [...beliefs.barqiya[partner], ...(ctx.partnerAsks ?? [])];
-  return asked.some((suit) => hand.some((c) => c.suit === suit));
+  return beliefs.barqiya[partner].some((suit) => hand.some((c) => c.suit === suit));
 }
 
 /**

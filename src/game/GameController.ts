@@ -145,7 +145,7 @@ export interface MatchOptions {
   sunBreakMultiplier?: number;
   /** الصبر: gold for every hand the other team bought and you out-scored them. */
   defenseGold?: number;
-  /** المترجم: your partner always understands your التهريب and answers it first, with its biggest card. */
+  /** المترجم: the table shows you what every player's التهريب (and برقية) asks for. */
   translator?: boolean;
   /** الإشارة الذهبية: a hand where your partner answered your signal and you took that trick is multiplied by this. */
   signalMultiplier?: number;
@@ -311,6 +311,16 @@ export class GameController extends Emitter<EventMap> {
     super.emit(event, payload);
   }
 
+  /** What each seat's discards ask its partner for (التهريب) and any برقية — for المترجم. */
+  getSignals(): Record<Seat, { wants: Suit[]; barqiya: Suit[] }> | undefined {
+    const res = this.round?.bidding.result;
+    if (!res || this.round.tricks.length + (this.round.currentTrick?.order.length ? 1 : 0) === 0) return undefined;
+    const b = buildBeliefs(this.round.tricks, this.round.currentTrick, res.mode, res.trumpSuit);
+    const out = {} as Record<Seat, { wants: Suit[]; barqiya: Suit[] }>;
+    for (const seat of [0, 1, 2, 3] as Seat[]) out[seat] = { wants: b.wants[seat], barqiya: b.barqiya[seat] };
+    return out;
+  }
+
   getRound(): Round {
     return this.round;
   }
@@ -447,8 +457,6 @@ export class GameController extends Emitter<EventMap> {
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
         ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
         closed: this.round.closed,
-        // المترجم: your partner answers what your discards ask for before any plan of its own.
-        partnerAsks: this.options.translator && seat === partnerOf(HUMAN_SEAT) ? this.humanAsks : undefined,
       };
       // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
       const think = this.options.searchAI && seat !== HUMAN_SEAT;

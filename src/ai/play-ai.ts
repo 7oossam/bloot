@@ -13,11 +13,6 @@ export interface PlayContext {
   declarer?: Seat;
   /** مقفل: a closed دبل — no leading trumps while holding anything else. */
   closed?: boolean;
-  /**
-   * المترجم: the suits the partner's discards ask for (read by the rules of التهريب), latest
-   * first. With it this seat answers them before anything else but a برقية.
-   */
-  partnerAsks?: Suit[];
 }
 
 /**
@@ -210,11 +205,6 @@ function chooseLead(
   for (const suit of beliefs.barqiya[partner]) {
     if (by[suit].length > 0) return highest(by[suit]);
   }
-  // المترجم: answer the partner's last signal first.
-  for (const suit of ctx?.partnerAsks ?? []) {
-    if (by[suit].length > 0) return highest(by[suit]);
-  }
-
   if (mode === "hokum" && trumpSuit) {
     const trumps = by[trumpSuit];
     const opponentsOutOfTrump = opponents.every((o) => beliefs.voids[o][trumpSuit]);
@@ -238,8 +228,8 @@ function chooseLead(
     if (ruffFor) return lowest(by[ruffFor]);
   }
 
-  // The partner asked for a suit — by أشكل (§3) or by التهريب (§4أ).
-  for (const suit of [...(ctx?.ashkalSuits ?? []), ...beliefs.wants[partner]]) {
+  // The partner asked for a suit by أشكل (§3).
+  for (const suit of ctx?.ashkalSuits ?? []) {
     if (by[suit].length > 0 && !opponentsCanRuff(suit)) return highest(by[suit]);
   }
 
@@ -267,6 +257,11 @@ function chooseLead(
   if (bosses.length > 0) {
     // Run the longest suit first — تسييل السرد (§5): strip, then keep leading it.
     return maxBy(bosses, (c) => by[c.suit].length * 100 + cardPoints(c, mode, trumpSuit));
+  }
+
+  // No winners of my own: go to the partner in the suit their التهريب asks for (§4أ).
+  for (const suit of beliefs.wants[partner]) {
+    if (by[suit].length > 0 && !opponentsCanRuff(suit)) return highest(by[suit]);
   }
 
   // Otherwise lead low from the longest suit that no opponent can ruff and the partner hasn't rejected.
