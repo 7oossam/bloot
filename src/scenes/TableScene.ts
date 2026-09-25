@@ -334,7 +334,12 @@ export class TableScene extends Phaser.Scene {
 
   // -------------------------------------------------------------- logging
 
-  private log(line: string): void {
+  private floatText(x: number, y: number, text: string, color: string): void {
+      const t = arabicText(this, x, y, text, { fontSize: '28px', color });
+      this.tweens.add({ targets: t, y: y - 60, alpha: 0, duration: 1200, ease: 'Quad.Out', onComplete: () => t.destroy() });
+    }
+
+    private log(line: string): void {
     this.logLines.push(line);
     if (this.logLines.length > LOG_LINES) this.logLines.shift();
     this.logText.setText(this.logLines.join("\n"));
@@ -1484,6 +1489,9 @@ export class TableScene extends Phaser.Scene {
 
     // A quick pop on the winning card sells the moment before everything collects.
     const winningView = views[e.winner];
+    this.cameras.main.shake(150, 0.005);
+    this.floatText(dest.x, dest.y, isLast ? '+10 O U,OOO ' : 'OO_US!', '#ffd54a');
+    this.createImpactJuice(CENTER_X, CENTER_Y, 0xd4af37);
     if (winningView) {
       this.tweens.add({
         targets: winningView,

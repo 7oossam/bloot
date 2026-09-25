@@ -31,7 +31,8 @@ export function makeButton(
 ): ButtonHandle {
   const width = opts.width ?? 280;
   const height = opts.height ?? 84;
-  const color = opts.color ?? 0x1f6f43;
+  const color = opts.color ?? 0xd4af37;
+  const textColor = opts.textColor ?? (color === 0xd4af37 ? '#1c102a' : '#ffffff');
 
   const bg = scene.add.graphics();
   bg.fillStyle(0x000000, 0.25);
@@ -43,14 +44,14 @@ export function makeButton(
 
   const text = arabicText(scene, 0, 0, label, {
     fontSize: opts.fontSize ?? "30px",
-    color: opts.textColor ?? "#ffffff",
+    color: textColor,
   });
 
   const container = scene.add.container(x, y, [bg, text]);
   setBoxHitArea(container, width, height);
   container.input!.cursor = "pointer";
-  container.on("pointerover", () => bg.setAlpha(0.85));
-  container.on("pointerout", () => bg.setAlpha(1));
+  container.on('pointerover', () => { bg.setAlpha(0.9); scene.tweens.add({ targets: container, scale: 1.05, duration: 100 }); });
+  container.on('pointerout', () => { bg.setAlpha(1); scene.tweens.add({ targets: container, scale: 1, duration: 100 }); });
   container.on("pointerdown", () => {
     // A quick press-down squash reads as "this responded to your click" before onClick
     // possibly tears the button down (e.g. bidding/continue buttons destroy themselves).

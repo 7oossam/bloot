@@ -38,7 +38,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x1a1230).setOrigin(0);
+    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
     arabicText(this, WIDTH / 2, 58, "المتجر", { fontSize: "44px" });
     this.goldText = arabicText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: "#ffd54a" });
     this.ownedText = arabicText(this, WIDTH / 2, 268, "", {
@@ -141,6 +141,9 @@ export class ShopScene extends Phaser.Scene {
     bg.lineStyle(def.rarity === "legendary" ? 6 : 4, style.border, reason ? 0.45 : 1);
     bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 24);
     const card = this.add.container(WIDTH / 2, y, [bg]);
+    setBoxHitArea(card, cardW, cardH);
+    card.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.02, duration: 150 }));
+    card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 150 }));
 
     // Layout: buy button on the left (RTL reading ends there), icon on the right, text between.
     const buttonW = 160;
