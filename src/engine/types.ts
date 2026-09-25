@@ -60,6 +60,8 @@ export interface TrickRules {
     weakJack?: Team;
     /** …or all the way to the bottom of the trumps. */
     jackBottom?: boolean;
+    /** This team can't lead a trick with an Ace or a 10 while holding anything else (حرّاس الإكك). */
+    noAceLead?: Team;
   };
 
 }

@@ -22,14 +22,14 @@ const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
   diwaniya: "🫖",
 };
 
-const RADIUS = 54;
+const RADIUS = 44;
+/** How far apart the map's lanes are. */
+const LANE_GAP = 250;
 const THEME_BG = 0x2a1a3a;
 const THEME_NODE = 0x1c102a;
 const THEME_GOLD = 0xd4af37;
 const TOP_MARGIN = 320;
 const BOTTOM_MARGIN = 130;
-// Slight zigzag so the path isn't a dead-straight line, cycling through these x offsets.
-const X_OFFSETS = [0, -92, 92, -60, 60, -92, 0];
 
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
 export class MapScene extends Phaser.Scene {
@@ -87,27 +87,37 @@ export class MapScene extends Phaser.Scene {
     );
   }
 
+  /** The branching map, bottom row first: links, then nodes (the ones you can walk into pulse). */
   private drawPath(state: RunState): void {
-    const n = state.nodes.length;
+    const rows = Math.max(...state.nodes.map((n) => n.floor)) + 1;
     const usableHeight = HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
-    const yFor = (i: number) => HEIGHT - BOTTOM_MARGIN - (n === 1 ? 0 : (usableHeight * i) / (n - 1));
-    const xFor = (i: number) => WIDTH / 2 + X_OFFSETS[i % X_OFFSETS.length];
+    const yFor = (node: MapNode) => HEIGHT - BOTTOM_MARGIN - (usableHeight * node.floor) / (rows - 1);
+    const xFor = (node: MapNode) => WIDTH / 2 + ((node.col ?? 1) - 1) * LANE_GAP;
+    const byId = new Map(state.nodes.map((n, i) => [n.id, { node: n, i }]));
+    const available = new Set(runController.getAvailableNodes().map((n) => n.id));
+    const current = state.nodes[state.currentIndex];
+    const here = current?.floor ?? -1;
 
     const lineGfx = this.add.graphics();
-    for (let i = 0; i < n - 1; i++) {
-      const cleared = state.cleared[i];
-      lineGfx.lineStyle(8, cleared ? THEME_GOLD : 0x1c102a, cleared ? 1 : 0.5);
-      lineGfx.lineBetween(xFor(i), yFor(i), xFor(i + 1), yFor(i + 1));
+    for (const { node, i } of byId.values()) {
+      for (const id of node.next) {
+        const { node: up, i: j } = byId.get(id)!;
+        const walked = state.cleared[i] && state.cleared[j];
+        const open = current?.id === node.id && available.has(id);
+        lineGfx.lineStyle(walked || open ? 7 : 4, walked ? THEME_GOLD : open ? 0xffd54a : 0x4a3a5a, walked || open ? 1 : 0.6);
+        lineGfx.lineBetween(xFor(node), yFor(node), xFor(up), yFor(up));
+      }
     }
     this.nodeLayer.add(lineGfx);
 
-    const availableNode = runController.getAvailableNode();
-
     state.nodes.forEach((node, i) => {
-      const isCurrent = i === state.currentIndex;
       const isCleared = state.cleared[i];
-      const isAvailable = availableNode?.id === node.id;
-      this.nodeLayer.add(this.drawNode(xFor(i), yFor(i), node, { isCurrent, isCleared, isAvailable }));
+      const isAvailable = available.has(node.id);
+      // Rows you've passed without taking this node are behind you now.
+      const missed = !isCleared && node.floor <= here;
+      const view = this.drawNode(xFor(node), yFor(node), node, { isCurrent: i === state.currentIndex, isCleared, isAvailable });
+      if (missed) view.setAlpha(0.35);
+      this.nodeLayer.add(view);
     });
   }
 
@@ -122,19 +132,14 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0xf1c40f : 0x3a2a4a;
 
     const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
-    const icon = this.add.text(0, -6, NODE_TYPE_ICON[node.type], { fontSize: "36px" }).setOrigin(0.5);
-    const label = arabicText(this, radius + 92, -14, NODE_TYPE_LABEL_AR[node.type], {
-      fontSize: "26px",
+    const icon = this.add.text(0, -4, NODE_TYPE_ICON[node.type], { fontSize: "32px" }).setOrigin(0.5);
+    const label = arabicText(this, 0, radius + 20, NODE_TYPE_LABEL_AR[node.type] + (node.matchTarget !== undefined ? ` ${node.matchTarget}` : ""), {
+      fontSize: "20px",
       color: state.isAvailable ? "#ffd54a" : "#bcd",
     });
-    const targetLabel =
-      node.matchTarget !== undefined
-        ? arabicText(this, radius + 92, 22, `هدف ${node.matchTarget}`, { fontSize: "21px", color: "#8fae9a" })
-        : null;
 
     // Who you'll play stays a surprise until you walk in.
     const parts: Phaser.GameObjects.GameObject[] = [circle, icon, label];
-    if (targetLabel) parts.push(targetLabel);
     if (state.isCleared) {
       parts.push(this.add.text(radius - 18, -radius + 4, "✓", { fontSize: "32px", color: "#5ad469" }));
     }

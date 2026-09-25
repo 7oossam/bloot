@@ -8,8 +8,8 @@
  * The map doesn't say who's where: you find out when you walk in.
  */
 export interface RivalOptions {
-  /** The first Ace your team takes in a hand counts for nothing. */
-  voidFirstAce?: boolean;
+  /** Your team can't lead a trick with an Ace or a 10 while holding anything else. */
+  noAceLead?: boolean;
   /** Any hand your team buys and loses counts double for them. */
   lossDoubled?: boolean;
   /** Your team's projects don't count (بلوت still does). */
@@ -48,13 +48,13 @@ export interface OpponentDef {
 export const OPPONENTS: OpponentDef[] = [
   // ---- matches
   {
-    id: "ace-eaters",
-    name: "آكلين الإكك",
+    id: "ace-guards",
+    name: "حرّاس الإكك",
     icon: "🅰️",
     tier: "match",
-    rule: "أول إكة تاكلونها في كل يد ما تنحسب أبناطها",
-    hits: "يتعب بناء الإكك",
-    rules: { voidFirstAce: true },
+    rule: "ما تقدرون تبدون أكلة بإكة ولا عشرة (إلا إذا ما عندكم غيرها)",
+    hits: "يتعب بناء الإكك: إكتك لازم تاكل وهي تغطي، مو وهي تفتح",
+    rules: { noAceLead: true },
   },
   {
     id: "project-erasers",
@@ -108,9 +108,9 @@ export const OPPONENTS: OpponentDef[] = [
     name: "أبو قهوة",
     icon: "☕",
     tier: "boss",
-    rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل، وأول إكة تاكلونها ما تنحسب",
+    rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل، وما تقدرون تبدون بإكة ولا عشرة",
     hits: "الشراء لازم يكون مضمون",
-    rules: { lossDoubled: true, voidFirstAce: true },
+    rules: { lossDoubled: true, noAceLead: true },
   },
   {
     id: "front-runners",

@@ -191,23 +191,36 @@ mechanic (tried and rejected by the player).
 
 | Tier | Opponent | Rule | Margin/hand |
 |---|---|---|---|
-| match | آكلين الإكك | the first Ace your team takes each hand scores nothing | −2.8 |
+| match | حرّاس الإكك | you can't lead a trick with an Ace or a 10 (unless that's all you hold) | −2.3 |
 | match | ماسحين المشاريع | your projects don't count (بلوت does) | −4.1 |
 | match | أهل الأرض | الأرض's 10 is theirs whoever takes the last trick | −3.1 |
 | match | خاطفين الولد | your trump Jack is the weakest trump (still worth 20) | −2.8 |
 | elite | أهل الحكم | the one on your right is dealt the J and 9 of the ground suit: buy sun or they buy hokum | −4.8 |
 | elite | المدبّلين | a hand you buy and lose counts double for them | −4.4 |
-| boss | أبو قهوة | المدبّلين + آكلين الإكك | −6.7 |
+| boss | أبو قهوة | المدبّلين + حرّاس الإكك | −6.1 |
 | boss | السبّاقين | they start 40 ahead | (fixed) |
 | boss | المعطّل | your strongest joker is off for the match + أهل الأرض | (depends on your row) |
 
 Margins: the rule-based AI in your seat over 1500 hands; with no rule it's −0.8.
+Also rejected: "your first Ace scores nothing" (−2.8, but it's only a smaller score, nothing
+to play around — the player found it dull). A rule should change a decision, not a total.
 Measured and **rejected**: "they double everything you buy" (+5: a buyer who usually makes
 it only gains from a دبل, even when the buyer stays the judged side), "you can't buy sun"
 (≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
 
+### The map branches (src/roguelike/mapgen.ts)
+Like Slay the Spire: 9 rows, 2–3 nodes a row in 3 lanes, each linked to the node above and
+diagonally one way per row (so links never cross). Row 0 is all matches, elites from row 3,
+shops from row 3 (rare), the row before the boss is all shops, then the boss. A match's
+target and gold grow with its row (41 + 10×row, 20 + 3×row). You choose your route: more
+fights for more rewards, a ديوانية for a gamble, an elite for rarer spoils.
+
+### السوا is for everyone
+The سوا button shows whenever you lead: right plays the rest out for you, wrong costs 6.
+The السوا joker only adds a bonus on a right call.
+
 ### الديوانية (src/roguelike/events.ts)
-Two map nodes per run (after the 1st and 3rd match) with a short scene and a choice:
+Map nodes with a short scene and a choice:
 safe, a gamble, or a price now for something later. The events are فنجال المعزّب، الرهان،
 الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
 with the reason, and every event has at least one choice that's always open.

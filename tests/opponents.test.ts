@@ -5,12 +5,12 @@ import { decideDouble } from "../src/ai/doubling-ai";
 import { mulberry32 } from "../src/engine/rng";
 import { Round } from "../src/engine/round";
 import { scoreHand } from "../src/engine/scoring";
-import { resolveTrick } from "../src/engine/trick";
+import { legalMoves, resolveTrick } from "../src/engine/trick";
 import { teamOf, type Card, type HandResult, type Seat, type Trick } from "../src/engine/types";
 import { GameController, HUMAN_SEAT, type MatchOptions } from "../src/game/GameController";
 import { EVENTS, getEvent } from "../src/roguelike/events";
 import { getJokerDef } from "../src/roguelike/jokers";
-import { generateMap } from "../src/roguelike/mapgen";
+import { generateMap, pathTo } from "../src/roguelike/mapgen";
 import { getOpponent } from "../src/roguelike/opponents";
 import { BLESSING_GOLD, runController } from "../src/roguelike/RunController";
 import { STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
@@ -35,11 +35,13 @@ describe("the opponents bend the game against you", () => {
     ...[0, 1, 2, 3, 4, 5].map(() => trickOf(1, ["7C", "8C", "9C", "JC"])),
   ];
 
-  it("آكلين الإكك: the first Ace your team takes counts for nothing", () => {
-    const plain = scoreHand(hand(), "sun", undefined, 0);
-    const voided = scoreHand(hand(), "sun", undefined, 0, undefined, { voidFirstAce: 0 });
-    expect(plain.rawPoints[0] - voided.rawPoints[0]).toBe(11);
-    expect(voided.rawPoints[1]).toBe(plain.rawPoints[1]);
+  it("حرّاس الإكك: your team can't lead an Ace or a 10 while holding anything else", () => {
+    const rules = { rival: { noAceLead: 0 as const } };
+    const empty: Trick = { leader: 0, order: [], cards: {}, rules };
+    expect(legalMoves([c("AS"), c("10H"), c("7D")], empty, "sun", undefined, 0)).toEqual([c("7D")]);
+    expect(legalMoves([c("AS"), c("10H")], empty, "sun", undefined, 0)).toEqual([c("AS"), c("10H")]);
+    // Theirs are free.
+    expect(legalMoves([c("AS"), c("7D")], { ...empty, leader: 1 }, "sun", undefined, 1)).toHaveLength(2);
   });
 
   it("أهل الأرض: الأرض is theirs whoever takes the last trick", () => {
@@ -114,16 +116,31 @@ describe("the opponents' rules in a real match", () => {
 });
 
 describe("the run: opponents, الديوانية and الحوت", () => {
-  it("every fight has an opponent of its tier, and every ديوانية a different event", () => {
+  it("every fight has an opponent of its tier, and every ديوانية an event", () => {
     for (let seed = 1; seed <= 30; seed++) {
       const map = generateMap(seed);
       for (const n of map.nodes) {
         if (n.type === "match" || n.type === "elite" || n.type === "boss") expect(getOpponent(n.opponent)?.tier).toBe(n.type);
+        if (n.type === "diwaniya") expect(getEvent(n.event)).toBeDefined();
       }
-      const events = map.nodes.filter((n) => n.type === "diwaniya").map((n) => n.event);
-      expect(events.length).toBe(2);
-      expect(new Set(events).size).toBe(2);
-      for (const e of events) expect(getEvent(e)).toBeDefined();
+    }
+  });
+
+  it("the map branches: every node is reachable, every path meets the shop row and the boss", () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const { nodes } = generateMap(seed);
+      const top = Math.max(...nodes.map((n) => n.floor));
+      expect(nodes.filter((n) => n.floor === top).map((n) => n.type)).toEqual(["boss"]);
+      expect(nodes.filter((n) => n.floor === top - 1).every((n) => n.type === "shop")).toBe(true);
+      expect(nodes.filter((n) => n.floor === 0).every((n) => n.type === "match")).toBe(true);
+      for (const n of nodes) {
+        expect(pathTo(nodes, n.id)).toBeDefined();
+        if (n.type !== "boss") expect(n.next.length).toBeGreaterThan(0);
+        for (const id of n.next) expect(nodes.find((x) => x.id === id)!.floor).toBe(n.floor + 1);
+        if (n.type === "elite") expect(n.floor).toBeGreaterThanOrEqual(3);
+      }
+      // A real choice: some row offers more than one node.
+      expect(nodes.filter((n) => n.floor === 1).length).toBeGreaterThanOrEqual(2);
     }
   });
 
@@ -153,15 +170,19 @@ describe("the run: opponents, الديوانية and الحوت", () => {
   const atDiwaniya = (eventId: string) => {
     runController.takeBlessing(2); // 65 gold
     const s = runController.getState();
-    const i = s.nodes.findIndex((n) => n.type === "diwaniya");
-    for (let k = 0; k < i; k++) {
-      const node = runController.getAvailableNode()!;
+    const target = s.nodes.find((n) => n.type === "diwaniya")!;
+    const path = pathTo(s.nodes, target.id)!;
+    for (const node of path.slice(0, -1)) {
       runController.enterNode(node.id);
-      runController.resolveMatchNode(true);
-      runController.skipReward();
+      if (node.type === "shop") runController.leaveShopNode();
+      else if (node.type === "diwaniya") runController.chooseEventOption(node.event === "stall" ? 2 : 1);
+      else {
+        runController.resolveMatchNode(true);
+        runController.skipReward();
+      }
     }
-    (s.nodes[i] as { event?: string }).event = eventId;
-    runController.enterNode(s.nodes[i].id);
+    (target as { event?: string }).event = eventId;
+    runController.enterNode(target.id);
   };
 
   it("الديوانية: the choices do what they say, and leave the node cleared", () => {

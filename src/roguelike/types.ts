@@ -3,7 +3,11 @@ export type NodeType = "match" | "elite" | "shop" | "boss" | "diwaniya";
 export interface MapNode {
   id: string;
   type: NodeType;
-  floor: number; // 0-indexed depth along the run
+  floor: number; // 0-indexed row of the map, bottom to top
+  /** Which of the map's lanes it sits in (left to right). */
+  col?: number;
+  /** The nodes it leads to on the row above. */
+  next: string[];
   matchTarget?: number; // present for match/elite/boss nodes
   reward: number; // gold earned on winning this node (match/elite/boss)
   /** Who you play here (src/roguelike/opponents.ts) — fight nodes only. */

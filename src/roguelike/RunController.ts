@@ -86,19 +86,32 @@ class RunController {
     return this.state.jokerLevels[itemId] ?? (this.state.jokerIds.includes(itemId) ? 1 : (this.state.upgrades[itemId] ?? 0));
   }
 
-  /** The node the player can currently walk into, or undefined if the run is over / finished. */
+  /**
+   * The nodes the player can walk into next: the bottom row at the start, then the ones the
+   * current node leads to once it's done. None once the run is over. (الحوت's gift is taken
+   * first on the map screen.)
+   */
+  getAvailableNodes(): MapNode[] {
+    const s = this.state;
+    if (s.over) return [];
+    if (s.currentIndex === -1) return s.nodes.filter((n) => n.floor === 0);
+    if (!s.cleared[s.currentIndex]) return [];
+    const next = new Set(s.nodes[s.currentIndex].next);
+    return s.nodes.filter((n) => next.has(n.id));
+  }
+
+  /** The first node you could walk into (the leftmost), for callers that don't choose. */
   getAvailableNode(): MapNode | undefined {
-    if (this.state.over) return undefined;
-    const nextIndex = this.state.currentIndex + 1;
-    return this.state.nodes[nextIndex];
+    return this.getAvailableNodes()[0];
   }
 
   enterNode(nodeId: string): void {
-    const node = this.getAvailableNode();
-    if (!node || node.id !== nodeId) {
-      throw new Error(`Node ${nodeId} is not the next available node`);
+    const index = this.state.nodes.findIndex((n) => n.id === nodeId);
+    const node = this.state.nodes[index];
+    if (!node || !this.getAvailableNodes().some((n) => n.id === nodeId)) {
+      throw new Error(`Node ${nodeId} is not reachable from here`);
     }
-    this.state.currentIndex++;
+    this.state.currentIndex = index;
     if (node.type === "shop") {
       this.state.rerollCost = this.state.rerollBase;
       this.payInterest();

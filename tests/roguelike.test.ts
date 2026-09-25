@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { generateMap } from "../src/roguelike/mapgen";
+import { generateMap, pathTo } from "../src/roguelike/mapgen";
 import { runController } from "../src/roguelike/RunController";
 import {
   activeSynergies,
@@ -40,15 +40,21 @@ describe("RunController", () => {
     runController.startNewRun(42);
   });
 
-  it("only lets you enter the next node in sequence", () => {
-    const first = runController.getAvailableNode()!;
-    expect(first.floor).toBe(0);
+  it("only lets you enter a node the current one leads to", () => {
+    const starts = runController.getAvailableNodes();
+    expect(starts.length).toBeGreaterThanOrEqual(2);
+    expect(starts.every((n) => n.floor === 0)).toBe(true);
+    const first = starts[0];
     runController.enterNode(first.id);
-    expect(runController.getState().currentIndex).toBe(0);
-
-    const second = runController.getAvailableNode()!;
-    expect(second.floor).toBe(1);
-    expect(() => runController.enterNode("node-6")).toThrow(); // not next
+    expect(runController.getState().nodes[runController.getState().currentIndex].id).toBe(first.id);
+    // Nothing opens until this node is done.
+    expect(runController.getAvailableNodes()).toEqual([]);
+    runController.resolveMatchNode(true);
+    runController.skipReward();
+    const next = runController.getAvailableNodes();
+    expect(next.map((n) => n.id).sort()).toEqual([...first.next].sort());
+    const boss = runController.getState().nodes.find((n) => n.type === "boss")!;
+    expect(() => runController.enterNode(boss.id)).toThrow(); // not reachable yet
   });
 
   it("winning a match node banks gold and advances; losing costs a life", () => {
@@ -470,8 +476,10 @@ describe("غنائم الصكة — rewards after every match won", () => {
     let rare = 0, count = 0;
     for (let seed = 1; seed <= 20; seed++) {
       runController.startNewRun(seed);
-      for (;;) {
-        const node = runController.getAvailableNode()!;
+      const nodes = runController.getState().nodes;
+      const elite = nodes.find((n) => n.type === "elite");
+      if (!elite) continue;
+      for (const node of pathTo(nodes, elite.id)!) {
         runController.enterNode(node.id);
         if (node.type === "shop") { runController.leaveShopNode(); continue; }
         runController.resolveMatchNode(true);

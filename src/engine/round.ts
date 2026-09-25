@@ -58,8 +58,7 @@ export interface RoundOptions {
   trickRules?: TrickRules;
   /** الورقة الأخيرة: this seat's card in the last trick counts as the top of its suit. */
   lastCardTop?: Seat;
-  /** Opponent rules (src/roguelike/opponents.ts), scored at the end of the hand. */
-  voidFirstAce?: Team;
+  /** أهل الأرض (an opponent rule): الأرض goes to this team whoever takes the last trick. */
   groundTo?: Team;
   /** ماسحين المشاريع: this team's projects don't count (بلوت still does). */
   cancelProjectsOf?: Team;
@@ -347,7 +346,6 @@ export class Round {
         this.result = scoreHand(this.tricks, mode, trumpSuit, this.bidding.result.declarerTeam, this.lastTrickBonus, {
           projects: this.projects,
           baloot,
-          voidFirstAce: this.options.voidFirstAce,
           groundTo: this.options.groundTo,
           double:
             this.doubling && this.doubling.level > 1

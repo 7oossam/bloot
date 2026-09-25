@@ -96,12 +96,18 @@ export function legalMoves(
   closed = false,
 ): Card[] {
   if (trick.order.length === 0) {
+    let lead = hand; // leading: anything goes, but…
     // مقفل (a closed دبل): no leading a trump while holding anything else.
     if (closed && mode === "hokum") {
-      const side = hand.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-      if (side.length > 0) return side;
+      const side = lead.filter((c) => !isTrumpCard(c, mode, trumpSuit));
+      if (side.length > 0) lead = side;
     }
-    return hand; // leading: anything goes
+    // حرّاس الإكك (an opponent rule): this team can't lead an Ace or a 10 while holding anything else.
+    if (trick.rules?.rival?.noAceLead !== undefined && teamOf(seat) === trick.rules.rival.noAceLead) {
+      const noAce = lead.filter((c) => c.rank !== "A" && c.rank !== "10");
+      if (noAce.length > 0) lead = noAce;
+    }
+    return lead;
   }
 
   const ledSuit = trick.cards[trick.order[0]]!.suit;

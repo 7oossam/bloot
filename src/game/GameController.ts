@@ -154,7 +154,7 @@ export interface MatchOptions {
   signalTrickBonus?: number;
   /** الآكه الذهبية: gold per آكه your team leads that takes its trick; points lost per one that gets cut. */
   akkaGamble?: { gold: number; penalty: number };
-  /** السوا: claim every trick left while you're on lead — right pays `bonus`, wrong costs `penalty`. */
+  /** السوا joker: a right سوا pays `bonus`; a wrong one costs `penalty` (the button itself is for everyone). */
   sawa?: { bonus: number; penalty: number };
   /** الجريء: your team may double a sun contract whatever the 100-point rule says. */
   freeSunDouble?: boolean;
@@ -183,6 +183,9 @@ export interface MatchOptions {
   /** الذاكرة: 1 = cards still out per suit; 2 = also which Aces and 10s are still out. */
   memory?: number;
 }
+
+/** A wrong سوا costs this many game points (what's left of them). */
+export const SAWA_PENALTY = 6;
 
 /** Something the human has to decide mid-hand because a joker fired: which card to use. */
 export type PendingAction =
@@ -406,8 +409,16 @@ export class GameController extends Emitter<EventMap> {
     // The opponents' rules (src/roguelike/opponents.ts): the game bent against your team.
     const r = o.rival;
     const them: Team = us === 0 ? 1 : 0;
-    if (r?.weakJack) rules.trickRules = { ...rules.trickRules, rival: { weakJack: us, jackBottom: r.weakJack === "bottom" } };
-    if (r?.voidFirstAce) rules.voidFirstAce = us;
+    if (r?.weakJack || r?.noAceLead) {
+      rules.trickRules = {
+        ...rules.trickRules,
+        rival: {
+          weakJack: r.weakJack ? us : undefined,
+          jackBottom: r.weakJack === "bottom",
+          noAceLead: r.noAceLead ? us : undefined,
+        },
+      };
+    }
     if (r?.groundTheirs) rules.groundTo = them;
     if (r?.cancelProjects) rules.cancelProjectsOf = us;
     // The one on your right: you still get a say (sun, or over their hokum) before the hand is theirs.
@@ -572,17 +583,18 @@ export class GameController extends Emitter<EventMap> {
     if (!this.pendingActions.shift()) throw new Error("No joker action is waiting");
   }
 
-  /** السوا is on offer: you hold the joker, haven't claimed this hand, and you're leading a trick. */
+  /** السوا is on offer: you haven't claimed this hand, and you're leading a trick. */
   canClaimSawa(): boolean {
     const r = this.round;
-    return !!this.options.sawa && this.sawaClaim === undefined && r.phase === "playing" && this.pendingActions.length === 0 &&
+    return this.sawaClaim === undefined && r.phase === "playing" && this.pendingActions.length === 0 &&
       r.turnSeat === HUMAN_SEAT && r.currentTrick!.order.length === 0 && r.hands[HUMAN_SEAT].length >= 2;
   }
 
   /**
    * السوا: you lay your cards down, claiming every trick left. It's right when each card in your
    * hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody
-   * else to hold a trump) — then you play the rest out automatically. Wrong costs the penalty.
+   * else to hold a trump) — then you play the rest out automatically. Wrong costs SAWA_PENALTY;
+   * the السوا joker pays a bonus for a right one.
    */
   claimSawa(): boolean {
     if (!this.canClaimSawa()) throw new Error("السوا isn't available now");
@@ -915,8 +927,8 @@ export class GameController extends Emitter<EventMap> {
       gained[us] -= lost;
       if (lost) bonuses.push({ label: "الآكه الذهبية", points: -lost });
     }
-    if (o.sawa && this.sawaClaim !== undefined) {
-      const pts = this.sawaClaim ? o.sawa.bonus : -Math.min(gained[us], o.sawa.penalty);
+    if (this.sawaClaim !== undefined) {
+      const pts = this.sawaClaim ? (o.sawa?.bonus ?? 0) : -Math.min(gained[us], o.sawa?.penalty ?? SAWA_PENALTY);
       gained[us] += pts;
       if (pts) bonuses.push({ label: this.sawaClaim ? "السوا" : "سوا غلط", points: pts });
     }
