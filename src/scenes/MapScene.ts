@@ -115,13 +115,8 @@ export class MapScene extends Phaser.Scene {
     state: { isCurrent: boolean; isCleared: boolean; isAvailable: boolean },
   ): Phaser.GameObjects.Container {
     const radius = RADIUS;
-<<<<<<< HEAD
-    const color = state.isCleared ? 0x1f6f43 : state.isAvailable ? 0x2f8f5b : THEME_NODE;
-    const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0x5ad469 : 0x55665c;
-=======
-    const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_NODE;
+const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_NODE;
     const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0xf1c40f : 0x3a2a4a;
->>>>>>> bbec28e (feat: add massive UI juice (card hover tweens, floating score text, trick screen shake, button glows, dark royal colors) without asset generation)
 
     const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
     const icon = this.add.text(0, -6, NODE_TYPE_ICON[node.type], { fontSize: "36px" }).setOrigin(0.5);
