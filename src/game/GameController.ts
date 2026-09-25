@@ -1,5 +1,6 @@
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard, type PlayContext } from "../ai/play-ai";
+import { buildBeliefs } from "../ai/beliefs";
 import { searchCard } from "../ai/mcts";
 import { mulberry32 } from "../engine/rng";
 import { decideDouble } from "../ai/doubling-ai";
@@ -144,7 +145,7 @@ export interface MatchOptions {
   sunBreakMultiplier?: number;
   /** الصبر: gold for every hand the other team bought and you out-scored them. */
   defenseGold?: number;
-  /** المترجم: your partner leads the suit you last signalled (discarded from) when they get the lead. */
+  /** المترجم: your partner always understands your التهريب and answers it first, with its biggest card. */
   translator?: boolean;
   /** الإشارة الذهبية: a hand where your partner answered your signal and you took that trick is multiplied by this. */
   signalMultiplier?: number;
@@ -286,7 +287,7 @@ export class GameController extends Emitter<EventMap> {
   private lowTricks = 0;
   private streak = 0;
   private streakPoints = 0;
-  /** Suits you discarded from (latest first): your signals to your partner. */
+  /** The suits your discards ask your partner for (latest first), read by the rules of التهريب. */
   private humanAsks: Suit[] = [];
   private signalHits = 0;
   private akkaCuts = 0;
@@ -446,7 +447,7 @@ export class GameController extends Emitter<EventMap> {
         // أشكل is a message to the caller's partner only (docs/baloot-guide.md §3).
         ashkalSuits: seat === result.ashkal?.groundTo ? result.ashkal.signalSuits : undefined,
         closed: this.round.closed,
-        // المترجم: your partner reads every discard of yours as "lead me this suit".
+        // المترجم: your partner answers what your discards ask for before any plan of its own.
         partnerAsks: this.options.translator && seat === partnerOf(HUMAN_SEAT) ? this.humanAsks : undefined,
       };
       // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
@@ -709,15 +710,6 @@ export class GameController extends Emitter<EventMap> {
         if (this.options.duckBonus) this.emit("joker:fired", { label: "المخلّي", points: this.options.duckBonus });
       }
     }
-    // التهريب: a card from another suit when you can't follow is a message — unless it's a ruff.
-    if (trick.order.length > 0) {
-      const led = trick.cards[trick.order[0]]!.suit;
-      const hand = this.round.hands[HUMAN_SEAT];
-      const ruff = mode === "hokum" && card.suit === trumpSuit;
-      if (card.suit !== led && !hand.some((c) => c.suit === led) && !ruff) {
-        this.humanAsks = [card.suit, ...this.humanAsks.filter((x) => x !== card.suit)];
-      }
-    }
   }
 
   /** Turns a hand's base game points into what each team banks, after the run's jokers. */
@@ -942,6 +934,8 @@ export class GameController extends Emitter<EventMap> {
       this.emit("trick:complete", { trick: finishedTrick, winner: finishedTrick.winner! });
       this.onTrickDecided(finishedTrick);
     }
+    // التهريب: what your discards ask your partner for, read by the table's rules (docs/baloot-guide.md §4أ).
+    if (seat === HUMAN_SEAT) this.humanAsks = buildBeliefs(this.round.tricks, this.round.currentTrick, mode, trumpSuit).wants[HUMAN_SEAT];
 
     if (this.round.phase === "complete") {
       const result = this.round.result!;

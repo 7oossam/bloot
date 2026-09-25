@@ -303,11 +303,11 @@ describe("Defence and doubling jokers", () => {
 });
 
 describe("التهريب", () => {
-  it("المترجم: the partner leads the suit you last discarded from", () => {
-    const hand: Card[] = [{ suit: "S", rank: "A" }, { suit: "H", rank: "7" }, { suit: "H", rank: "K" }, { suit: "D", rank: "9" }];
+  it("المترجم: the partner answers what your discards ask for first, with its biggest card", () => {
+    const hand: Card[] = [{ suit: "S", rank: "A" }, { suit: "H", rank: "7" }, { suit: "H", rank: "K" }, { suit: "D", rank: "8" }, { suit: "D", rank: "9" }];
     const trick: Trick = { leader: 2, order: [], cards: {} };
     const asked = decideCard(hand, trick, "sun", undefined, 2, { tricks: [], partnerAsks: ["D"] });
-    expect(asked.suit).toBe("D");
+    expect(asked).toEqual({ suit: "D", rank: "9" });
     const plain = decideCard(hand, trick, "sun", undefined, 2, { tricks: [] });
     expect(plain.suit).not.toBe("D");
   });

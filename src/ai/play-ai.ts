@@ -14,8 +14,8 @@ export interface PlayContext {
   /** مقفل: a closed دبل — no leading trumps while holding anything else. */
   closed?: boolean;
   /**
-   * المترجم: suits the partner signalled (discarded from), latest first. With it this seat reads
-   * every discard as "lead me this suit" and answers before anything else but a برقية.
+   * المترجم: the suits the partner's discards ask for (read by the rules of التهريب), latest
+   * first. With it this seat answers them before anything else but a برقية.
    */
   partnerAsks?: Suit[];
 }
