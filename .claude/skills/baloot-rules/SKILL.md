@@ -80,11 +80,17 @@ Ground rules when working on the game:
      the Ace's suit may go; its 10 never does.
    - Nothing with points goes into the other side's trick when a small card will do — not
      even a 10 thrown to keep it from being bare.
-   - Never lead a small card of a suit you hold the Ace of (buyer or not): lead the Ace.
+   - Don't lead a small card of a suit you hold the Ace of: lead the Ace. A *soft* rule (the
+     search marks the card down by 6 game points): sometimes going under it drops their 10.
    - In hokum an Ace plays the first time its suit comes round while it still wins — even
      onto the partner's trick. Holding it back (الفرنكة) gets it ruffed later.
-   - Ruffing while the ولد is still out, ruff with the تسعة, or the ولد catches it later.
-   - No برقية when the partner has shown he has none of the Ace's suit to come back with.
+   - Ruffing while the ولد is still out, ruff with the تسعة, or the ولد catches it later —
+     unless an opponent still to play may ruff over it (shown out of the suit, or the suit
+     too run down for everyone to follow).
+   - No برقية when the partner has shown he has none of the Ace's suit to come back with. In
+     the last two tricks an Ace thrown onto the partner's trick is تكبير, not a برقية.
+   - The search's playouts score game points, with the raw points only as a tie-break
+     (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards
    wins every trick left whatever the opponents do — order matters (lead the 9 of trumps to
    draw their King, then the 8). The partner plays along. `src/engine/sawa.ts`; after a right

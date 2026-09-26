@@ -131,7 +131,9 @@ export function decideCard(
   // Ruffing while the ولد is still out: the تسعة goes now, or the ولد catches it later.
   const nine = winningCards.find((c) => isTrumpCard(c, mode, trumpSuit) && c.rank === "9");
   const jackOut = !!trumpSuit && !hand.some((c) => c.suit === trumpSuit && c.rank === "J") && !beliefs.played.some((c) => c.suit === trumpSuit && c.rank === "J");
-  if (nine && jackOut && !isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit)) return nine;
+  const ledNow = trick.cards[trick.order[0]]!;
+  // …unless someone after me may ruff over it with the ولد (the player's note).
+  if (nine && jackOut && !isTrumpCard(ledNow, mode, trumpSuit) && !overRuffRisk(trick, seat, ledNow.suit, hand, beliefs, trumpSuit!)) return nine;
   if (winningCards.length > 0) {
     // Win as cheaply as possible — save strong cards for later tricks.
     return minBy(winningCards, (c) => rankStrength(c, mode, trumpSuit) + (isTrumpCard(c, mode, trumpSuit) ? 20 : 0));
@@ -377,4 +379,16 @@ function minBy<T>(items: T[], score: (item: T) => number): T {
 
 function maxBy<T>(items: T[], score: (item: T) => number): T {
   return items.reduce((best, item) => (score(item) > score(best) ? item : best));
+}
+
+/**
+ * Could an opponent still to play in this trick ruff over me? One who has shown he's out of the
+ * led suit (and not out of trumps), or a led suit so run down that someone after me must be out.
+ */
+export function overRuffRisk(trick: Trick, seat: Seat, led: Suit, hand: Card[], beliefs: Beliefs, trumpSuit: Suit): boolean {
+  const after = ([1, 2, 3] as const).map((k) => ((seat + k) % 4) as Seat).filter((s) => !trick.order.includes(s));
+  const opponents = after.filter((s) => teamOf(s) !== teamOf(seat));
+  if (opponents.some((o) => beliefs.voids[o][led] && !beliefs.voids[o][trumpSuit])) return true;
+  const ledLeft = outstanding(beliefs, hand, led).length;
+  return opponents.length > 0 && ledLeft < after.length;
 }

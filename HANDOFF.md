@@ -52,6 +52,7 @@
 - A hokum defender didn't cash his side Ace → hard rule.
 - The rule AI is +0.7 a hand stronger than before (≈6,900 hands head to head, twice); the search's lead over it is now ≈2.0 a hand (400 hands), and the strength test runs 240 hands.
 - Second batch (5 notes, tests 6–10): no underleading your own Ace; no فرنكة in hokum (the Ace plays the first time its suit comes round, even onto the partner's trick); ruff with the تسعة while the ولد is out; no برقية into a partner known void in the suit. The rule AI gained another +0.7 a hand; the search still leads it by ≈1.9.
+- The player's corrections to that batch: the under-the-Ace rule became *soft* (a penalty the search can overcome — `SoftRule`), the تسعة ruff waits when someone after may over-ruff (`overRuffRisk`), an Ace may fatten the partner's trick in the last two tricks (تكبير), and playouts break ties on raw points. The rule AI gained another +0.6.
 - «ليش؟» now shows every trick card by card (tap a computer card for its reason, any card to write about it), every seat's full hand as play began (played cards struck), and a tab for the previous hand once it's over (`getLastHand`, `startHands` in the snapshot).
 - الذاكرة now shows four suit tiles between the table and your hand (left in each suit; at level 2 which Ace/10 are still out).
 
