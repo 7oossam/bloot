@@ -21,7 +21,7 @@ export const HILLA_FACTOR = 1.18;
  * bidding is imperfect information, so this never looks at other hands.
  */
 /** `eager` lowers both buy bars by that much (المتحمس, a partner). */
-export function decideBid(seat: Seat, hand: Card[], state: BiddingState, eager = 0): Bid {
+export function decideBid(seat: Seat, hand: Card[], state: BiddingState, eager = 0, weakJack = false): Bid {
   const options = legalCalls(state);
   const hasHilla = seat === nextSeat(state.dealer);
   const factor = hasHilla ? HILLA_FACTOR : 1;
@@ -29,8 +29,10 @@ export function decideBid(seat: Seat, hand: Card[], state: BiddingState, eager =
   const withGround = [...hand, state.groundCard];
 
   const hokumSuits = options.filter((o) => o.call === "hokum").map((o) => o.suit!);
-  const hokum = hokumSuits.length > 0 ? bestHokumOption(withGround, hokumSuits) : undefined;
-  const hokumOk = !!hokum && meetsHokumCriteria(withGround, hokum.suit);
+  // خاطفين الولد: our trump Jack is the weakest trump, so a hokum is judged as if it were a 7.
+  const forHokum = weakJack ? withGround.map((c) => (c.rank === "J" ? { suit: c.suit, rank: "7" as const } : c)) : withGround;
+  const hokum = hokumSuits.length > 0 ? bestHokumOption(forHokum, hokumSuits) : undefined;
+  const hokumOk = !!hokum && meetsHokumCriteria(forHokum, hokum.suit);
   const sunOk = options.some((o) => o.call === "sun") && meetsSunCriteria(withGround, hasHilla);
 
   const hokumMargin = hokumOk ? hokum!.score * factor - (HOKUM_BUY_THRESHOLD - eager) : -Infinity;

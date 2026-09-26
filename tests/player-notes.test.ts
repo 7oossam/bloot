@@ -408,6 +408,41 @@ describe("the player's notes", () => {
   });
 });
 
+describe("the player's notes, fifth batch (from the first full-match analysis)", () => {
+  it("17. the partner led the suit: the Ace goes on his card (the ban is on discarding it)", () => {
+    // خويك bought sun; you (0) led the شايب ديمن holding its 10, to drop the Ace.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 2, ground: "CQ",
+      hands: {
+        0: ["D7", "SJ", "D10", "HQ", "H8", "HJ"],
+        1: ["C7", "CJ", "H7", "HK", "C10", "CK"],
+        2: ["D9", "DQ", "SA", "DA", "DJ", "S9", "CQ"],
+        3: ["S8", "SQ", "SK", "C8", "C9", "S10", "CA"],
+      },
+      tricks: [trick(1, ["1:H9", "2:S7", "3:H10", "0:HA"], 0)], current: trick(0, ["0:DK", "1:D8"]),
+    });
+    expect(think(r, 2).card).toEqual(card("DA"));
+  });
+
+  it("18. against خاطفين الولد the buyer doesn't pull trumps with his (weak) ولد", () => {
+    // خويك bought hokum ♠ with the ولد, the شايب, the بنت — but this rival makes our ولد the lowest trump.
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "S", declarer: 2, ground: "S7",
+      hands: {
+        0: ["H9", "H8", "DA", "DJ", "H7", "H10", "D8"],
+        1: ["S9", "CQ", "D7", "D10", "HJ", "S10", "SA"],
+        2: ["SJ", "SQ", "DQ", "D9", "HA", "HK", "SK"],
+        3: ["S8", "C7", "DK", "HQ", "C8", "CJ", "CK"],
+      },
+      tricks: [trick(3, ["3:CA", "0:C9", "1:C10", "2:S7"], 2)],
+      current: { ...trick(2, []), rules: { rival: { weakJack: 0, jackBottom: true } } },
+    });
+    const t = think(r, 2);
+    expect(t.card).not.toEqual(card("SJ"));
+    expect(t.rules ?? []).not.toContain("المحكم يسحب الحكم");
+  });
+});
+
 describe("guessing the hidden hands from what the table has said", () => {
   // You defend يسار's hokum ♠ at the first trick.
   const base: Moment = {
