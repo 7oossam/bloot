@@ -184,13 +184,14 @@ describe("السوا", () => {
     for (let seed = 1; seed <= 40 && (right < 3 || wrong < 3); seed++) {
       const c = new GameController(mulberry32(seed), { matchTarget: 9999, sawa: { bonus: 6 } });
       let claim: boolean | undefined;
-      const outcomes: Array<{ claim?: boolean; bonus?: number; ours: number; total: number }> = [];
+      const outcomes: Array<{ claim?: boolean; bonus?: number; ours: number; total: number; sheet?: { outcome: string; judgedTeam: number; result: Record<0 | 1, number> } }> = [];
       c.on("hand:complete", (e) => {
         outcomes.push({
           claim,
           bonus: e.bonuses.find((b) => b.label === "السوا" || b.label === "سوا غلط")?.points,
           ours: e.gained[0],
           total: e.result.gamePoints[0] + e.result.gamePoints[1],
+          sheet: e.result.sheet,
         });
         claim = undefined;
       });
@@ -209,8 +210,12 @@ describe("السوا", () => {
           expect(o.bonus).toBe(6);
         } else {
           wrong++;
-          // Nothing left for you but your own بلوت; they take the rest of the hand.
+          // Nothing left for you but your own بلوت; they take the rest of the hand, and the
+          // score sheet reads it as a buy of yours that failed.
           expect(o.ours).toBeLessThanOrEqual(2);
+          expect(o.sheet?.outcome).toBe("lost");
+          expect(o.sheet?.judgedTeam).toBe(0);
+          expect(o.sheet?.result[0]).toBe(o.ours);
         }
       }
     }

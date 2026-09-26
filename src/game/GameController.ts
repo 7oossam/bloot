@@ -1,3 +1,4 @@
+import { sawaHolds, sawaMove, type SawaTable } from "../engine/sawa";
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard, type PlayContext } from "../ai/play-ai";
 import { buildBeliefs } from "../ai/beliefs";
@@ -489,7 +490,7 @@ export class GameController extends Emitter<EventMap> {
       }
       // Your partner's temper: الشايب never raises, المتحمس raises on a lower bar.
       const p = seat === partnerOf(HUMAN_SEAT) ? this.options.partner : undefined;
-      const call: DoubleBid = cowed || p?.neverDoubles ? { seat, call: "pass" } : decideDouble(seat, this.round.hands[seat], state, res.trumpSuit, p?.doubleEager ?? 0);
+      const call: DoubleBid = cowed || p?.neverDoubles ? { seat, call: "pass" } : decideDouble(seat, this.doublingHand(seat), state, res.trumpSuit, p?.doubleEager ?? 0);
       this.applyDouble(call);
       return "advanced";
     }
@@ -516,7 +517,16 @@ export class GameController extends Emitter<EventMap> {
         answerFirst: seat === partnerOf(HUMAN_SEAT) && !!this.options.partner?.answerFirst,
         deaf: seat === partnerOf(HUMAN_SEAT) && !!this.options.partner?.deaf,
       };
-      // Your own seat on autopilot after a سوا plays the rule-based way: its cards all win anyway.
+      // After a right سوا, you and your partner play the order that wins every trick.
+      const trick = this.round.currentTrick!;
+      if (this.sawaClaim && (seat === HUMAN_SEAT || (seat === partnerOf(HUMAN_SEAT) && trick.leader === HUMAN_SEAT))) {
+        const sure = sawaMove(this.sawaTable(), trick, seat);
+        if (sure) {
+          this.applyCard(seat, sure);
+          return "advanced";
+        }
+      }
+      // Your own seat on autopilot after a سوا plays the rule-based way.
       const think = this.options.searchAI && seat !== HUMAN_SEAT && !(seat === partnerOf(HUMAN_SEAT) && this.options.partner?.noSearch);
       if (think && !this.searchRand) this.searchRand = mulberry32(Math.floor(this.rand() * 2147483647));
       const card = think
@@ -546,6 +556,17 @@ export class GameController extends Emitter<EventMap> {
       throw new Error("Not the human's turn in the دبل round");
     }
     this.applyDouble(bid);
+  }
+
+  /**
+   * What a seat can see in the دبل round: it comes before the rest of the deal, so only the
+   * first five cards, plus the ground card for whoever takes it.
+   */
+  private doublingHand(seat: Seat): Card[] {
+    const r = this.round;
+    const res = r.bidding.result!;
+    const taker = res.ashkal?.groundTo ?? res.declarer;
+    return [...r.initial.hands[seat], ...(seat === taker ? [r.initial.stock[0]] : [])];
   }
 
   private applyDouble(bid: DoubleBid): void {
@@ -619,28 +640,24 @@ export class GameController extends Emitter<EventMap> {
   }
 
   /**
-   * السوا: you lay your cards down, claiming every trick left. It's right when each card in your
-   * hand beats every card anyone else still holds (in hokum a side-suit card also needs nobody
-   * else to hold a trump). Either way the rest plays itself out: a right one keeps the hand as
-   * it falls (the السوا joker pays a bonus); a wrong one hands the whole hand to the other side.
+   * السوا: you lay your cards down, claiming every trick left. It's right when some order of
+   * your cards takes every trick whatever the opponents hold and play — leading the 9 of trumps
+   * to draw their King, say, before the 8 (engine/sawa.ts). Either way the rest plays itself
+   * out, a right one in that order: it keeps the hand as it falls (the السوا joker pays a
+   * bonus); a wrong one is judged like a buy that failed — the whole hand to the other side.
    */
   claimSawa(): boolean {
     if (!this.canClaimSawa()) throw new Error("السوا isn't available now");
-    const r = this.round;
-    const { mode, trumpSuit } = r.bidding.result!;
-    const others = ([1, 2, 3] as Seat[]).flatMap((s) => r.hands[s].map((card) => ({ seat: s, card })));
-    const beatsAll = (mine: Card) =>
-      others.every(({ seat, card }) => {
-        // Anyone still holding a trump can cut a side-suit card once they run out of its suit.
-        if (mode === "hokum" && card.suit === trumpSuit && mine.suit !== trumpSuit) return false;
-        if (card.suit !== mine.suit) return true;
-        const t: Trick = { leader: HUMAN_SEAT, order: [HUMAN_SEAT, seat], cards: { [HUMAN_SEAT]: mine, [seat]: card }, rules: r.currentTrick!.rules };
-        return currentWinner(t, mode, trumpSuit) === HUMAN_SEAT;
-      });
-    const ok = r.hands[HUMAN_SEAT].every(beatsAll);
+    const ok = sawaHolds(this.sawaTable());
     this.sawaClaim = ok;
     this.emit("sawa", { ok });
     return ok;
+  }
+
+  private sawaTable(): SawaTable {
+    const r = this.round;
+    const { mode, trumpSuit } = r.bidding.result!;
+    return { hands: r.hands, claimer: HUMAN_SEAT, mode, trumpSuit, rules: r.currentTrick?.rules, closed: r.closed };
   }
 
   /** Jokers that fire the moment a trick is decided. */
@@ -990,14 +1007,19 @@ export class GameController extends Emitter<EventMap> {
     }
     // سوا غلط: the hand goes to the other side — the whole of it, projects too (only your own
     // بلوت stays yours), and none of your jokers' bonuses count.
+    // The sheet says so too: the hand reads as a خسرانة for your side, whoever bought it.
     if (this.sawaClaim === false) {
       const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
       const total = result.gamePoints[us] + result.gamePoints[them];
-      const lost = gained[us] - ourBaloot;
       gained[them] = total - ourBaloot;
       gained[us] = ourBaloot;
       bonuses.length = 0;
-      if (lost > 0) bonuses.push({ label: "سوا غلط", points: -lost });
+      if (result.sheet) {
+        result.sheet.outcome = "lost";
+        result.sheet.judgedTeam = us;
+        result.sheet.winner = them;
+        result.sheet.result = { ...gained };
+      }
     }
     return { gained, bonuses };
   }

@@ -65,7 +65,14 @@ Ground rules when working on the game:
    trumps — it only spends its own cuts and helps the buyer — unless it's long in trumps (4+)
    or holds a strong sun-like hand (3+ sure side winners) and wants the trumps gone fast.
    `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too.
-12. **سوا غلط:** a wrong سوا hands the whole hand to the other side (its full value, doubled if
-   doubled, plus every project; only the claimer's own بلوت stays).
-13. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
+12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards
+   wins every trick left whatever the opponents do — order matters (lead the 9 of trumps to
+   draw their King, then the 8). The partner plays along. `src/engine/sawa.ts`; after a right
+   claim the play-out follows that order. **سوا غلط** is judged like a buy that failed: the
+   whole hand to the other side (its full value, doubled if doubled, plus every project; only
+   the claimer's own بلوت stays), and the sheet reads خسرانة for the claimer's side.
+13. **الدبل comes before the rest of the deal:** it's decided on the first five cards (six for
+   whoever takes the ground card); the last three are dealt once the دبل round is settled. A
+   joker could lift this later (the player's idea).
+14. Any rules change needs an engine test in `tests/engine.test.ts`, and a touch-driven
    Playwright check at 359×685 (the player's phone) before pushing.
