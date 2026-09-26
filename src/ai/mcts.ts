@@ -33,18 +33,38 @@ export interface SearchOptions {
 
 export const DEFAULT_WORLDS = 20;
 
+/**
+ * Why a card was played — kept so the player can ask «ليش؟» at the table (and send notes to
+ * improve the AI). `scores` is each candidate's average game-point margin for this seat's
+ * team over the guessed hands; `ruledOut` are the legal cards the player's rules removed.
+ */
+export interface PlayTrace {
+  kind: "only" | "convention" | "rules" | "search" | "habit" | "sawa";
+  card: Card;
+  /** What the rule-based habit would have played. */
+  ruleChoice?: Card;
+  ruledOut?: Card[];
+  scores?: Array<{ card: Card; avg: number }>;
+  worlds?: number;
+}
+
 export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): Card {
+  return searchCardTraced(round, seat, opts).card;
+}
+
+export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions = {}): PlayTrace {
   const rand = opts.rand ?? Math.random;
   const res = round.bidding.result!;
   const ctx: PlayContext = opts.ctx ?? { tricks: round.tricks, declarer: res.declarer, closed: round.closed };
   const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
   const legal = round.legalMovesFor(seat);
-  if (legal.length <= 1) return legal[0] ?? ruleChoice;
+  if (legal.length <= 1) return { kind: "only", card: legal[0] ?? ruleChoice };
   // A partner's برقية is a convention, not a calculation: answer it.
-  if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return ruleChoice;
+  if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return { kind: "convention", card: ruleChoice, ruleChoice };
 
   const candidates = playerRules(round, seat, legal, ruleChoice);
-  if (candidates.length === 1) return candidates[0];
+  const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
+  if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut };
 
   const constraints = inferConstraints(round, seat);
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
@@ -57,7 +77,7 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
     for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card));
     if (opts.timeBudgetMs !== undefined && Date.now() - started > opts.timeBudgetMs) break;
   }
-  if (worlds === 0) return ruleChoice;
+  if (worlds === 0) return { kind: "habit", card: ruleChoice, ruleChoice, ruledOut };
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
@@ -69,7 +89,8 @@ export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): 
       bestScore = score;
     }
   }
-  return best;
+  const scores = candidates.map((card) => ({ card, avg: totals.get(cardId(card))! / worlds })).sort((a, b) => b.avg - a.avg);
+  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds };
 }
 
 // ------------------------------------------------------------------ the player's rules
