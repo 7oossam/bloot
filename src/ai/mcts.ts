@@ -409,8 +409,8 @@ export function inferConstraints(round: Round, me: Seat): Constraints {
 }
 
 /**
- * One guess at every other seat's hand that fits the constraints, or undefined if the table
- * no longer adds up (a joker duplicated a card) or no fitting deal turned up.
+ * One guess at every other seat's hand that fits the constraints, or undefined if no fitting
+ * deal turned up.
  */
 export function sampleWorld(round: Round, me: Seat, c: Constraints, rand: () => number): Record<Seat, Card[]> | undefined {
   const { mode, trumpSuit } = round.bidding.result!;
@@ -420,9 +420,25 @@ export function sampleWorld(round: Round, me: Seat, c: Constraints, rand: () => 
     for (const s of t.order) seen.add(cardId(t.cards[s]!));
   }
   for (const s of others) for (const k of c.known[s]) seen.add(cardId(k));
-  const pool = SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank }))).filter((x) => !seen.has(cardId(x)));
+  const deck = SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank })));
+  let pool = deck.filter((x) => !seen.has(cardId(x)));
   const need = Object.fromEntries(others.map((s) => [s, round.hands[s].length - c.known[s].length])) as Record<Seat, number>;
-  if (others.some((s) => need[s] < 0) || pool.length !== others.reduce<number>((n, s) => n + need[s], 0)) return undefined;
+  if (others.some((s) => need[s] < 0)) return undefined;
+  // Every seat holds one card per trick left (less one if it has played to this trick); a table
+  // where that doesn't hold (a hand-built test position) can't be played out.
+  const left = 8 - round.tricks.length;
+  const inTrick = new Set(round.currentTrick?.order ?? []);
+  if (([0, 1, 2, 3] as Seat[]).some((s) => round.hands[s].length !== left - (inTrick.has(s) ? 1 : 0))) return undefined;
+  // A joker that turns one card into another (المنزّل، الصبّاغ، the forged ولد) leaves the table
+  // with a card twice and another gone, so the unseen cards stop adding up. Guess anyway: drop
+  // cards that may no longer exist, or add copies of cards that may now be doubled. Without this
+  // the search gave up for the whole hand and played by habit.
+  const total = others.reduce<number>((n, s) => n + need[s], 0);
+  if (pool.length > total) pool = shuffle(pool, rand).slice(0, total);
+  else if (pool.length < total) {
+    const mine = new Set(round.hands[me].map(cardId));
+    pool = [...pool, ...shuffle(deck.filter((x) => !mine.has(cardId(x))), rand).slice(0, total - pool.length)];
+  }
 
   const allowed = (card: Card, s: Seat) =>
     !c.voids[s].has(card.suit) && !(isTrumpCard(card, mode, trumpSuit) && rankStrength(card, mode, trumpSuit) > c.maxTrump[s]);

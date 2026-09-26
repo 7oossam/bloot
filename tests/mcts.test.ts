@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferConstraints, sampleWorld, searchCard } from "../src/ai/mcts";
+import { inferConstraints, sampleWorld, searchCard, searchCardTraced } from "../src/ai/mcts";
 import { decideBid } from "../src/ai/bidding-ai";
 import { decideCard } from "../src/ai/play-ai";
 import { Round } from "../src/engine/round";
@@ -107,6 +107,22 @@ describe("the search AI", () => {
       }
     }
     expect(checked).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps thinking when a joker has doubled a card (المنزّل، الصبّاغ)", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 30 && checked < 5; seed++) {
+      const r = playable(seed);
+      if (!r) continue;
+      // Your card becomes a copy of one the player on your right holds: the deck now has it twice.
+      const copy = r.hands[1].find((c) => !r.hands[0].some((m) => m.suit === c.suit && m.rank === c.rank))!;
+      r.replaceCard(0, r.hands[0][0], copy);
+      while (r.phase === "playing" && r.turnSeat !== 1) r.playCard(r.turnSeat!, r.legalMovesFor(r.turnSeat!)[0]);
+      if (r.phase !== "playing" || r.legalMovesFor(1).length < 2) continue;
+      expect(searchCardTraced(r, 1, { worlds: 6, rand: mulberry32(seed) }).kind).not.toBe("habit");
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it("out-scores the rule-based AI on the same deals (each side playing both seat pairs)", () => {
