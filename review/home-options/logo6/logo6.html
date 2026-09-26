@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:F1;src:url(jomhuria.ttf)}@font-face{font-family:F2;src:url(rakkas.ttf)}@font-face{font-family:F3;src:url(lalezar.ttf)}
+@font-face{font-family:F4;src:url(marhey.ttf)}@font-face{font-family:F5;src:url(qahiri.ttf)}@font-face{font-family:F6;src:url(amiri.ttf);font-weight:700}
+@font-face{font-family:M;src:url(elmessiri.ttf)}
+body{margin:0;background:#2b2b2b;display:grid;grid-template-columns:repeat(3,390px);gap:18px;padding:18px;direction:rtl}
+.s{position:relative;width:390px;height:694px;overflow:hidden;border-radius:18px;background:url(ds_clean.jpg) center/100% 100%}
+.logo{position:absolute;left:0;right:0;top:34px;height:190px}
+.logo svg.em{position:absolute;left:50%;top:0;transform:translateX(-50%)}
+.word{position:absolute;left:0;right:0;text-align:center;line-height:1}
+.word b{position:relative;display:inline-block;font-weight:normal}
+.word b .ex{position:absolute;inset:0;color:#3b1d0e;transform:translate(0,4px);-webkit-text-stroke:6px #3b1d0e}
+.word b .st{position:absolute;inset:0;color:transparent;-webkit-text-stroke:7px #2a140a}
+.word b .gd{position:relative;background:linear-gradient(180deg,#FFF3C4 0%,#F6D27A 38%,#C98E2E 60%,#8C5A1C 72%,#F0C872 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{position:absolute;left:0;right:0;text-align:center;font-family:M;font-weight:700;color:#FBE6B8;font-size:17px;letter-spacing:1px;text-shadow:0 2px 3px rgba(40,15,5,.8)}
+.rule{position:absolute;left:50%;transform:translateX(-50%);width:210px;height:14px}
+.btn{position:absolute;left:50%;transform:translateX(-50%);bottom:64px;width:236px;height:56px;display:flex;align-items:center;justify-content:center;gap:10px;border-radius:30px/28px;background:linear-gradient(180deg,#8f3a22,#5e2014);border:2px solid #E3B25A;box-shadow:inset 0 0 0 4px #5e2014,inset 0 0 0 5px #E3B25A,0 5px 12px rgba(0,0,0,.45)}
+.btn span{font-family:M;font-weight:700;font-size:22px;color:#FBE3A8}
+.btn i{width:7px;height:7px;background:#E3B25A;transform:rotate(45deg)}
+.foot{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-family:M;font-size:14px;color:#F2E3C2;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.n{position:absolute;top:8px;left:10px;font:12px sans-serif;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:8px;direction:ltr}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<radialGradient id="sun" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#FFF1BF"/><stop offset=".55" stop-color="#F0C064"/><stop offset="1" stop-color="#B8772A"/></radialGradient>
+<linearGradient id="gl" x1="0" x2="1"><stop offset="0" stop-color="#E7B45A" stop-opacity="0"/><stop offset=".5" stop-color="#F6D48A"/><stop offset="1" stop-color="#E7B45A" stop-opacity="0"/></linearGradient>
+</defs></svg>
+<script>
+const F=[['F1','Jomhuria',112,64],['F2','Rakkas',84,70],['F3','Lalezar',84,66],['F4','Marhey',78,70],['F5','Qahiri',96,66],['F6','Amiri',86,62]];
+function emblem(){ // sun with engraved rays + small key standing behind the word
+  let rays=''; for(let i=0;i<36;i++){const a=i*10*Math.PI/180, r1=58, r2=i%2?82:96; rays+=`<line x1="${160+Math.cos(a)*r1}" y1="${92+Math.sin(a)*r1}" x2="${160+Math.cos(a)*r2}" y2="${92+Math.sin(a)*r2}" stroke="#F4CE7C" stroke-width="${i%2?1.2:2}" stroke-linecap="round" opacity=".9"/>`;}
+  return `<svg class="em" width="320" height="190" viewBox="0 0 320 190">${rays}
+  <circle cx="160" cy="92" r="52" fill="url(#sun)" stroke="#8C5A1C" stroke-width="2"/><circle cx="160" cy="92" r="45" fill="none" stroke="#FFF3C4" stroke-opacity=".6" stroke-width="1"/>
+  <g transform="translate(160 26)" stroke="#5a3210" stroke-width="1.5" fill="#F0C872"><circle r="9"/><circle r="4" fill="#8C5A1C"/><rect x="-2.5" y="8" width="5" height="16"/></g></svg>`;}
+for(const [f,name,sz,top] of F){
+  const w=`<span class="ex">المعزّب</span><span class="st">المعزّب</span><span class="gd">المعزّب</span>`;
+  document.write(`<div class="s"><div class="logo">${emblem()}
+   <div class="word" style="top:${top}px;font-family:${f};font-size:${sz}px"><b>${w}</b></div>
+   <svg class="rule" style="top:168px" viewBox="0 0 210 14"><rect x="0" y="6" width="210" height="1.6" fill="url(#gl)"/><path d="M105 0 L112 7 L105 14 L98 7Z" fill="#F4CE7C" stroke="#5a3210"/><circle cx="84" cy="7" r="2" fill="#F4CE7C"/><circle cx="126" cy="7" r="2" fill="#F4CE7C"/></svg>
+   <div class="sub" style="top:186px">ليلة الأربعين</div></div>
+   <div class="btn"><i></i><span>ادخل الديوانية</span><i></i></div><div class="foot">الأبواب مفتوحة حتى الفجر</div><div class="n">${name}</div></div>`);
+}
+</script></body></html>
