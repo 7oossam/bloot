@@ -99,12 +99,12 @@
 
 ### 6.1 برومبت الأسلوب الأساسي (يُلصق أول كل برومبت)
 ```
-Painterly mythic illustration for a mobile card game. Fine sepia ink linework with rich layered gouache and light oil shading, soft gradients, colored shadows leaning teal, warm rim light, volumetric sun rays, atmospheric perspective with a hazy luminous distance, subtle paper grain and visible brush texture. Warm apricot, orange and terracotta tones balanced with turquoise and teal accents, touches of burnished gold. Andalusian and Najdi Arabian architecture, zellige mosaic and sadu textile patterns. Luminous daylight, calm and wondrous mood, rich detail with a clear readable silhouette.
+Painterly mythic illustration for a mobile card game. Fine sepia ink linework with rich layered gouache and light oil shading, soft gradients, colored shadows leaning teal, warm rim light, volumetric sun rays, atmospheric perspective with a hazy luminous distance, subtle paper grain and visible brush texture. Warm apricot, orange and terracotta tones balanced with turquoise and teal accents, touches of burnished gold. Andalusian and Najdi Arabian architecture, zellige mosaic, and simple authentic Bedouin sadu weaving (plain horizontal bands, one row of small triangles or diamonds, 2-3 colors, patterns follow the fabric folds). Luminous daylight, calm and wondrous mood, rich detail with a clear readable silhouette.
 ```
 
 ### 6.2 البرومبت السلبي (يُلصق في خانة negative، أو آخر البرومبت بعد «Avoid:»)
 ```
-flat vector, flat colors, cel shading only, anime screencap, 3D render, photorealistic photo, neon, horror, gore, skulls, dark gloomy scene, black background, night (unless specified), text, letters, numbers, calligraphy, watermark, logo, signature, frame, playing card symbols, modern objects, western medieval armor, revealing clothing, religious symbols, crosses, amulets, evil eye beads, extra fingers, deformed hands
+flat vector, flat colors, cel shading only, anime screencap, 3D render, photorealistic photo, neon, horror, gore, skulls, dark gloomy scene, black background, night (unless specified), text, letters, numbers, calligraphy, watermark, logo, signature, frame, playing card symbols, modern objects, western medieval armor, revealing clothing, religious symbols, crosses, amulets, evil eye beads, extra fingers, deformed hands, busy invented ornament, Aztec or Navajo patterns, melted or smeared patterns, random filler motifs
 ```
 
 ### 6.3 الإضاءة حسب المكان (تُضاف بعد الأسلوب)
@@ -119,6 +119,13 @@ flat vector, flat colors, cel shading only, anime screencap, 3D render, photorea
 
 ### 6.4 طريقة الثبات (عشان كل الأصول تطلع من نفس اليد)
 1. **ابدأ بثلاث لقطات مرجعية** (§8 خطوة 1): مشهد لكل مكان. تتعمد من اللاعب، وبعدها **ترفع مع كل توليد** كمرجع أسلوب بدل صور Pinterest.
+   - **المعتمد (اعتمدها اللاعب):** الموديل **nano_banana_pro بدقة 2k** لكل الأصول (فاز في مسابقة الموديلات على GPT Image 2.5 max وSeedream 5.0 Pro). اللقطات المرجعية في Higgsfield (تُرفع بدور `image_references`):
+     - الحي `ef4250b1-e275-43a7-8319-2cf7e378dcb1`
+     - الأندلس `d6875141-5f66-4d50-b466-491f90d0f409`
+     - القصر `4af18b13-ed16-4c7b-9ad3-cae4e6a65cd4`
+   - **النقوش (سدو، سجاد، مخدات، زليج):** الموديل يخترع نقوش مزخرفة تشبه نقوش الأزتك، ويخلطها ويذوّبها، فيبان إنها رسمة ذكاء اصطناعي. عشان كذا:
+     - في البرومبت: قليلة وبسيطة وواضحة. خطوط عرضية سادة، وصف مثلثات صغيرة، وألوان 2–3 بس. «follows the fabric folds».
+     - أي نقش يبان كبير (السجاد القريب، إطارات الواجهة) يُصلح بعد التوليد: تعديل بقناع (inpaint) مع صورة سدو حقيقية كمرجع.
 2. **الشخصيات:**
    - كل شخصية تبدأ بـ**ورقة شخصية** (character sheet): أمامي، وثلاث أرباع، وثلاث تعابير.
    - بعد ما تتعمد، أي صورة ثانية لها ترفع ورقتها كمرجع شخصية.
