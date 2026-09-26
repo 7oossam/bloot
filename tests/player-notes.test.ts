@@ -268,4 +268,47 @@ describe("the player's notes", () => {
     });
     expect(think(r, 1).card).toEqual(card("HA"));
   });
+
+  // ---- the player's corrections to the second batch
+
+  it("9b. no ruffing with the تسعة when the player after may ruff over it with the ولد", () => {
+    // Hokum ♠ bought by يسار, who has shown he has no clubs — and still holds the ولد.
+    const tricks = [trick(0, ["0:C7", "1:C8", "2:C9", "3:H7"], 2)];
+    const current = trick(1, ["1:CA"]);
+    const play = decideCard(cards("S9", "SQ", "H8", "D8"), current, "hokum", "S", 2, { tricks, declarer: 3 });
+    expect(play).not.toEqual(card("S9"));
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "S", declarer: 3, ground: "S10",
+      hands: { 0: ["H9", "HQ", "D7", "DK"], 1: ["D9", "DQ", "HK"], 2: ["S9", "SQ", "H8", "D8"], 3: ["SJ", "S10", "HA", "DA"] },
+      tricks, current,
+    });
+    expect(think(r, 2).card).not.toEqual(card("S9"));
+  });
+
+  it("8b. in the last tricks an Ace may fatten the partner's trick (تكبير), no برقية needed", () => {
+    // Sun; يمين's partner (يسار) is winning; يمين has two cards left, no hearts.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 0, ground: "HA",
+      hands: { 0: ["DA"], 1: ["SA", "S7"], 2: ["DK"], 3: ["HK", "HQ"] },
+      tricks: [],
+      current: trick(3, ["3:HA", "0:D10"]),
+    });
+    expect((think(r, 1).ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("SA");
+  });
+
+  it("7b. leading under your own Ace is a soft rule: marked down, not forbidden", () => {
+    const r = at({
+      dealer: 1, mode: "sun", declarer: 2, ground: "SA",
+      hands: {
+        0: ["DJ", "H9", "CQ", "CK", "C9", "HQ", "DK", "DQ"],
+        1: ["C10", "S10", "C7", "CJ", "H7", "C8", "S8", "H10"],
+        2: ["D10", "D7", "HJ", "HA", "SA", "CA", "SK", "S7"],
+        3: ["SJ", "S9", "HK", "D9", "D8", "DA", "H8", "SQ"],
+      },
+      tricks: [], current: trick(2, []),
+    });
+    const t = think(r, 2);
+    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("S7");
+    expect((t.softRules ?? []).map((x) => x.card.suit + x.card.rank)).toContain("S7");
+  });
 });

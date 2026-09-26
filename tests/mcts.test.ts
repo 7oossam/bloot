@@ -87,11 +87,16 @@ describe("the search AI", () => {
       while (r.phase === "playing") {
         const seat = r.turnSeat!;
         const trick = r.currentTrick!;
+        const handSize = r.hands[seat].length;
         const card = searchCard(r, seat, { worlds: 6, rand: mulberry32(seed) });
         if (trick.order.length > 0 && card.rank === "A" && !isTrumpCard(card, mode, trumpSuit)) {
           const led = trick.cards[trick.order[0]]!.suit;
           const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
-          if (card.suit !== led || partnerWinning) {
+          // The player's exceptions: in hokum the Ace plays on its own suit (no فرنكة), and in
+          // the last tricks it may fatten the partner's trick (تكبير).
+          const hokumOnSuit = mode === "hokum" && card.suit === led;
+          const fattening = handSize <= 2 && partnerWinning;
+          if ((card.suit !== led || partnerWinning) && !hokumOnSuit && !fattening) {
             expect(cardId(card)).toBe(cardId(ruleMove(r, seat))); // only as the rule AI's برقية
             checked++;
           }

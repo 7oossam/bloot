@@ -2,7 +2,7 @@ import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner, wouldWinAgainstCurrent } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, defenderMayLeadTrump, isBoss, type PlayContext } from "./play-ai";
+import { decideCard, defenderMayLeadTrump, isBoss, overRuffRisk, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -46,6 +46,8 @@ export interface PlayTrace {
   ruledOut?: Card[];
   /** Which of the player's rules removed them, in the player's words. */
   rules?: string[];
+  /** Soft rules: cards kept in play but marked down (already taken off their `scores`). */
+  softRules?: Array<{ card: Card; points: number; reason: string }>;
   scores?: Array<{ card: Card; avg: number }>;
   worlds?: number;
 }
@@ -65,7 +67,9 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
   if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return { kind: "convention", card: ruleChoice, ruleChoice };
 
   const rules: string[] = [];
-  const candidates = playerRules(round, seat, legal, ruleChoice, rules);
+  const soft = new Map<string, SoftRule>();
+  const candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  const penalty = (c: Card) => soft.get(cardId(c))?.points ?? 0;
   const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
   if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut, rules };
 
@@ -84,16 +88,17 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds + 0.25;
+  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + 0.25;
   for (const card of candidates) {
-    const score = totals.get(cardId(card))! / worlds;
+    const score = totals.get(cardId(card))! / worlds - penalty(card);
     if (score > bestScore) {
       best = card;
       bestScore = score;
     }
   }
-  const scores = candidates.map((card) => ({ card, avg: totals.get(cardId(card))! / worlds })).sort((a, b) => b.avg - a.avg);
-  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds, rules };
+  const scores = candidates.map((card) => ({ card, avg: totals.get(cardId(card))! / worlds - penalty(card) })).sort((a, b) => b.avg - a.avg);
+  const softRules = [...soft.entries()].filter(([id]) => candidates.some((c) => cardId(c) === id)).map(([id, r]) => ({ card: candidates.find((c) => cardId(c) === id)!, ...r }));
+  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds, rules, softRules };
 }
 
 // ------------------------------------------------------------------ the player's rules
@@ -123,7 +128,23 @@ function followsConvention(round: Round, seat: Seat, answerFirst = false): boole
  * - Discarding: never from a suit where you hold its Ace — that tells the partner you don't
  *   want the suit you're strongest in.
  */
-function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, why: string[] = []): Card[] {
+/**
+ * A soft rule: the card stays in play, but its score is marked down by `points` (game points),
+ * so the search only goes against the rule when the playouts say it clearly pays.
+ */
+export interface SoftRule {
+  points: number;
+  reason: string;
+}
+
+/**
+ * Leading a small card under your own Ace: wrong almost always, but sometimes it drops their 10
+ * (the player's word). The playouts must show a big gain to do it — in the player's noted hand
+ * they favoured the 7 by 5.4, and it was still wrong.
+ */
+const UNDERLEAD_PENALTY = 6;
+
+function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, why: string[] = [], soft: Map<string, SoftRule> = new Map()): Card[] {
   const trick = round.currentTrick!;
   const { mode, trumpSuit, declarer } = round.bidding.result!;
   const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
@@ -138,12 +159,13 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
   if (trick.order.length === 0) {
     let pool = legal;
     // Never lead a small card of a suit whose Ace you hold: it hands the trick over for nothing.
+    // (Soft: leading low under the Ace can be right, to drop their 10 — the search decides.)
     const aceHeld = (suit: Suit) => hand.some((x) => x.suit === suit && x.rank === "A");
-    pool = narrow(
-      pool,
-      (c) => isTrumpCard(c, mode, trumpSuit) || !aceHeld(c.suit) || c.rank === "A" || isBoss(c, hand, beliefs, mode, trumpSuit),
-      "ما يحل ورقة صغيرة من شكل عنده إكته — يبدأ بالإكة",
-    );
+    for (const c of pool) {
+      if (!isTrumpCard(c, mode, trumpSuit) && aceHeld(c.suit) && c.rank !== "A" && !isBoss(c, hand, beliefs, mode, trumpSuit)) {
+        soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "يحل من تحت إكته" });
+      }
+    }
     if (against) {
       // حلة المشتري: suits the buying side's declarer opened.
       const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
@@ -170,9 +192,14 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
       return narrow(legal, (c) => cardId(c) === cardId(ace), "في الحكم الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
     }
   }
+  // In the last two tricks an Ace thrown onto the partner's trick isn't wasted: the lead may
+  // never come back to it, so it's تكبير — fattening the partner's trick. (With three left it
+  // can still take a trick, and there it reads as a برقية — the player's note 8.)
+  const endgame = hand.length <= 2;
   let keep = narrow(legal, (c) => {
     if (c.rank !== "A" || isTrumpCard(c, mode, trumpSuit)) return true;
     if (cardId(c) === cardId(ruleChoice)) return true; // a برقية
+    if (endgame && partnerWinning) return true; // تكبير
     if (!following) return false; // thrown away
     return !partnerWinning; // fed to the partner
   }, following ? "الإكة ما تنعطى لأكلة خويه" : "الإكة ما تنرمى");
@@ -181,7 +208,7 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
   if (mode === "hokum" && !following && !ledTrump) {
     const nine = keep.find((c) => isTrumpCard(c, mode, trumpSuit) && c.rank === "9");
     const jackOut = !hand.some((c) => c.suit === trumpSuit && c.rank === "J") && !beliefs.played.some((c) => c.suit === trumpSuit && c.rank === "J");
-    if (nine && jackOut && wouldWinAgainstCurrent(nine, trick, mode, trumpSuit)) {
+    if (nine && jackOut && wouldWinAgainstCurrent(nine, trick, mode, trumpSuit) && !overRuffRisk(trick, seat, led, hand, beliefs, trumpSuit!)) {
       keep = narrow(keep, (c) => !isTrumpCard(c, mode, trumpSuit) || cardId(c) === cardId(nine), "إذا قطع والولد برا، يقطع بالتسعة قبل لا ينصادها");
     }
   }
@@ -198,7 +225,7 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     const allCostly = others.length > 0 && others.every(costly);
     keep = narrow(
       keep,
-      (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice) || (allCostly && c.rank !== "10"),
+      (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice) || (allCostly && c.rank !== "10") || (endgame && partnerWinning && c.rank === "A"),
       "ما يهرّب من شكل عنده إكته (يفهمها خويه إنه ما يبغاه)",
     );
   }
@@ -366,9 +393,17 @@ function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Ca
     sim.playCard(s, pick);
   }
   const team: Team = teamOf(seat);
+  const other = (1 - team) as Team;
   const g = sim.result!.gamePoints;
-  return g[team] - g[(1 - team) as Team];
+  const raw = sim.result!.rawPoints;
+  // Game points are rounded to tens, so cards that differ by a 10 or an Ace often tie there;
+  // the raw points (أبناط) break those ties. Only a tie-break: weighed any heavier, they made
+  // the search weaker (600 hands: 1.71 a hand at 0, 1.47 at 0.25, 1.31 at 0.5).
+  return g[team] - g[other] + (raw[team] - raw[other]) * RAW_TIEBREAK;
 }
+
+/** A raw point (أبنط) in a playout's score: 20 of them are a tenth of a game point. */
+const RAW_TIEBREAK = 0.005;
 
 function shuffle<T>(items: T[], rand: () => number): T[] {
   const a = [...items];

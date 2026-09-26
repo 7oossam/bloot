@@ -55,6 +55,9 @@ export function explainPlay(e: PlayLogEntry, who: string): string[] {
       break;
     }
   }
+  for (const r of t.softRules ?? []) {
+    lines.push(`نقّص ${r.points} من ${cardNameAr(r.card)}: ${r.reason} (يخالفها بس إذا الحساب يقول تستاهل).`);
+  }
   if (t.ruledOut && t.ruledOut.length > 0) {
     lines.push(`ما فكّر في ${t.ruledOut.map(cardNameAr).join("، ")}${t.rules?.length ? ` — قوانينك: ${t.rules.join("؛ ")}` : ""}.`);
   }
