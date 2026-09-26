@@ -50,3 +50,13 @@ export function exportNotes(notes: PlayerNote[] = loadNotes()): string {
     "```",
   ].join("\n");
 }
+
+/** The whole صكة as one block of text to paste to Claude, for the full analysis. */
+export function exportMatch(hands: HandSnapshot[], meta: { partner?: string; rival?: string } = {}): string {
+  return [
+    "صكة بلوت كاملة للتحليل — الأوراق بصيغة الشكل ثم الرتبة (HJ = ولد هاص، S=سبيت H=هاص D=ديمن C=شرية). المقاعد: 0 أنت، 1 يمين، 2 خويك، 3 يسار.",
+    "```json",
+    JSON.stringify({ kind: "match", ...meta, hands }, null, 1),
+    "```",
+  ].join("\n");
+}

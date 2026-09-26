@@ -1,7 +1,7 @@
 import type { Seat } from "../engine/types";
 import type { HandSnapshot, PlayLogEntry } from "../game/GameController";
 import { explainPlay } from "../game/explain";
-import { clearNotes, exportNotes, loadNotes, saveNote } from "../game/notes";
+import { clearNotes, exportMatch, exportNotes, loadNotes, saveNote } from "../game/notes";
 
 /**
  * «ليش؟ 📝»: a page over the table (plain HTML, so typing Arabic just works). For this hand —
@@ -17,6 +17,8 @@ export interface HandView {
 
 export interface NotesPanelOptions {
   views: HandView[];
+  /** Every hand of the صكة so far, for «انسخ الصكة». */
+  match: () => HandSnapshot[];
   seatName: (seat: Seat) => string;
   onClose: () => void;
 }
@@ -50,7 +52,7 @@ const CSS = `
 .bn-foot textarea{width:100%;box-sizing:border-box;min-height:44px;height:44px;border-radius:10px;border:2px solid #cdb893;padding:8px;font:16px Tajawal,Tahoma,sans-serif;direction:rtl;resize:vertical}
 .bn-row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
 .bn-row button{flex:1;min-width:90px;padding:9px 8px;border-radius:12px;border:0;font:700 15px Tajawal,Tahoma,sans-serif;cursor:pointer}
-.bn-save{background:#e3a33b;color:#3a2620}.bn-copy{background:#2e9c9a;color:#fff}.bn-clear{background:#d9c6a5;color:#3a2620}
+.bn-save{background:#e3a33b;color:#3a2620}.bn-match{background:#1f5e5c;color:#fff}.bn-copy{background:#2e9c9a;color:#fff}.bn-clear{background:#d9c6a5;color:#3a2620}
 .bn-msg{font-size:14px;margin-top:4px;min-height:18px;color:#1f5e5c}
 `;
 
@@ -94,6 +96,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
         <button class="bn-copy"></button>
         <button class="bn-clear" style="flex:0 0 auto;min-width:0">🗑️</button>
       </div>
+      <div class="bn-row"><button class="bn-match"></button></div>
       <div class="bn-msg"></div>
     </div>
   </div>`;
@@ -106,6 +109,20 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
   const copyBtn = $<HTMLButtonElement>(".bn-copy");
   const refreshCount = () => (copyBtn.textContent = `انسخ الملاحظات (${loadNotes().length})`);
   refreshCount();
+  const matchBtn = $<HTMLButtonElement>(".bn-match");
+  matchBtn.textContent = `📋 انسخ الصكة كاملة للتحليل (${o.match().length} يد)`;
+  matchBtn.addEventListener("click", async () => {
+    const text = exportMatch(o.match());
+    try {
+      await navigator.clipboard.writeText(text);
+      msg.textContent = "انسخت الصكة ✔️ — الصقها لـ Claude وبيحللها كاملة.";
+    } catch {
+      const area = $<HTMLTextAreaElement>("textarea");
+      area.value = text;
+      area.select();
+      msg.textContent = "انسخ النص اللي في المربع يدوياً.";
+    }
+  });
 
   const render = () => {
     const view = o.views[viewIndex];

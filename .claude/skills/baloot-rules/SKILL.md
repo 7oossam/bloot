@@ -94,6 +94,11 @@ Ground rules when working on the game:
      too run down for everyone to follow).
    - No برقية when the partner has shown he has none of the Ace's suit to come back with. In
      the last two tricks an Ace thrown onto the partner's trick is تكبير, not a برقية.
+   - التهريب is read only off a trick the partner is winning: on the opponents' trick a
+     discard is just a card gone, not a signal.
+   - The hokum buyer pulls trumps: with the top trump in hand and trumps still out, lead them.
+   - No hard rule for the buyer's partner (cash first / go back to the buyer): every form
+     measured weaker than the search's own choice (see the comment in `playerRules`).
    - The search's playouts score game points, with the raw points only as a tie-break
      (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { likelihood, searchCardTraced } from "../src/ai/mcts";
 import { decideCard } from "../src/ai/play-ai";
+import { buildBeliefs } from "../src/ai/beliefs";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
 import { teamOf, type Card, type Mode, type Seat, type Suit, type Trick } from "../src/engine/types";
@@ -362,6 +363,48 @@ describe("the player's notes", () => {
       current: trick(2, []),
     });
     expect(think(after, 2).card.suit).toBe("C");
+  });
+  // ---- the fourth batch of notes
+
+  it("14. the hokum buyer holding the top trump pulls trumps", () => {
+    // يسار bought hokum ♣ holding the ولد, and leads first.
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "C", declarer: 3, ground: "CJ",
+      hands: {
+        0: ["C10", "HA", "D7", "C8", "H10", "DA", "HJ", "C7"],
+        1: ["S8", "D8", "HK", "H9", "CK", "DJ", "D10", "CA"],
+        2: ["SK", "DQ", "SJ", "SA", "D9", "S7", "DK", "S9"],
+        3: ["SQ", "H8", "S10", "CQ", "C9", "CJ", "HQ", "H7"],
+      },
+      tricks: [], current: trick(3, []),
+    });
+    expect(think(r, 3).card.suit).toBe("C");
+  });
+
+  it("15. the buyer's partner cashes what he can before anything else", () => {
+    // يمين bought sun; his partner يسار took the first trick and holds the إكة شرية.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 1, ground: "DA",
+      hands: {
+        0: ["H9", "D10", "SK", "HJ", "S10", "SJ", "HK"],
+        1: ["SA", "CQ", "SQ", "H10", "DA", "S7", "C9"],
+        2: ["C8", "DJ", "HA", "S9", "D9", "C7", "DQ"],
+        3: ["S8", "DK", "HQ", "D8", "D7", "H7", "CA"],
+      },
+      tricks: [trick(1, ["1:CJ", "2:CK", "3:C10", "0:H8"], 3)], current: trick(3, []),
+    });
+    expect(think(r, 3).card).toEqual(card("CA"));
+  });
+
+  it("16. a card thrown on the opponents' trick isn't read as التهريب", () => {
+    // You threw the 8 هاص when يسار (an opponent) was taking the first trick: that asked for nothing.
+    const tricks = [
+      trick(1, ["1:CJ", "2:CK", "3:C10", "0:H8"], 3),
+      trick(3, ["3:S8", "0:S10", "1:S7", "2:S9"], 0),
+      trick(0, ["0:H9", "1:H10", "2:HA", "3:H7"], 2),
+    ];
+    const b = buildBeliefs(tricks, undefined, "sun");
+    expect(b.wants[0]).toEqual([]);
   });
 });
 
