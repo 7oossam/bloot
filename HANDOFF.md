@@ -30,6 +30,13 @@
 - **Art:** the player makes the assets with Gemini + Higgsfield from `docs/art-direction.md` (style: fine ink line + layered painterly shading with depth — the player rejected flat colour; palette, per-place lighting, content rules, prompt kit, file specs, the asset list with prompts). Claude reviews uploaded images against its checklist and wires them into the game. The player's reference images (R1–R8) stay with the player.
 - The player's lines: a warm legend, not horror; jinn and أم الصبيان are fine; no fortune-telling (العرّاف joker → الدربيل); تحف chosen over غنايم.
 
+### The look (src/scenes/fx.ts) — until the real art lands
+- Every scene has a painted dusk backdrop (sky gradient, low sun, zellige lattice, grain), shafts of light and drifting gold dust, and (WebGL only) a camera vignette. The table: a teal zellige top under a lamp, a wooden rim and a sadu band.
+- Cards (`CardView`): cream paper face, teal zellige back with the Host's sun, a soft shadow that spreads when the card lifts, and a breathing glow on playable cards (`setPlayable`).
+- Motion: cards travel in arcs (`arcTo`) and land askew with a puff; the trick winner flares and motes rise; كبوت gets fireworks and a flash; a won match celebrates.
+- Arabic text uses Tajawal (Google Fonts; `main.ts` waits for it up to 2.5 s, then falls back) with a soft dark shadow. Buttons are raised sun-gold tiles.
+- All textures are painted into canvases at runtime, with blur done through `shadowBlur` (Safari has no canvas `filter`). When the Higgsfield art is approved, these are the places to swap in images.
+
 ### Where the truth lives
 - Theme/story: `docs/theme.md`. Art (style, prompts, asset specs): `docs/art-direction.md`.
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).

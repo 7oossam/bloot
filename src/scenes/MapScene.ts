@@ -6,6 +6,7 @@ import { getPartner, PARTNERS } from "../roguelike/partners";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
@@ -44,7 +45,9 @@ export class MapScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, THEME_BG).setOrigin(0);
+    paintBackdrop(this);
+    addAmbience(this);
+    addCameraGrade(this);
     arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
     this.hudText = arabicText(this, WIDTH / 2, 150, "", {
       fontSize: "23px",
