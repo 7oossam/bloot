@@ -54,19 +54,25 @@ export function decideCard(
       (c) => isTrumpCard(c, mode, trumpSuit) || c.rank === "A" || !hand.some((x) => x.suit === c.suit && x.rank === "A") || isBoss(c, hand, beliefs, mode, trumpSuit),
     );
     const pool = noUnderlead.length > 0 ? noUnderlead : allowed;
-    const lead = chooseLead(pool, mode, trumpSuit, seat, partner, beliefs, ctx);
+    let lead = chooseLead(pool, mode, trumpSuit, seat, partner, beliefs, ctx);
+    // Never a 10 whose Ace is still out — it just feeds the Ace — unless it answers the
+    // partner's ask (then the Ace is likely his).
+    if (bareTenLead(lead, hand, mode, trumpSuit, partner, beliefs)) {
+      const rest = pool.filter((c) => !bareTenLead(c, hand, mode, trumpSuit, partner, beliefs));
+      if (rest.length > 0) lead = chooseLead(rest, mode, trumpSuit, seat, partner, beliefs, ctx);
+    }
     // مقفل can rule out the trump lead the tactics wanted; pick again among what's allowed.
     return legal.some((c) => c.suit === lead.suit && c.rank === lead.rank)
       ? lead
       : chooseLead(legal, mode, trumpSuit, seat, partner, beliefs, ctx);
   }
 
-  // In hokum the Ace plays the first time its suit comes round while it still wins — even onto
-  // the partner's trick: held back (الفرنكة) it gets ruffed later (the player's note).
+  // No فرنكة: the Ace plays the first time its suit comes round while it still wins — even onto
+  // the partner's trick. Held back, it's ruffed (hokum) or eaten by the buyer later.
   const ledCardNow = trick.cards[trick.order[0]]!;
-  if (mode === "hokum" && !isTrumpCard(ledCardNow, mode, trumpSuit)) {
+  if (!isTrumpCard(ledCardNow, mode, trumpSuit)) {
     const ace = legal.find((c) => c.suit === ledCardNow.suit && c.rank === "A");
-    if (ace && wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) return ace;
+    if (ace && aceMustPlay(ace, legal, trick, mode, trumpSuit, seat) && !mayHoldAce(hand, ace, mode, trumpSuit, seat, ctx?.declarer, beliefs)) return ace;
   }
 
   const winnerSoFar = currentWinner(trick, mode, trumpSuit);
@@ -198,6 +204,35 @@ function chooseDiscard(
     return score;
   };
   return minBy(pool, cost);
+}
+
+/** A 10 led while its Ace is still out and the partner hasn't asked for the suit. */
+export function bareTenLead(c: Card, hand: Card[], mode: Mode, trumpSuit: Suit | undefined, partner: Seat, beliefs: Beliefs): boolean {
+  if (c.rank !== "10" || isTrumpCard(c, mode, trumpSuit)) return false;
+  if (hand.some((x) => x.suit === c.suit && x.rank === "A") || beliefs.played.some((x) => x.suit === c.suit && x.rank === "A")) return false;
+  return !beliefs.wants[partner].includes(c.suit) && !beliefs.barqiya[partner].includes(c.suit);
+}
+
+/**
+ * When the Ace of the led suit has to go now: in hokum whenever it still wins (later it's
+ * ruffed); in sun when the partner holds the trick (ducking under him, or overtaking with a
+ * smaller card, is the فرنكة) or when nothing smaller would take it. Beating an opponent's
+ * شايب with the 10 in sun keeps the Ace on top — that's fine.
+ */
+export function aceMustPlay(ace: Card, legal: Card[], trick: Trick, mode: Mode, trumpSuit: Suit | undefined, seat: Seat): boolean {
+  if (!wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) return false;
+  if (mode === "hokum") return true;
+  if (teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat)) return true;
+  return !legal.some((c) => c !== ace && c.suit === ace.suit && wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
+}
+
+/**
+ * الفرنكة — holding the Ace back — is allowed only in sun, to the buying side, with a sure
+ * winner in another suit: then the lead is likely to come back to it (the player's note).
+ */
+export function mayHoldAce(hand: Card[], ace: Card, mode: Mode, trumpSuit: Suit | undefined, seat: Seat, declarer: Seat | undefined, beliefs: Beliefs): boolean {
+  if (mode === "hokum" || declarer === undefined || teamOf(declarer) !== teamOf(seat)) return false;
+  return hand.some((c) => c.suit !== ace.suit && !isTrumpCard(c, mode, trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit));
 }
 
 /** A side suit (not the led one) where this hand holds a sure winner: something to ask for. */
