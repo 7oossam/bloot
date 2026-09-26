@@ -6,7 +6,7 @@ import { getPartner, PARTNERS } from "../roguelike/partners";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
-import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
+import { addAmbience, addCameraGrade } from "./fx";
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {

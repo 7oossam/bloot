@@ -38,7 +38,7 @@ export class StartScene extends Phaser.Scene {
     const btnContainer = this.add.container(WIDTH / 2, btnY);
 
     const btnBg = this.add.graphics();
-    const drawBtn = (isHover) => {
+    const drawBtn = (isHover: boolean) => {
       btnBg.clear();
       btnBg.fillStyle(0x000000, isHover ? 0.8 : 0.6);
       btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 40);
@@ -66,7 +66,7 @@ export class StartScene extends Phaser.Scene {
 
     btnContainer.setSize(btnW, btnH);
     btnContainer.setInteractive(new Phaser.Geom.Rectangle(-btnW/2, -btnH/2, btnW, btnH), Phaser.Geom.Rectangle.Contains);
-    btnContainer.input.cursor = "pointer";
+    if (btnContainer.input) btnContainer.input.cursor = "pointer";
     
     btnContainer.on("pointerover", () => {
       this.tweens.add({ targets: btnContainer, scale: 1.05, duration: 150 });

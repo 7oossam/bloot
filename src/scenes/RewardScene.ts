@@ -3,7 +3,7 @@ import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelik
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea } from "./ui";
-import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
+import { addAmbience, addCameraGrade } from "./fx";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },

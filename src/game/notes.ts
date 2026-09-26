@@ -228,3 +228,29 @@ export function unpackHand(p: PackedHand): GameRecord & { currentTrick: string[]
     }),
   };
 }
+
+/**
+ * Everything for Claude in one file — the notes and every saved hand — to save or share from
+ * the phone instead of copying (the phone's clipboard cut long text off). Each part is its own
+ * ```json block; scripts/analyze-match.ts reads them all.
+ */
+export function exportFile(notes: PlayerNote[] = loadNotes(), games: GameRecord[] = loadGames()): { name: string; text: string } {
+  const { hands, matches } = gamesCount(games);
+  const packedNotes = notes.map((n) => ({ at: n.at, text: n.text, about: n.about ? `${n.about.seat}.${n.about.trick} ${n.about.card}` : undefined, h: packHand(n.snapshot) }));
+  const text = [
+    `بلوت — ملف للتحليل: ${notes.length} ملاحظة، ${hands} يد في ${matches} صكة. ${LEGEND}`,
+    "",
+    "الملاحظات:",
+    "```json",
+    `[${packedNotes.map((n) => JSON.stringify(n)).join(",\n")}]`,
+    "```",
+    "",
+    "كل اللعب:",
+    "```json",
+    `[${games.map((g) => JSON.stringify(packHand(g))).join(",\n")}]`,
+    "```",
+    "",
+  ].join("\n");
+  const day = new Date().toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+  return { name: `bloot-${day}.txt`, text };
+}

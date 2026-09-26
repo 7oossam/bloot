@@ -38,7 +38,7 @@ import {
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
-import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
+import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
@@ -255,9 +255,6 @@ export class TableScene extends Phaser.Scene {
     bgDim.fillRect(0, 0, WIDTH, HEIGHT);
 
     // The Sleek Glass Table
-    const { left, top, right, bottom } = TABLE_RECT;
-    const tableW = right - left;
-    const tableH = bottom - top;
     
 // Table surface is now handled purely by the background image!
 

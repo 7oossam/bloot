@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Card } from "../engine/types";
-import { cardBackKey, cardHaloKey, cardShadowKey } from "./fx";
+import { cardHaloKey, cardShadowKey } from "./fx";
 
 export const CARD_W = 128;
 export const CARD_H = 185;

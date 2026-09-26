@@ -27,14 +27,18 @@ const name = (c: Card) => c.suit + c.rank;
 const raw = readFileSync(process.argv[2], "utf8");
 const blocks = raw.includes("```json") ? raw.split("```json").slice(1).map((b) => b.slice(0, b.indexOf("```"))) : [raw];
 const hands: Hand[] = [];
+const noteHands: Hand[] = [];
 for (const block of blocks) {
   const data = JSON.parse(block);
   for (const item of Array.isArray(data) ? data : data.hands ?? [data]) {
     if (typeof item.s === "string") hands.push(unpackHand(item as PackedHand)); // a packed hand
-    else if (item.h) hands.push(unpackHand(item.h as PackedHand)); // a packed note
+    else if (item.h) noteHands.push(unpackHand(item.h as PackedHand)); // a packed note
     else hands.push(item.snapshot ?? item); // the older, longer formats
   }
 }
+// A downloaded file has the notes and every saved hand; the notes' hands are among those, so
+// they're only analysed when nothing else came.
+if (!hands.length) hands.push(...noteHands);
 const minLoss = Number(process.argv[3] ?? 5);
 const [shard, shards] = (process.env.SHARD ?? "1/1").split("/").map(Number);
 
