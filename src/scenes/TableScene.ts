@@ -278,15 +278,19 @@ export class TableScene extends Phaser.Scene {
     for (const seat of OPPONENT_SEATS) {
       const anchor = HAND_ANCHOR[seat];
       const back = new CardView(this, anchor.x, anchor.y, { suit: "S", rank: "7" }, false, WIDGET_CARD_SIZE);
+      // A dark chip behind the name and count keeps them readable over the table's gold border.
+      const chip = { backgroundColor: "rgba(11,19,48,0.85)", padding: { x: 12, y: 4 } };
       const count = arabicText(this, anchor.x, anchor.y + back.displayH / 2 + 26, "×8", {
         fontSize: "24px",
         color: "#dbeee1",
+        ...chip,
       }).setDepth(5);
       // Your partner goes by their name (شخصيات الخوي).
       const name = seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat];
       this.seatLabels[seat] = arabicText(this, anchor.x, anchor.y - back.displayH / 2 - 26, name, {
         fontSize: "24px",
         color: SEAT_LABEL_COLOR,
+        ...chip,
       }).setDepth(5);
       this.opponentWidget[seat] = { back, count };
     }

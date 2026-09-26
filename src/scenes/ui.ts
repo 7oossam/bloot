@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { RANKS, SUITS, type Rank, type Suit } from "../engine/types";
 
 const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
-const MENU_FONT = "'Aref Ruqaa', Amiri, Tajawal, serif";
+export const MENU_FONT = "'Aref Ruqaa', Amiri, Tajawal, serif";
 
 export function arabicText(
   scene: Phaser.Scene,
@@ -65,6 +65,8 @@ export function preloadUi(scene: Phaser.Scene): void {
     }
   }
   if (!scene.textures.exists(CARD_BACK_ART)) scene.load.image(CARD_BACK_ART, "assets/cards/back.webp");
+  if (!scene.textures.exists("bg-table")) scene.load.image("bg-table", "assets/bg/table.webp");
+  if (!scene.textures.exists("bg-home")) scene.load.image("bg-home", "assets/bg/home.webp");
 }
 
 /** Texture key of a card's finished face (see public/assets/cards). */
