@@ -1,7 +1,7 @@
 <title>أزرار المعزّب</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=Tajawal:wght@400;500;700&family=Cinzel:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Amiri:wght@700&family=Reem+Kufi:wght@600;700&family=Tajawal:wght@400;500;700;800&family=Cinzel:wght@700&display=swap">
 <style>
   :root {
     color-scheme: dark;
@@ -9,6 +9,7 @@
     --ink: #281E19;
     --gold: #D6A44A;
     --gold-hi: #F0CB7A;
+    --gold-lo: #9C6B22;
     --burgundy: #5E1F24;
     --navy: #1C2B4A;
     --teal: #2D4A4D;
@@ -20,8 +21,8 @@
     --muted: #BFAE93;
     --line: rgba(214, 164, 74, 0.28);
     --scale: 0.8;
+    --menu-font: "Aref Ruqaa", "Amiri", serif;
   }
-  html, body { height: auto; }
   body {
     margin: 0;
     background: var(--table);
@@ -30,27 +31,13 @@
     font-size: 15px;
     line-height: 1.6;
   }
-  .wrap {
-    max-width: 760px;
-    margin: 0 auto;
-    padding-inline: 16px;
-    padding-block: 20px 48px;
-  }
-  header { display: grid; gap: 6px; margin-block-end: 18px; }
-  h1 {
-    font-family: "Reem Kufi", Tajawal, sans-serif;
-    font-weight: 700;
-    font-size: 30px;
-    margin: 0;
-    color: var(--gold-hi);
-    text-wrap: balance;
-  }
+  .wrap { max-width: 760px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; }
+  header { display: grid; gap: 6px; margin-block-end: 14px; }
+  h1 { font-family: "Aref Ruqaa", "Amiri", serif; font-weight: 700; font-size: 34px; margin: 0; color: var(--gold-hi); line-height: 1.3; }
   header p { margin: 0; color: var(--muted); max-width: 62ch; }
 
   .controls {
-    position: sticky;
-    top: env(safe-area-inset-top, 0px);
-    z-index: 5;
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
     display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
     padding-block: 10px;
     background: color-mix(in srgb, var(--table) 92%, transparent);
@@ -58,323 +45,194 @@
     border-block-end: 1px solid var(--line);
     margin-block-end: 18px;
   }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button {
-    font: inherit; font-size: 14px; color: var(--muted);
-    background: transparent; border: 0; padding: 6px 12px; cursor: pointer;
-  }
+  .seg button { font: inherit; font-size: 14px; color: var(--muted); background: transparent; border: 0; padding: 6px 12px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--gold); color: var(--ink); font-weight: 700; }
   .seg button:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
-  .controls .lbl { color: var(--muted); font-size: 13px; }
+  .lbl { color: var(--muted); font-size: 13px; }
 
-  section { display: grid; gap: 12px; margin-block-end: 26px; }
-  section h2 {
-    font-family: "Reem Kufi", Tajawal, sans-serif; font-weight: 600; font-size: 19px;
-    margin: 0; color: var(--text);
-  }
-  section > p.note { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 62ch; }
+  section { display: grid; gap: 12px; margin-block-end: 30px; }
+  section h2 { font-family: "Reem Kufi", Tajawal, sans-serif; font-weight: 600; font-size: 20px; margin: 0; }
+  p.note { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 62ch; }
 
   .stage {
-    border-radius: 14px;
-    padding: 22px 16px;
+    border-radius: 14px; padding: 22px 16px;
     display: flex; flex-wrap: wrap; gap: 16px 14px; justify-content: center; align-items: center;
-    background:
-      radial-gradient(120% 90% at 50% 0%, #4a3122 0%, transparent 60%),
-      linear-gradient(180deg, var(--table-2), var(--table));
+    background: radial-gradient(120% 90% at 50% 0%, #4a3122 0%, transparent 60%), linear-gradient(180deg, var(--table-2), var(--table));
     border: 1px solid var(--line);
   }
-  body.on-paper .stage {
-    background: var(--paper);
-    border-color: #e4dccb;
-  }
-  .stage.col { flex-direction: column; }
-
-  .spec {
-    display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .spec code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gold-hi); }
-  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-inline-end: 4px; border: 1px solid rgba(255,255,255,.2); }
-
-  /* ---------- the button ---------- */
-  .mbtn {
-    --fill: var(--burgundy);
-    --label: var(--paper);
-    --w: 280; --h: 84;
-    position: relative;
-    width: calc(var(--w) * var(--scale) * 1px);
-    height: calc(var(--h) * var(--scale) * 1px);
-    border: 0; padding: 0; background: none; cursor: pointer;
-    color: var(--label);
-    font-family: "Reem Kufi", Tajawal, sans-serif;
-    font-weight: 700;
-    font-size: calc(var(--fs, 30) * var(--scale) * 1px);
-    line-height: 1;
-    filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .55));
-    transition: transform .08s ease-out, filter .08s ease-out;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .mbtn svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .mbtn .lab {
-    position: relative; z-index: 1;
-    display: flex; align-items: center; justify-content: center; gap: .35em;
-    height: 100%;
-    text-shadow: 0 1px 0 rgba(0,0,0,.35);
-    white-space: nowrap;
-  }
-  .mbtn .lab small { font-family: Tajawal, sans-serif; font-weight: 500; font-size: .62em; opacity: .85; }
-  .mbtn .fillp { fill: var(--fill); }
-  .mbtn .sheen { fill: url(#sheen); opacity: .55; }
-  .mbtn .ink { fill: none; stroke: var(--ink); }
-  .mbtn .goldline { fill: none; stroke: var(--gold); }
-  .mbtn:hover { filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .55)) brightness(1.08); }
-  .mbtn:active, .mbtn.is-pressed {
-    transform: translateY(calc(4px * var(--scale)));
-    filter: drop-shadow(0 calc(1px * var(--scale)) 0 rgba(12, 6, 3, .55)) brightness(.92);
-  }
-  .mbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
-  .mbtn[disabled] {
-    cursor: not-allowed;
-    filter: grayscale(.75) brightness(.8);
-    opacity: .55;
-    transform: none;
-  }
-
-  /* variants */
-  .v-primary  { --fill: var(--burgundy); --label: var(--paper); }
-  .v-sun      { --fill: var(--sun);      --label: var(--ink); }
-  .v-sun .lab { text-shadow: 0 1px 0 rgba(255, 241, 214, .55); }
-  .v-hokum    { --fill: var(--navy);     --label: var(--paper); }
-  .v-ashkal   { --fill: var(--teal);     --label: var(--paper); }
-  .v-pass     { --fill: var(--paper);    --label: var(--ink); }
-  .v-pass .lab { text-shadow: none; }
-  .v-olive    { --fill: var(--olive);    --label: var(--paper); }
-  .v-ghost    { --fill: rgba(250, 247, 240, .08); --label: var(--gold-hi); }
-  body.on-paper .v-ghost { --fill: rgba(40, 30, 25, .04); --label: var(--burgundy); }
-
+  body.on-paper .stage { background: var(--paper); border-color: #e4dccb; }
   .pair { display: grid; gap: 6px; justify-items: center; }
-  .pair .cap { font-size: 12px; color: var(--muted); }
-  body.on-paper .pair .cap, body.on-paper .spec { color: #6f5f4d; }
+  .cap { font-size: 12px; color: var(--muted); }
+  body.on-paper .cap { color: #6f5f4d; }
 
-  .suit { font-family: "Cinzel", serif; font-size: .9em; line-height: 1; }
-  .sundisc {
-    width: .9em; height: .9em; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #fff2c9, #e8b24a 55%, #b77d21);
-    box-shadow: 0 0 0 1.5px var(--ink);
-    display: inline-block;
-  }
-
-  /* ---------- illustrated plates (generated art, 3-slice: the ends keep their ornaments, the plain middle stretches) ---------- */
+  /* ---------- menu buttons: illustrated plates, 3-slice ---------- */
   .pbtn {
     --w: 280; --h: 84; --r: 1.1;
-    position: relative;
     box-sizing: border-box;
     width: calc(var(--w) * var(--scale) * 1px);
     height: calc(var(--h) * var(--scale) * 1px);
-    padding: 0;
-    background: none;
+    padding: 0; background: none;
     border-style: solid;
     border-width: 0 calc(var(--h) * var(--scale) * var(--r) * 1px);
     border-image-repeat: stretch;
     cursor: pointer;
-    color: var(--paper);
-    font-family: "Reem Kufi", Tajawal, sans-serif;
-    font-weight: 700;
-    font-size: calc(var(--fs, 30) * var(--scale) * 1px);
-    line-height: 1;
     filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5));
     transition: transform .08s ease-out, filter .08s ease-out;
     -webkit-tap-highlight-color: transparent;
   }
-  .pbtn .lab { display: flex; align-items: center; justify-content: center; gap: .3em; height: 100%; white-space: nowrap; text-shadow: 0 1px 0 rgba(0,0,0,.45), 0 0 6px rgba(0,0,0,.35); }
-  .pbtn .lab small { font-family: Tajawal, sans-serif; font-weight: 500; font-size: .62em; opacity: .9; }
-  .pbtn.dark-label { color: var(--ink); }
-  .pbtn.dark-label .lab { text-shadow: 0 1px 0 rgba(255, 244, 220, .6); }
   .pbtn:hover { filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(1.07); }
   .pbtn:active, .pbtn.is-pressed { transform: translateY(calc(4px * var(--scale))); filter: drop-shadow(0 calc(1px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(.92); }
   .pbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
-  .pbtn[disabled] { cursor: not-allowed; filter: grayscale(.75) brightness(.8); opacity: .55; transform: none; }
-  .badge { font-size: 12px; color: var(--ink); background: var(--gold-hi); border-radius: 999px; padding: 1px 10px; font-weight: 700; justify-self: start; }
 
+  /* The label is set like the card's index: gold leaf with an ink edge on dark plates,
+     a deep colour with a gold edge on light plates, and a hairline shadow as if pressed in. */
+  .pbtn .lab {
+    display: flex; align-items: center; justify-content: center; gap: .35em;
+    height: 100%;
+    padding-block-end: .08em;
+    white-space: nowrap;
+    font-family: var(--menu-font);
+    font-weight: 700;
+    font-size: calc(var(--fs, 34) * var(--scale) * 1px);
+    line-height: 1;
+  }
+  .gold-leaf {
+    color: #F2C96B;
+    -webkit-text-stroke: calc(2.4px * var(--scale) + .8px) var(--ink);
+    paint-order: stroke fill;
+    text-shadow: 0 calc(-1px * var(--scale)) 0 rgba(255, 236, 180, .35), 0 calc(2px * var(--scale)) 0 rgba(0, 0, 0, .55);
+  }
+  .deep-ink {
+    color: var(--c, var(--burgundy));
+    -webkit-text-stroke: calc(2.2px * var(--scale) + .8px) var(--gold);
+    paint-order: stroke fill;
+    text-shadow: 0 calc(1.5px * var(--scale)) 0 rgba(255, 244, 220, .75);
+  }
+  .lab small { font-size: .62em; }
+
+  /* ---------- gameplay buttons: simple and clear ---------- */
+  .gbtn {
+    --w: 184; --h: 74; --fill: var(--navy); --fg: var(--paper);
+    box-sizing: border-box;
+    width: calc(var(--w) * var(--scale) * 1px);
+    height: calc(var(--h) * var(--scale) * 1px);
+    border-radius: calc(14px * var(--scale));
+    border: calc(3px * var(--scale)) solid var(--gold);
+    background: var(--fill);
+    box-shadow: 0 calc(6px * var(--scale)) 0 rgba(10, 5, 2, .55), inset 0 0 0 calc(2px * var(--scale)) rgba(0,0,0,.18);
+    color: var(--fg);
+    font-family: Tajawal, "Segoe UI", sans-serif;
+    font-weight: 800;
+    font-size: calc(var(--fs, 32) * var(--scale) * 1px);
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: .3em;
+    transition: transform .07s ease-out, box-shadow .07s ease-out, filter .07s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gbtn .suit { font-family: "Cinzel", serif; font-size: .95em; }
+  .gbtn .dot { width: .7em; height: .7em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4cf, #e8b24a 60%, #a86f1b); box-shadow: 0 0 0 1.5px var(--ink); }
+  .gbtn:hover { filter: brightness(1.08); }
+  .gbtn:active, .gbtn.is-pressed { transform: translateY(calc(5px * var(--scale))); box-shadow: 0 calc(1px * var(--scale)) 0 rgba(10, 5, 2, .55), inset 0 0 0 calc(2px * var(--scale)) rgba(0,0,0,.18); }
+  .gbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
+  .gbtn[disabled] { filter: grayscale(.8) brightness(.75); opacity: .5; cursor: not-allowed; transform: none; }
+  .g-sun   { --fill: var(--sun);      --fg: var(--ink); }
+  .g-hokum { --fill: var(--navy); }
+  .g-ashk  { --fill: var(--teal); }
+  .g-pass  { --fill: var(--paper);    --fg: var(--ink); border-color: #bda57a; }
+  .g-sawa  { --fill: var(--olive); }
+  .g-quiet { --fill: rgba(250,247,240,.06); --fg: var(--gold-hi); border-width: calc(2px * var(--scale)); box-shadow: none; }
+  body.on-paper .g-quiet { --fill: rgba(40,30,25,.04); --fg: var(--burgundy); }
+
+  .spec { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .spec code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gold-hi); }
   footer { color: var(--muted); font-size: 13px; border-block-start: 1px solid var(--line); padding-block-start: 14px; }
-  @media (prefers-reduced-motion: reduce) { .mbtn { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .pbtn, .gbtn { transition: none; } }
 </style>
-
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
-      <stop offset=".5" stop-color="#fff" stop-opacity=".05"/>
-      <stop offset=".5" stop-color="#000" stop-opacity="0"/>
-      <stop offset="1" stop-color="#000" stop-opacity=".12"/>
-    </linearGradient>
-  </defs>
-</svg>
 
 <div class="wrap" dir="rtl">
   <header>
     <h1>أزرار المعزّب</h1>
-    <p>أمثلة على أزرار اللعبة بنفس لغة ورقة شايب الهاص المعتمدة: خط ذهبي مزدوج بحد حبر، وزاويتين متدرّجتين فوق يسار وتحت يمين، وألوان الأشكال. اضغط على أي زر عشان تشوف حالة الضغط.</p>
+    <p>نوعين من الأزرار: أزرار القوائم مرسومة ومزخرفة، وأزرار اللعب بسيطة وواضحة عشان تنقرأ بلمحة وقت اللعب.</p>
   </header>
 
   <div class="controls" role="group" aria-label="طريقة العرض">
-    <span class="lbl">الخلفية</span>
-    <div class="seg" id="bgSeg">
-      <button type="button" data-bg="table" aria-pressed="true">طاولة</button>
-      <button type="button" data-bg="paper" aria-pressed="false">ورق</button>
-    </div>
-    <span class="lbl">المقاس</span>
-    <div class="seg" id="scaleSeg">
-      <button type="button" data-scale="0.42" aria-pressed="false">مثل الجوال</button>
-      <button type="button" data-scale="0.8" aria-pressed="true">مكبّر</button>
-    </div>
+    <span class="ctl"><span class="lbl">الخلفية</span>
+      <span class="seg" id="bgSeg"><button type="button" data-bg="table" aria-pressed="true">طاولة</button><button type="button" data-bg="paper" aria-pressed="false">ورق</button></span></span>
+    <span class="ctl"><span class="lbl">المقاس</span>
+      <span class="seg" id="scaleSeg"><button type="button" data-scale="0.42" aria-pressed="false">مثل الجوال</button><button type="button" data-scale="0.8" aria-pressed="true">مكبّر</button></span></span>
   </div>
 
   <section>
-    <span class="badge">جديد</span>
-    <h2>مرسومة بالموديل</h2>
-    <p class="note">لوحات رسمها GPT Image 2.5 Flare بنفس أسلوب الورقة، بدون كتابة، والكود يكتب الاسم فوقها. الزخرفة في الطرفين تبقى ثابتة، والوسط الفاضي يتمدد حسب طول الزر. فيه نسختين من التوليد، بدّل بينهم.</p>
-    <div class="controls" style="position:static;border:0;padding:0;margin:0;background:none">
-      <span class="lbl">النسخة</span>
-      <div class="seg" id="plateSeg">
-        <button type="button" data-set="0" aria-pressed="true">نسخة ١</button>
-        <button type="button" data-set="1" aria-pressed="false">نسخة ٢</button>
-      </div>
+    <h2>أزرار القوائم</h2>
+    <p class="note">اللوحات المرسومة (نسخة ١). الكتابة صارت مثل الـK في الورقة: ورق ذهب بحد حبر على اللوحات الغامقة، ولون غامق بحد ذهبي على اللوحة الفاتحة، فتبان مطبوعة على اللوحة. جرّب الخطوط:</p>
+    <span class="ctl"><span class="lbl">خط القوائم</span>
+      <span class="seg" id="fontSeg">
+        <button type="button" data-font="ruqaa" aria-pressed="true">رقعة</button>
+        <button type="button" data-font="naskh" aria-pressed="false">نسخ</button>
+        <button type="button" data-font="kufi" aria-pressed="false">كوفي</button>
+      </span></span>
+    <div class="stage">
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:300;--h:84"><span class="lab gold-leaf">كمّل</span></button>
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:380;--h:84"><span class="lab gold-leaf">متابعة الرحلة</span></button>
+      <button type="button" class="pbtn" data-plate="teal" style="--w:300;--h:84"><span class="lab gold-leaf">ابدأ ليلة جديدة</span></button>
     </div>
     <div class="stage">
-      <button type="button" class="pbtn" data-plate="burgundy" style="--w:280;--h:84"><span class="lab">كمّل</span></button>
-      <button type="button" class="pbtn" data-plate="burgundy" style="--w:360;--h:84"><span class="lab">متابعة الرحلة</span></button>
+      <button type="button" class="pbtn" data-plate="sun" style="--w:300;--h:80;--fs:32"><span class="lab deep-ink" style="--c:var(--burgundy)">اشترِ <small>٦ ريال</small></span></button>
+      <button type="button" class="pbtn" data-plate="paper" style="--w:240;--h:80;--fs:32"><span class="lab deep-ink" style="--c:var(--ink)">بيع</span></button>
+      <button type="button" class="pbtn" data-plate="navy" style="--w:260;--h:80;--fs:32"><span class="lab gold-leaf">لا، خلّه</span></button>
     </div>
     <div class="stage">
-      <button type="button" class="pbtn dark-label" data-plate="sun" style="--w:200;--h:74;--fs:28"><span class="lab">صن</span></button>
-      <button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♠</span></span></button>
-      <button type="button" class="pbtn" data-plate="teal" style="--w:200;--h:74;--fs:28"><span class="lab">أشكل</span></button>
-      <button type="button" class="pbtn dark-label" data-plate="paper" style="--w:200;--h:74;--fs:28"><span class="lab">بس</span></button>
-    </div>
-    <div class="stage">
-      <button type="button" class="pbtn" data-plate="olive" style="--w:190;--h:64;--fs:26"><span class="lab">سوا</span></button>
-      <button type="button" class="pbtn dark-label" data-plate="sun" style="--w:240;--h:74;--fs:26"><span class="lab">اشترِ <small>٦ ريال</small></span></button>
-      <button type="button" class="pbtn dark-label" data-plate="paper" style="--w:190;--h:74;--fs:26"><span class="lab">بيع</span></button>
-    </div>
-    <div class="stage">
-      <div class="pair"><button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">عادي</span></div>
-      <div class="pair"><button type="button" class="pbtn is-pressed" data-plate="navy" style="--w:200;--h:74;--fs:28" tabindex="-1"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">مضغوط</span></div>
-      <div class="pair"><button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28" disabled><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">معطّل</span></div>
+      <div class="pair"><button type="button" class="pbtn" data-plate="burgundy" style="--w:300;--h:84"><span class="lab gold-leaf">كمّل</span></button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="pbtn is-pressed" data-plate="burgundy" style="--w:300;--h:84" tabindex="-1"><span class="lab gold-leaf">كمّل</span></button><span class="cap">مضغوط</span></div>
     </div>
   </section>
 
   <section>
-    <h2>مرسومة بالكود: الزر الرئيسي</h2>
-    <p class="note">للأفعال اللي تكمّل اللعب: كمّل، ابدأ، متابعة الرحلة. أحمر عنابي مثل خلفية الهاص.</p>
+    <h2>أزرار اللعب</h2>
+    <p class="note">الشراء وسوا وتخطّي: لون صافي، وخط ذهبي واحد، وكتابة كبيرة بخط واضح (تجوّل ثقيل)، بدون زخرفة. كل خيار بلونه عشان تعرفه قبل ما تقراه.</p>
     <div class="stage">
-      <button type="button" class="mbtn v-primary" style="--w:280;--h:84"><span class="lab">كمّل</span></button>
-      <button type="button" class="mbtn v-primary" style="--w:340;--h:84"><span class="lab">متابعة الرحلة</span></button>
+      <button type="button" class="gbtn g-sun"><span class="dot" aria-hidden="true"></span>صن</button>
+      <button type="button" class="gbtn g-hokum">حكم</button>
+      <button type="button" class="gbtn g-ashk">أشكل</button>
+      <button type="button" class="gbtn g-pass">بس</button>
     </div>
-    <div class="spec"><span><span class="sw" style="background:#5E1F24"></span><code>#5E1F24</code></span><span>المقاس في اللعبة <code>280×84</code></span><span>الخط <code>Reem Kufi 700 · 30px</code></span></div>
-  </section>
-
-  <section>
-    <h2>أزرار الشراء</h2>
-    <p class="note">كل خيار بلونه: الصن ذهبي مثل الشمس، والحكم كحلي، وأشكل تيل، وبس/ولا ورق أبيض بخط ذهبي عشان يبان إنه الخيار الهادي.</p>
     <div class="stage">
-      <button type="button" class="mbtn v-sun" style="--w:184;--h:74;--fs:28"><span class="lab"><span class="sundisc" aria-hidden="true"></span>صن</span></button>
-      <button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♠</span></span></button>
-      <button type="button" class="mbtn v-ashkal" style="--w:184;--h:74;--fs:28"><span class="lab">أشكل</span></button>
-      <button type="button" class="mbtn v-pass" style="--w:184;--h:74;--fs:28"><span class="lab">بس</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74"><span class="suit">♠</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74;--fg:#ff8a8a"><span class="suit">♥</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74"><span class="suit">♣</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74;--fg:#ff8a8a"><span class="suit">♦</span></button>
+    </div>
+    <div class="stage">
+      <button type="button" class="gbtn g-sawa" style="--w:170;--h:68;--fs:30">سوا</button>
+      <button type="button" class="gbtn g-quiet" style="--w:170;--h:64;--fs:26">تخطّي</button>
+      <button type="button" class="gbtn g-quiet" style="--w:170;--h:58;--fs:24">ترتيب</button>
+    </div>
+    <div class="stage">
+      <div class="pair"><button type="button" class="gbtn g-sun"><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="gbtn g-sun is-pressed" tabindex="-1"><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">مضغوط</span></div>
+      <div class="pair"><button type="button" class="gbtn g-sun" disabled><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">معطّل</span></div>
     </div>
     <div class="spec">
-      <span><span class="sw" style="background:#E3A33B"></span>صن <code>#E3A33B</code></span>
-      <span><span class="sw" style="background:#1C2B4A"></span>حكم <code>#1C2B4A</code></span>
-      <span><span class="sw" style="background:#2D4A4D"></span>أشكل <code>#2D4A4D</code></span>
-      <span><span class="sw" style="background:#FAF7F0"></span>بس/ولا <code>#FAF7F0</code></span>
-      <span>المقاس <code>184×74</code></span>
+      <span>صن <code>#E3A33B</code></span><span>حكم <code>#1C2B4A</code></span><span>أشكل <code>#2D4A4D</code></span><span>بس/ولا <code>#FAF7F0</code></span><span>سوا <code>#3E4A2A</code></span>
+      <span>الإطار <code>3px #D6A44A</code></span><span>الخط <code>Tajawal 800 · 32px</code></span><span>المقاس <code>184×74</code></span>
     </div>
   </section>
 
-  <section>
-    <h2>أزرار الطاولة</h2>
-    <p class="note">أصغر وأهدى، تطلع وقت اللعب: سوا، تخطّي، ترتيب. سوا بلون الشريا (زيتي) عشان تنميز عن أزرار الشراء.</p>
-    <div class="stage">
-      <button type="button" class="mbtn v-olive" style="--w:170;--h:64;--fs:26"><span class="lab">سوا</span></button>
-      <button type="button" class="mbtn v-ghost" style="--w:170;--h:64;--fs:24"><span class="lab">تخطّي</span></button>
-      <button type="button" class="mbtn v-ghost" style="--w:170;--h:58;--fs:22"><span class="lab">ترتيب <small>الأشكال</small></span></button>
-    </div>
-    <div class="spec"><span>سوا <code>#3E4A2A</code></span><span>تخطّي وترتيب: شفاف بخط ذهبي</span><span>المقاس <code>170×64</code> و<code>170×58</code></span></div>
-  </section>
-
-  <section>
-    <h2>دكّان التحف</h2>
-    <p class="note">زر الشراء عليه السعر بالريال، وزر البيع هادي، وزر التراجع شفاف.</p>
-    <div class="stage">
-      <button type="button" class="mbtn v-sun" style="--w:220;--h:74;--fs:26"><span class="lab">اشترِ <small>٦ ريال</small></span></button>
-      <button type="button" class="mbtn v-pass" style="--w:170;--h:74;--fs:26"><span class="lab">بيع</span></button>
-      <button type="button" class="mbtn v-ghost" style="--w:170;--h:74;--fs:24"><span class="lab">لا، خلّه</span></button>
-    </div>
-  </section>
-
-  <section>
-    <h2>الحالات</h2>
-    <p class="note">نفس الزر: عادي، ومضغوط (ينزل للأسفل ويقل ظله)، ومعطّل (باهت ورمادي، مثل صن بعد ما يشتري أحد).</p>
-    <div class="stage">
-      <div class="pair"><button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">عادي</span></div>
-      <div class="pair"><button type="button" class="mbtn v-hokum is-pressed" style="--w:184;--h:74;--fs:28" tabindex="-1"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">مضغوط</span></div>
-      <div class="pair"><button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28" disabled><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">معطّل</span></div>
-    </div>
-  </section>
-
-  <footer>
-    الإطار كله مرسوم بالكود (مسار بخطوتين وخطين ذهب)، فيتمدد على أي مقاس بدون ما يتشوّه، ونفس الطريقة تنقل للعبة في <code>src/scenes/ui.ts</code>. الخطوة في الزر ربع ارتفاعه تقريباً، والخط الداخلي يبعد عن الخارجي نفس المسافة في كل الأضلاع.
-  </footer>
+  <footer>أزرار اللعب مرسومة بالكود بالكامل، فتنقل للعبة في <code>src/scenes/ui.ts</code> مباشرة. أزرار القوائم صورة مقسومة ثلاث قطع: الطرفين بزخرفتهم ثابتين والوسط يتمدد، والاسم يكتبه الكود.</footer>
 </div>
 
 <script>
-  // Stepped double-gold frame: the same shape as the court cards (steps at top-left and bottom-right).
-  function roundedPath(pts, r) {
-    const n = pts.length; let d = "";
-    for (let i = 0; i < n; i++) {
-      const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n];
-      const v1 = [p0[0] - p1[0], p0[1] - p1[1]], v2 = [p2[0] - p1[0], p2[1] - p1[1]];
-      const l1 = Math.hypot(...v1), l2 = Math.hypot(...v2);
-      const rr = Math.min(r, l1 / 2, l2 / 2);
-      const a = [p1[0] + v1[0] / l1 * rr, p1[1] + v1[1] / l1 * rr];
-      const b = [p1[0] + v2[0] / l2 * rr, p1[1] + v2[1] / l2 * rr];
-      d += (i ? "L" : "M") + a[0].toFixed(2) + " " + a[1].toFixed(2) + "Q" + p1[0] + " " + p1[1] + " " + b[0].toFixed(2) + " " + b[1].toFixed(2);
-    }
-    return d + "Z";
-  }
-  function stepPoints(x, y, w, h, sx, sy) {
-    return [[x + sx, y], [x + w, y], [x + w, y + h - sy], [x + w - sx, y + h - sy], [x + w - sx, y + h], [x, y + h], [x, y + sy], [x + sx, y + sy]];
-  }
-  function drawButton(btn) {
-    const w = btn.clientWidth, h = btn.clientHeight;
-    if (!w || !h) return;
-    const s = Math.min(h * 0.26, w * 0.12);           // step size
-    const outerW = Math.max(2, h * 0.05);              // outer gold line
-    const innerW = Math.max(1, h * 0.022);             // inner gold line
-    const gap = Math.max(3, h * 0.085);                // teal-free band between the lines
-    const r = Math.max(1.5, h * 0.05);
-    const o = outerW / 2 + 1;
-    const outer = roundedPath(stepPoints(o, o, w - 2 * o, h - 2 * o, s, s), r);
-    const ii = o + gap;
-    const inner = roundedPath(stepPoints(ii, ii, w - 2 * ii, h - 2 * ii, s, s), r * 0.8);
-    let svg = btn.querySelector("svg");
-    if (!svg) { svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); btn.prepend(svg); }
-    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    svg.setAttribute("aria-hidden", "true");
-    svg.innerHTML =
-      `<path class="fillp" d="${outer}"/>` +
-      `<path class="sheen" d="${outer}"/>` +
-      `<path class="ink" d="${outer}" stroke-width="${outerW + 2.4}"/>` +
-      `<path class="goldline" d="${outer}" stroke-width="${outerW}"/>` +
-      `<path class="ink" d="${inner}" stroke-width="${innerW + 1.6}" opacity=".85"/>` +
-      `<path class="goldline" d="${inner}" stroke-width="${innerW}"/>`;
-  }
-  const buttons = [...document.querySelectorAll(".mbtn")];
-  const redraw = () => buttons.forEach(drawButton);
-  if ("ResizeObserver" in window) { const ro = new ResizeObserver(redraw); buttons.forEach(b => ro.observe(b)); }
-  redraw();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
-
+  const PLATES = {"burgundy":{"h":180,"slice":200},"navy":{"h":192,"slice":223},"olive":{"h":190,"slice":196},"paper":{"h":199,"slice":150},"sun":{"h":184,"slice":215},"teal":{"h":186,"slice":214}};
+  document.querySelectorAll(".pbtn").forEach(b => {
+    const p = PLATES[b.dataset.plate];
+    b.style.borderImageSource = `url("ui-plates/0_${b.dataset.plate}.webp")`;
+    b.style.borderImageSlice = `0 ${p.slice} fill`;
+    b.style.setProperty("--r", (p.slice / p.h).toFixed(3));
+  });
+  const FONTS = { ruqaa: '"Aref Ruqaa", "Amiri", serif', naskh: '"Amiri", serif', kufi: '"Reem Kufi", Tajawal, sans-serif' };
   function bindSeg(id, attr, apply) {
     const seg = document.getElementById(id);
     seg.addEventListener("click", e => {
@@ -386,18 +244,7 @@
     let saved = null; try { saved = localStorage.getItem("ui-buttons-" + id); } catch (_) {}
     if (saved) { const b = seg.querySelector(`[data-${attr}="${saved}"]`); if (b) b.click(); }
   }
-  // slice = width of each ornamented end in the source plate (px); h = source plate height.
-  const PLATES = {"0_burgundy":{"h":180,"slice":200},"0_navy":{"h":192,"slice":223},"0_olive":{"h":190,"slice":196},"0_paper":{"h":199,"slice":150},"0_sun":{"h":184,"slice":215},"0_teal":{"h":186,"slice":214},"1_burgundy":{"h":180,"slice":195},"1_navy":{"h":185,"slice":246},"1_olive":{"h":185,"slice":206},"1_paper":{"h":190,"slice":150},"1_sun":{"h":182,"slice":215},"1_teal":{"h":183,"slice":218}};
-  function applyPlates(set) {
-    document.querySelectorAll(".pbtn").forEach(b => {
-      const key = set + "_" + b.dataset.plate, p = PLATES[key];
-      b.style.borderImageSource = `url("ui-plates/${key}.webp")`;
-      b.style.borderImageSlice = `0 ${p.slice} fill`;
-      b.style.setProperty("--r", (p.slice / p.h).toFixed(3));
-    });
-  }
-  applyPlates("0");
-  bindSeg("plateSeg", "set", applyPlates);
   bindSeg("bgSeg", "bg", v => document.body.classList.toggle("on-paper", v === "paper"));
-  bindSeg("scaleSeg", "scale", v => { document.documentElement.style.setProperty("--scale", v); requestAnimationFrame(redraw); });
+  bindSeg("scaleSeg", "scale", v => document.documentElement.style.setProperty("--scale", v));
+  bindSeg("fontSeg", "font", v => document.documentElement.style.setProperty("--menu-font", FONTS[v]));
 </script>
