@@ -1,7 +1,7 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Claude Code
-**Current Phase:** The run is a real roguelike now: a branching map, opponents that bend the rules on you, الديوانية events and بركات الحوت. Next: three maps (acts), playtest balance, art (JokerView).
+**Current Phase:** The run is a real roguelike (branching map, rule-bending opponents, events, blessings, partners). The theme is chosen: «المعزّب — ليلة الأربعين» (`docs/theme.md`). Next: apply the theme's names in the code, three maps (acts), art.
 
 ## 1. What We Just Did
 
@@ -23,7 +23,13 @@
 - **Jokers are relics:** no cap (the جيب زيادة upgrade is gone); the table row and shop chips shrink to fit.
 - **Item review — the player's verdict:** every joker and item stays. An attempt to cut four was reverted on the player's word, and the reasons are worth keeping: **المخلّي** is a gamble (you risk the trick and get paid for the risk); **الحكم المقفول** and **الوجه البارد** protect you from opponents who double a lot; **زبون مميز** is a good *shop* upgrade (it was only weak as a whale blessing). Don't remove them without asking. المترجم now shows you every player's تهريب instead of making your partner understand you (that's normal play now).
 
+### Theme (docs/theme.md) — chosen by the player
+- **«المعزّب — ليلة الأربعين»:** once every forty years hidden ديوانيات open for one night; the loser to المعزّب becomes **مرهون** (bound as a host, each with a **شرط** = the opponent rule) until someone beats them. You're looking for your grandfather; everything ends before الفجر.
+- Renames (not yet in the code): jokers → **التحف**, gold → **ريال**, lives → **ساعات الليل**, the whale → **الراوي** and his **وصايا**, opponents → **المرهونين**, events → **الطرقات**, shop → **دكّان التحف**. Full tables, palette and the asset list in production order are in the guide.
+- The player's lines: a warm legend, not horror; jinn and أم الصبيان are fine; no fortune-telling (قارئ الفنجال was dropped, العرّاف joker → الدربيل). The player hesitated between تحف and غنايم — the guide uses تحف.
+
 ### Where the truth lives
+- Theme/story/assets: `docs/theme.md`.
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
 - Design: `.claude/skills/bloot-roguelike-design/SKILL.md` — PART 7 covers opponents, map, الديوانية, blessings, سوا, relics.
 - Jokers: `docs/jokers.md` is generated — `npx vite-node scripts/gen-jokers-doc.ts`.
@@ -37,6 +43,7 @@
 - **Ideas from the player's terms video, waiting on the player:** opponents built on table culture (الجفرة، أهل الرصّة، ياخذون القلم…), and the bidding rules قبلك / ما لك ثالث (a later seat's sun in round 1 can be claimed by an earlier seat who passed, not from your partner; after ولا you can't buy a third time). The terms themselves: `docs/` has no copy — ask the player for the video file if needed.
 
 ## 3. Next Steps (Where to pick up)
+- **Apply the theme's names** (`docs/theme.md` §3–§8) once the player confirms the guide: text-only, no system changes.
 - **Three maps (acts)** — the player wants it, "but not now": after the boss, a harder map; الحوت appears at the start of each map (never mid-map) with stronger blessings.
 - Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`), `opponents.ts` and `blessings.ts`.
 - Build `JokerView.ts` to show the joker art (row above the table, shop cards).
