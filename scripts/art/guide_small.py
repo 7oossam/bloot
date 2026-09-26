@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
 import sys
 W,H=1024,1536; GOLD=(214,164,74); INK=(40,30,25)
-L,T,R,B=92,57,932,1461; SW,SH=95,205   # frame outer edges and step size (matches the model's natural bottom-right step)
+L,T,R,B=92,57,932,1461; SW,SH=int(sys.argv[3]) if len(sys.argv)>3 else 95, int(sys.argv[4]) if len(sys.argv)>4 else 205
 def poly(o):
     return [(L+SW+o,T+o),(R-o,T+o),(R-o,B-SH-o),(R-SW-o,B-SH-o),(R-SW-o,B-o),(L+o,B-o),(L+o,T+SH+o),(L+SW+o,T+SH+o)]
 def mask(o,r=10):
