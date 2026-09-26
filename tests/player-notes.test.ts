@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { likelihood, searchCardTraced } from "../src/ai/mcts";
 import { decideCard } from "../src/ai/play-ai";
+import { buildBeliefs } from "../src/ai/beliefs";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
 import { teamOf, type Card, type Mode, type Seat, type Suit, type Trick } from "../src/engine/types";
@@ -312,6 +313,166 @@ describe("the player's notes", () => {
     expect((t.softRules ?? []).map((x) => x.card.suit + x.card.rank)).toContain("S7");
   });
 
+  // ---- the third batch of notes
+
+  it("11. against a sun buyer: no 10 led under an Ace still out — cash your own Ace", () => {
+    // You bought sun (أشكل). يمين leads first: he threw the 10 شرية with the إكة still out.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 0, ground: "H7",
+      hands: {
+        0: ["CA", "C8", "CJ", "SA", "H10", "C7", "D10", "S7"],
+        1: ["C10", "D9", "D8", "HA", "S10", "H8", "S8", "HJ"],
+        2: ["CQ", "D7", "DQ", "SQ", "CK", "H7", "H9", "SK"],
+        3: ["C9", "S9", "HK", "SJ", "DK", "HQ", "DJ", "DA"],
+      },
+      tricks: [], current: trick(1, []),
+    });
+    expect(think(r, 1).card).toEqual(card("HA"));
+  });
+
+  it("12. a defender plays his Ace on his partner's trick instead of holding it for the buyer", () => {
+    // You bought sun and led the شايب هاص; يمين's 10 is winning; يسار holds the إكة.
+    const r = at({
+      dealer: 2, mode: "sun", declarer: 0, ground: "SQ",
+      hands: {
+        0: ["CJ", "SA", "CA", "SQ", "D10", "S7"],
+        1: ["C9", "SJ", "C7", "S10", "DQ", "HJ"],
+        2: ["C10", "S9", "CQ", "SK", "H8", "C8"],
+        3: ["H9", "CK", "S8", "D7", "DK", "HQ", "HA"],
+      },
+      tricks: [trick(3, ["3:D8", "0:DA", "1:D9", "2:DJ"], 0)],
+      current: trick(0, ["0:HK", "1:H10", "2:H7"]),
+    });
+    expect(think(r, 3).card).toEqual(card("HA"));
+  });
+
+  it("13. on the partner's lead: eat with the Ace, then go back to his suit", () => {
+    // يمين bought sun. You led the بنت شرية; your partner holds إكة، شايب، 9 و7 شرية.
+    const hands = {
+      0: ["DK", "H7", "CJ", "S9", "DJ", "S7", "C10"],
+      1: ["SA", "DQ", "DA", "H8", "HQ", "SK", "HA"],
+      2: ["CK", "H9", "HK", "CA", "C9", "C7", "S8", "S10"],
+      3: ["HJ", "D9", "H10", "D10", "SQ", "D7", "SJ", "C8"],
+    } as Record<Seat, string[]>;
+    const first = at({ dealer: 3, mode: "sun", declarer: 1, ground: "HQ", hands, tricks: [], current: trick(0, ["0:CQ", "1:D8"]) });
+    expect(think(first, 2).card).toEqual(card("CA"));
+    const after = at({
+      dealer: 3, mode: "sun", declarer: 1, ground: "HQ",
+      hands: { ...hands, 2: ["CK", "H9", "HK", "C9", "C7", "S8", "S10"], 3: ["HJ", "D9", "H10", "D10", "SQ", "D7", "SJ"] },
+      tricks: [trick(0, ["0:CQ", "1:D8", "2:CA", "3:C8"], 2)],
+      current: trick(2, []),
+    });
+    expect(think(after, 2).card.suit).toBe("C");
+  });
+  // ---- the fourth batch of notes
+
+  it("14. the hokum buyer holding the top trump pulls trumps", () => {
+    // يسار bought hokum ♣ holding the ولد, and leads first.
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "C", declarer: 3, ground: "CJ",
+      hands: {
+        0: ["C10", "HA", "D7", "C8", "H10", "DA", "HJ", "C7"],
+        1: ["S8", "D8", "HK", "H9", "CK", "DJ", "D10", "CA"],
+        2: ["SK", "DQ", "SJ", "SA", "D9", "S7", "DK", "S9"],
+        3: ["SQ", "H8", "S10", "CQ", "C9", "CJ", "HQ", "H7"],
+      },
+      tricks: [], current: trick(3, []),
+    });
+    expect(think(r, 3).card.suit).toBe("C");
+  });
+
+  it("15. the buyer's partner cashes what he can before anything else", () => {
+    // يمين bought sun; his partner يسار took the first trick and holds the إكة شرية.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 1, ground: "DA",
+      hands: {
+        0: ["H9", "D10", "SK", "HJ", "S10", "SJ", "HK"],
+        1: ["SA", "CQ", "SQ", "H10", "DA", "S7", "C9"],
+        2: ["C8", "DJ", "HA", "S9", "D9", "C7", "DQ"],
+        3: ["S8", "DK", "HQ", "D8", "D7", "H7", "CA"],
+      },
+      tricks: [trick(1, ["1:CJ", "2:CK", "3:C10", "0:H8"], 3)], current: trick(3, []),
+    });
+    expect(think(r, 3).card).toEqual(card("CA"));
+  });
+
+  it("16. a card thrown on the opponents' trick isn't read as التهريب", () => {
+    // You threw the 8 هاص when يسار (an opponent) was taking the first trick: that asked for nothing.
+    const tricks = [
+      trick(1, ["1:CJ", "2:CK", "3:C10", "0:H8"], 3),
+      trick(3, ["3:S8", "0:S10", "1:S7", "2:S9"], 0),
+      trick(0, ["0:H9", "1:H10", "2:HA", "3:H7"], 2),
+    ];
+    const b = buildBeliefs(tricks, undefined, "sun");
+    expect(b.wants[0]).toEqual([]);
+  });
+});
+
+describe("the player's notes, fifth batch (from the first full-match analysis)", () => {
+  it("17. the partner led the suit: the Ace goes on his card (the ban is on discarding it)", () => {
+    // خويك bought sun; you (0) led the شايب ديمن holding its 10, to drop the Ace.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 2, ground: "CQ",
+      hands: {
+        0: ["D7", "SJ", "D10", "HQ", "H8", "HJ"],
+        1: ["C7", "CJ", "H7", "HK", "C10", "CK"],
+        2: ["D9", "DQ", "SA", "DA", "DJ", "S9", "CQ"],
+        3: ["S8", "SQ", "SK", "C8", "C9", "S10", "CA"],
+      },
+      tricks: [trick(1, ["1:H9", "2:S7", "3:H10", "0:HA"], 0)], current: trick(0, ["0:DK", "1:D8"]),
+    });
+    expect(think(r, 2).card).toEqual(card("DA"));
+  });
+
+  it("18. against خاطفين الولد the buyer doesn't pull trumps with his (weak) ولد", () => {
+    // خويك bought hokum ♠ with the ولد, the شايب, the بنت — but this rival makes our ولد the lowest trump.
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "S", declarer: 2, ground: "S7",
+      hands: {
+        0: ["H9", "H8", "DA", "DJ", "H7", "H10", "D8"],
+        1: ["S9", "CQ", "D7", "D10", "HJ", "S10", "SA"],
+        2: ["SJ", "SQ", "DQ", "D9", "HA", "HK", "SK"],
+        3: ["S8", "C7", "DK", "HQ", "C8", "CJ", "CK"],
+      },
+      tricks: [trick(3, ["3:CA", "0:C9", "1:C10", "2:S7"], 2)],
+      current: { ...trick(2, []), rules: { rival: { weakJack: 0, jackBottom: true } } },
+    });
+    const t = think(r, 2);
+    expect(t.card).not.toEqual(card("SJ"));
+    expect(t.rules ?? []).not.toContain("المحكم يسحب الحكم");
+  });
+});
+
+describe("the player's notes, sixth batch", () => {
+  it("19. holding the Ace and the 10, the Ace goes first (the partner knows the trick is ours)", () => {
+    // خويك bought sun; يمين led the ولد شرية and خويك holds the إكة, the 10 and the 9.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 2, ground: "DA",
+      hands: {
+        0: ["C7", "H8", "DQ", "SA", "S10", "H10", "SQ", "SK"],
+        1: ["H7", "D8", "S7", "CQ", "HQ", "S9", "CK"],
+        2: ["C10", "HA", "DA", "D10", "CA", "HK", "D9", "C9"],
+        3: ["C8", "H9", "D7", "DJ", "S8", "HJ", "SJ", "DK"],
+      },
+      tricks: [], current: trick(1, ["1:CJ"]),
+    });
+    expect(think(r, 2).card).not.toEqual(card("C10"));
+  });
+
+  it("20. the sun buyer with Aces in hand doesn't open with a lone small card", () => {
+    // خويك bought sun with both red Aces, the إكة شرية — and a lone 8 هاص. يسار held four هاص.
+    const r = at({
+      dealer: 1, mode: "sun", declarer: 2, ground: "D10",
+      hands: {
+        0: ["D9", "S7", "C8", "SQ", "DK", "CJ", "C10", "CK"],
+        1: ["HQ", "HJ", "H7", "C7", "SA", "S10", "S9", "DJ"],
+        2: ["H8", "SJ", "D8", "CQ", "DQ", "D10", "CA", "DA"],
+        3: ["HA", "H10", "HK", "H9", "SK", "S8", "D7", "C9"],
+      },
+      tricks: [], current: trick(2, []),
+    });
+    for (const seed of [1, 2, 3]) expect(searchCardTraced(r, 2, { worlds: 40, rand: mulberry32(seed) }).card).not.toEqual(card("H8"));
+  });
 });
 
 describe("guessing the hidden hands from what the table has said", () => {

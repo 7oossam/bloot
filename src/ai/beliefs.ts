@@ -110,6 +110,9 @@ export function buildBeliefs(tricks: Trick[], current: Trick | undefined, mode: 
       }
       // A 10 fed onto the partner's trick is support (دعم الخوي), not a message.
       if (partnerHasIt && cardPoints(card, "sun") >= 10) return;
+      // التهريب is read only off a trick the partner is winning (the player's rule): thrown on
+      // the opponents' trick, a card is just a card gone.
+      if (!partnerHasIt) return;
       discards[seat].push({ card, led });
     });
     // صنع: a seat that took the trick by following suit (not its own lead) is strong there.

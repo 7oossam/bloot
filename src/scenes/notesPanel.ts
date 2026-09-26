@@ -1,7 +1,7 @@
 import type { Seat } from "../engine/types";
 import type { HandSnapshot, PlayLogEntry } from "../game/GameController";
 import { explainPlay } from "../game/explain";
-import { clearNotes, exportNotes, loadNotes, saveNote } from "../game/notes";
+import { clearGames, clearNotes, exportFile, gamesCount, loadNotes, saveNote } from "../game/notes";
 
 /**
  * «ليش؟ 📝»: a page over the table (plain HTML, so typing Arabic just works). For this hand —
@@ -17,6 +17,7 @@ export interface HandView {
 
 export interface NotesPanelOptions {
   views: HandView[];
+  /** Every hand of the صكة so far, for «انسخ الصكة». */
   seatName: (seat: Seat) => string;
   onClose: () => void;
 }
@@ -50,7 +51,7 @@ const CSS = `
 .bn-foot textarea{width:100%;box-sizing:border-box;min-height:44px;height:44px;border-radius:10px;border:2px solid #cdb893;padding:8px;font:16px Tajawal,Tahoma,sans-serif;direction:rtl;resize:vertical}
 .bn-row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
 .bn-row button{flex:1;min-width:90px;padding:9px 8px;border-radius:12px;border:0;font:700 15px Tajawal,Tahoma,sans-serif;cursor:pointer}
-.bn-save{background:#e3a33b;color:#3a2620}.bn-copy{background:#2e9c9a;color:#fff}.bn-clear{background:#d9c6a5;color:#3a2620}
+.bn-save{background:#e3a33b;color:#3a2620}.bn-match{background:#1f5e5c;color:#fff}.bn-copy{background:#2e9c9a;color:#fff}.bn-clear{background:#d9c6a5;color:#3a2620}
 .bn-msg{font-size:14px;margin-top:4px;min-height:18px;color:#1f5e5c}
 `;
 
@@ -91,9 +92,9 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
       <textarea placeholder="مثلاً: ليش ما لعبت الإكة؟"></textarea>
       <div class="bn-row">
         <button class="bn-save">احفظ</button>
-        <button class="bn-copy"></button>
         <button class="bn-clear" style="flex:0 0 auto;min-width:0">🗑️</button>
       </div>
+      <div class="bn-row"><button class="bn-match"></button></div>
       <div class="bn-msg"></div>
     </div>
   </div>`;
@@ -103,9 +104,39 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
   const body = $<HTMLDivElement>(".bn-body");
   const msg = $<HTMLDivElement>(".bn-msg");
   const about = $<HTMLDivElement>(".bn-about");
-  const copyBtn = $<HTMLButtonElement>(".bn-copy");
-  const refreshCount = () => (copyBtn.textContent = `انسخ الملاحظات (${loadNotes().length})`);
+  /**
+   * Everything (notes + every saved hand) as one file: the phone's share sheet where there is
+   * one (send it straight to the Claude app, or save it to Files), a plain download elsewhere.
+   * Copying cut long text off on the player's phone.
+   */
+  const fileBtn = $<HTMLButtonElement>(".bn-match");
+  const refreshCount = () => {
+    fileBtn.textContent = `⬇️ حمّل ملف للتحليل (${loadNotes().length} ملاحظة، ${gamesCount().hands} يد)`;
+  };
   refreshCount();
+  fileBtn.addEventListener("click", async () => {
+    const { name, text } = exportFile();
+    const file = new File([text], name, { type: "text/plain" });
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (nav.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "بلوت — للتحليل" });
+        msg.textContent = "✔️ أرسل الملف لـ Claude. بعدها تقدر تمسح المحفوظ بـ 🗑️.";
+        return;
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return; // closed the share sheet
+      }
+    }
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    msg.textContent = `✔️ نزل الملف (${name}) — أرفقه في المحادثة مع Claude. بعدها تقدر تمسح المحفوظ بـ 🗑️.`;
+  });
 
   const render = () => {
     const view = o.views[viewIndex];
@@ -204,29 +235,17 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
       snapshot: o.views[viewIndex].snapshot(),
     });
     area.value = "";
-    msg.textContent = `انحفظت ✔️ — عندك ${count} ملاحظة. لما تخلص انسخها وأرسلها لـ Claude.`;
+    msg.textContent = `انحفظت ✔️ — عندك ${count} ملاحظة. لما تخلص حمّل الملف وأرسله لـ Claude.`;
     refreshCount();
   });
 
-  copyBtn.addEventListener("click", async () => {
-    const text = exportNotes();
-    try {
-      await navigator.clipboard.writeText(text);
-      msg.textContent = "انسخت ✔️ — الصقها في المحادثة مع Claude.";
-    } catch {
-      // No clipboard (older browser, or not allowed): show the text to copy by hand.
-      const area = $<HTMLTextAreaElement>("textarea");
-      area.value = text;
-      area.select();
-      msg.textContent = "انسخ النص اللي في المربع يدوياً.";
-    }
-  });
 
   $<HTMLButtonElement>(".bn-clear").addEventListener("click", () => {
-    if (!confirm("تمسح كل الملاحظات المحفوظة؟")) return;
+    if (!confirm("تمسح كل الملاحظات واللعب المحفوظ؟ (سوّها بعد ما ترسل الملف)")) return;
     clearNotes();
+    clearGames();
     refreshCount();
-    msg.textContent = "انمسحت.";
+    msg.textContent = "انمسح كل شي.";
   });
 
   return close;

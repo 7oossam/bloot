@@ -82,13 +82,28 @@ Ground rules when working on the game:
      even a 10 thrown to keep it from being bare.
    - Don't lead a small card of a suit you hold the Ace of: lead the Ace. A *soft* rule (the
      search marks the card down by 6 game points): sometimes going under it drops their 10.
-   - In hokum an Ace plays the first time its suit comes round while it still wins — even
-     onto the partner's trick. Holding it back (الفرنكة) gets it ruffed later.
+   - No فرنكة: an Ace plays the first time its suit comes round while it still wins — even
+     onto the partner's trick. Held back it's ruffed (hokum) or eaten by the buyer (sun).
+     In sun, beating an opponent's شايب with the 10 keeps the Ace on top — that's fine. Only
+     the buying side in sun, with a sure winner in another suit, may hold it (`mayHoldAce`).
+   - Never lead a 10 whose Ace is still out — unless answering the partner's ask.
+   - Against the buyer: go back to the suit the partner opened with; otherwise cash an Ace
+     while it still wins (sun too — the lead may never come back, or it's a كبوت).
    - Ruffing while the ولد is still out, ruff with the تسعة, or the ولد catches it later —
      unless an opponent still to play may ruff over it (shown out of the suit, or the suit
      too run down for everyone to follow).
    - No برقية when the partner has shown he has none of the Ace's suit to come back with. In
      the last two tricks an Ace thrown onto the partner's trick is تكبير, not a برقية.
+   - التهريب is read only off a trick the partner is winning: on the opponents' trick a
+     discard is just a card gone, not a signal.
+   - The hokum buyer pulls trumps: with the top trump in hand and trumps still out, lead them.
+   - No hard rule for the buyer's partner (cash first / go back to the buyer): every form
+     measured weaker than the search's own choice (see the comment in `playerRules`).
+   - When the partner LEADS a suit and you hold its Ace, the Ace goes on his card (he's strong
+     there and wants it down). The "no Ace to the partner's trick" ban is for discards.
+   - Holding the Ace and the 10 of a suit, play the Ace first — the partner knows the trick is
+     ours and can fatten it.
+   - The sun buyer with winners in hand doesn't open with a lone small card (soft rule).
    - The search's playouts score game points, with the raw points only as a tie-break
      (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards

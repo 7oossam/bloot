@@ -317,7 +317,7 @@ describe("Defence and doubling jokers", () => {
 describe("التهريب", () => {
   it("your partner comes to your التهريب once it has no winners of its own", () => {
     // Seat 0 threw 7♠ on a ♥ lead: it wants ♣. Seat 2 has no sure winner, so it leads its biggest ♣.
-    const earlier: Trick = { leader: 1, order: [1, 2, 3, 0], cards: { 1: { suit: "H", rank: "A" }, 2: { suit: "H", rank: "8" }, 3: { suit: "H", rank: "9" }, 0: { suit: "S", rank: "7" } }, winner: 1 };
+    const earlier: Trick = { leader: 2, order: [2, 3, 0, 1], cards: { 2: { suit: "H", rank: "A" }, 3: { suit: "H", rank: "8" }, 0: { suit: "S", rank: "7" }, 1: { suit: "H", rank: "9" } }, winner: 2 };
     const hand: Card[] = [{ suit: "S", rank: "8" }, { suit: "D", rank: "Q" }, { suit: "C", rank: "9" }, { suit: "C", rank: "K" }];
     const lead = decideCard(hand, { leader: 2, order: [], cards: {} }, "sun", undefined, 2, { tricks: [earlier] });
     expect(lead).toEqual({ suit: "C", rank: "K" });

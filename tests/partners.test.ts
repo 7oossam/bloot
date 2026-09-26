@@ -52,8 +52,8 @@ describe("شخصيات الخوي", () => {
 
   it("الشايب comes to the suit you asked for before cashing his own winners; الغشيم can't read you", () => {
     // Seat 0 threw 7♠ on a ♥ lead: it asks for ♣. Seat 2 holds a sure winner (A♦) and clubs.
-    const earlier = trickOf(1, "AH", "8H", "9H", "7S");
-    earlier.winner = 1;
+    const earlier = trickOf(2, "AH", "8H", "7S", "9H");
+    earlier.winner = 2;
     const hand = [c("AD"), c("9C"), c("KC"), c("8S")];
     const lead = (ctx: object) => decideCard(hand, trickOf(2), "sun", undefined, 2, { tricks: [earlier], ...ctx });
     expect(lead({})).toEqual(c("AD")); // normal: cash first

@@ -9,7 +9,7 @@ import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
 import type { LegalCall } from "../engine/bidding";
 import { Round, type RoundOptions } from "../engine/round";
 import { finalizeDeal } from "../engine/deck";
-import type { Bid, BiddingResult, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
+import type { Bid, BiddingResult, Card, HandResult, Mode, Seat, Suit, Team, Trick, TrickRules } from "../engine/types";
 import { nextSeat, teamOf } from "../engine/types";
 import { rankStrength } from "../engine/cards";
 import { BALOOT_VALUE, PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
@@ -17,6 +17,7 @@ import { currentWinner, isAkka, wouldWinAgainstCurrent } from "../engine/trick";
 import { raiserTeam } from "../engine/doubling";
 import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
+import { recordHand } from "./notes";
 import type { RivalOptions } from "../roguelike/opponents";
 import type { PartnerOptions } from "../roguelike/partners";
 
@@ -306,6 +307,8 @@ export interface HandSnapshot {
   matchScore: Record<Team, number>;
   partner?: string;
   rival?: string;
+  /** The table's bent rules for the tricks (a rival's weak Jack…), for replaying the hand. */
+  trickRules?: TrickRules;
   plays: Array<{ seat: Seat; trick: number; card: string; kind: string; habit?: string; scores?: string[]; ruledOut?: string[]; rules?: string[] }>;
 }
 
@@ -345,6 +348,10 @@ export class GameController extends Emitter<EventMap> {
   private sawaClaim?: boolean;
   private playLog: PlayLogEntry[] = [];
   private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
+  /** Every finished hand of this صكة, for «انسخ الصكة» and the analysis. */
+  private matchLog: HandSnapshot[] = [];
+  /** Tags this صكة's hands in the saved record of everything played. */
+  private matchId = "";
   /** The search AI's own random stream, so thinking never shifts the deal's. */
   private searchRand?: () => number;
 
@@ -376,6 +383,15 @@ export class GameController extends Emitter<EventMap> {
   /** Every card the computer played this hand, with why (for «ليش؟» and the player's notes). */
   getPlayLog(): readonly PlayLogEntry[] {
     return this.playLog;
+  }
+
+  /**
+   * The whole صكة so far: every finished hand, plus the one in play if it has started — each
+   * with every seat's cards, every trick and the computer's reasons.
+   */
+  getMatchLog(): HandSnapshot[] {
+    const now = this.round.phase === "playing" ? [this.snapshot()] : [];
+    return [...this.matchLog, ...now];
   }
 
   /** The hand before this one, as it ended — so «ليش؟» can still look back at it. */
@@ -426,6 +442,7 @@ export class GameController extends Emitter<EventMap> {
       matchScore: { ...this.matchScore },
       partner: this.options.partnerLabel,
       rival: this.options.rivalLabel,
+      trickRules: (r.tricks[0] ?? r.currentTrick)?.rules,
       plays: this.playLog.map((p) => ({
         seat: p.seat,
         trick: p.trick,
@@ -456,6 +473,8 @@ export class GameController extends Emitter<EventMap> {
     this.matchOver = false;
     this.goldEarned = 0;
     this.dealer = 0;
+    this.matchLog = [];
+    this.matchId = Date.now().toString(36);
     this.dealHand();
   }
 
@@ -562,7 +581,9 @@ export class GameController extends Emitter<EventMap> {
         return "waiting-human";
       }
       const eager = seat === partnerOf(HUMAN_SEAT) ? (this.options.partner?.bidEager ?? 0) : 0;
-      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding, eager);
+      // خاطفين الولد weakens our side's trump Jack: your partner buys knowing it.
+      const weakJack = !!this.options.rival?.weakJack && teamOf(seat) === teamOf(HUMAN_SEAT);
+      const bid = decideBid(seat, this.round.hands[seat], this.round.bidding, eager, weakJack);
       this.applyBid(bid);
       return "advanced";
     }
@@ -1151,6 +1172,8 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "complete") {
       // Kept for «ليش؟» after the hand is over.
       this.lastHand = { plays: [...this.playLog], snapshot: this.snapshot() };
+      this.matchLog.push(this.lastHand.snapshot);
+      recordHand(this.lastHand.snapshot, this.matchId);
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
       // المدبّلين: a hand your team bought and lost counts double for them.
