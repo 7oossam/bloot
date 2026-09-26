@@ -1,0 +1,326 @@
+<title>أزرار المعزّب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=Tajawal:wght@400;500;700&family=Cinzel:wght@700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --paper: #FAF7F0;
+    --ink: #281E19;
+    --gold: #D6A44A;
+    --gold-hi: #F0CB7A;
+    --burgundy: #5E1F24;
+    --navy: #1C2B4A;
+    --teal: #2D4A4D;
+    --olive: #3E4A2A;
+    --sun: #E3A33B;
+    --table: #22160f;
+    --table-2: #3a261b;
+    --text: #F3E9D6;
+    --muted: #BFAE93;
+    --line: rgba(214, 164, 74, 0.28);
+    --scale: 0.8;
+  }
+  html, body { height: auto; }
+  body {
+    margin: 0;
+    background: var(--table);
+    color: var(--text);
+    font-family: Tajawal, Tahoma, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 20px 48px;
+  }
+  header { display: grid; gap: 6px; margin-block-end: 18px; }
+  h1 {
+    font-family: "Reem Kufi", Tajawal, sans-serif;
+    font-weight: 700;
+    font-size: 30px;
+    margin: 0;
+    color: var(--gold-hi);
+    text-wrap: balance;
+  }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .controls {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding-block: 10px;
+    background: color-mix(in srgb, var(--table) 92%, transparent);
+    backdrop-filter: blur(6px);
+    border-block-end: 1px solid var(--line);
+    margin-block-end: 18px;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 14px; color: var(--muted);
+    background: transparent; border: 0; padding: 6px 12px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--gold); color: var(--ink); font-weight: 700; }
+  .seg button:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
+  .controls .lbl { color: var(--muted); font-size: 13px; }
+
+  section { display: grid; gap: 12px; margin-block-end: 26px; }
+  section h2 {
+    font-family: "Reem Kufi", Tajawal, sans-serif; font-weight: 600; font-size: 19px;
+    margin: 0; color: var(--text);
+  }
+  section > p.note { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 62ch; }
+
+  .stage {
+    border-radius: 14px;
+    padding: 22px 16px;
+    display: flex; flex-wrap: wrap; gap: 16px 14px; justify-content: center; align-items: center;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #4a3122 0%, transparent 60%),
+      linear-gradient(180deg, var(--table-2), var(--table));
+    border: 1px solid var(--line);
+  }
+  body.on-paper .stage {
+    background: var(--paper);
+    border-color: #e4dccb;
+  }
+  .stage.col { flex-direction: column; }
+
+  .spec {
+    display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .spec code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gold-hi); }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-inline-end: 4px; border: 1px solid rgba(255,255,255,.2); }
+
+  /* ---------- the button ---------- */
+  .mbtn {
+    --fill: var(--burgundy);
+    --label: var(--paper);
+    --w: 280; --h: 84;
+    position: relative;
+    width: calc(var(--w) * var(--scale) * 1px);
+    height: calc(var(--h) * var(--scale) * 1px);
+    border: 0; padding: 0; background: none; cursor: pointer;
+    color: var(--label);
+    font-family: "Reem Kufi", Tajawal, sans-serif;
+    font-weight: 700;
+    font-size: calc(var(--fs, 30) * var(--scale) * 1px);
+    line-height: 1;
+    filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .55));
+    transition: transform .08s ease-out, filter .08s ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mbtn svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .mbtn .lab {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: center; gap: .35em;
+    height: 100%;
+    text-shadow: 0 1px 0 rgba(0,0,0,.35);
+    white-space: nowrap;
+  }
+  .mbtn .lab small { font-family: Tajawal, sans-serif; font-weight: 500; font-size: .62em; opacity: .85; }
+  .mbtn .fillp { fill: var(--fill); }
+  .mbtn .sheen { fill: url(#sheen); opacity: .55; }
+  .mbtn .ink { fill: none; stroke: var(--ink); }
+  .mbtn .goldline { fill: none; stroke: var(--gold); }
+  .mbtn:hover { filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .55)) brightness(1.08); }
+  .mbtn:active, .mbtn.is-pressed {
+    transform: translateY(calc(4px * var(--scale)));
+    filter: drop-shadow(0 calc(1px * var(--scale)) 0 rgba(12, 6, 3, .55)) brightness(.92);
+  }
+  .mbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
+  .mbtn[disabled] {
+    cursor: not-allowed;
+    filter: grayscale(.75) brightness(.8);
+    opacity: .55;
+    transform: none;
+  }
+
+  /* variants */
+  .v-primary  { --fill: var(--burgundy); --label: var(--paper); }
+  .v-sun      { --fill: var(--sun);      --label: var(--ink); }
+  .v-sun .lab { text-shadow: 0 1px 0 rgba(255, 241, 214, .55); }
+  .v-hokum    { --fill: var(--navy);     --label: var(--paper); }
+  .v-ashkal   { --fill: var(--teal);     --label: var(--paper); }
+  .v-pass     { --fill: var(--paper);    --label: var(--ink); }
+  .v-pass .lab { text-shadow: none; }
+  .v-olive    { --fill: var(--olive);    --label: var(--paper); }
+  .v-ghost    { --fill: rgba(250, 247, 240, .08); --label: var(--gold-hi); }
+  body.on-paper .v-ghost { --fill: rgba(40, 30, 25, .04); --label: var(--burgundy); }
+
+  .pair { display: grid; gap: 6px; justify-items: center; }
+  .pair .cap { font-size: 12px; color: var(--muted); }
+  body.on-paper .pair .cap, body.on-paper .spec { color: #6f5f4d; }
+
+  .suit { font-family: "Cinzel", serif; font-size: .9em; line-height: 1; }
+  .sundisc {
+    width: .9em; height: .9em; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff2c9, #e8b24a 55%, #b77d21);
+    box-shadow: 0 0 0 1.5px var(--ink);
+    display: inline-block;
+  }
+
+  footer { color: var(--muted); font-size: 13px; border-block-start: 1px solid var(--line); padding-block-start: 14px; }
+  @media (prefers-reduced-motion: reduce) { .mbtn { transition: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".05"/>
+      <stop offset=".5" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".12"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap" dir="rtl">
+  <header>
+    <h1>أزرار المعزّب</h1>
+    <p>أمثلة على أزرار اللعبة بنفس لغة ورقة شايب الهاص المعتمدة: خط ذهبي مزدوج بحد حبر، وزاويتين متدرّجتين فوق يسار وتحت يمين، وألوان الأشكال. اضغط على أي زر عشان تشوف حالة الضغط.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="طريقة العرض">
+    <span class="lbl">الخلفية</span>
+    <div class="seg" id="bgSeg">
+      <button type="button" data-bg="table" aria-pressed="true">طاولة</button>
+      <button type="button" data-bg="paper" aria-pressed="false">ورق</button>
+    </div>
+    <span class="lbl">المقاس</span>
+    <div class="seg" id="scaleSeg">
+      <button type="button" data-scale="0.42" aria-pressed="false">مثل الجوال</button>
+      <button type="button" data-scale="0.8" aria-pressed="true">مكبّر</button>
+    </div>
+  </div>
+
+  <section>
+    <h2>الزر الرئيسي</h2>
+    <p class="note">للأفعال اللي تكمّل اللعب: كمّل، ابدأ، متابعة الرحلة. أحمر عنابي مثل خلفية الهاص.</p>
+    <div class="stage">
+      <button type="button" class="mbtn v-primary" style="--w:280;--h:84"><span class="lab">كمّل</span></button>
+      <button type="button" class="mbtn v-primary" style="--w:340;--h:84"><span class="lab">متابعة الرحلة</span></button>
+    </div>
+    <div class="spec"><span><span class="sw" style="background:#5E1F24"></span><code>#5E1F24</code></span><span>المقاس في اللعبة <code>280×84</code></span><span>الخط <code>Reem Kufi 700 · 30px</code></span></div>
+  </section>
+
+  <section>
+    <h2>أزرار الشراء</h2>
+    <p class="note">كل خيار بلونه: الصن ذهبي مثل الشمس، والحكم كحلي، وأشكل تيل، وبس/ولا ورق أبيض بخط ذهبي عشان يبان إنه الخيار الهادي.</p>
+    <div class="stage">
+      <button type="button" class="mbtn v-sun" style="--w:184;--h:74;--fs:28"><span class="lab"><span class="sundisc" aria-hidden="true"></span>صن</span></button>
+      <button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♠</span></span></button>
+      <button type="button" class="mbtn v-ashkal" style="--w:184;--h:74;--fs:28"><span class="lab">أشكل</span></button>
+      <button type="button" class="mbtn v-pass" style="--w:184;--h:74;--fs:28"><span class="lab">بس</span></button>
+    </div>
+    <div class="spec">
+      <span><span class="sw" style="background:#E3A33B"></span>صن <code>#E3A33B</code></span>
+      <span><span class="sw" style="background:#1C2B4A"></span>حكم <code>#1C2B4A</code></span>
+      <span><span class="sw" style="background:#2D4A4D"></span>أشكل <code>#2D4A4D</code></span>
+      <span><span class="sw" style="background:#FAF7F0"></span>بس/ولا <code>#FAF7F0</code></span>
+      <span>المقاس <code>184×74</code></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>أزرار الطاولة</h2>
+    <p class="note">أصغر وأهدى، تطلع وقت اللعب: سوا، تخطّي، ترتيب. سوا بلون الشريا (زيتي) عشان تنميز عن أزرار الشراء.</p>
+    <div class="stage">
+      <button type="button" class="mbtn v-olive" style="--w:170;--h:64;--fs:26"><span class="lab">سوا</span></button>
+      <button type="button" class="mbtn v-ghost" style="--w:170;--h:64;--fs:24"><span class="lab">تخطّي</span></button>
+      <button type="button" class="mbtn v-ghost" style="--w:170;--h:58;--fs:22"><span class="lab">ترتيب <small>الأشكال</small></span></button>
+    </div>
+    <div class="spec"><span>سوا <code>#3E4A2A</code></span><span>تخطّي وترتيب: شفاف بخط ذهبي</span><span>المقاس <code>170×64</code> و<code>170×58</code></span></div>
+  </section>
+
+  <section>
+    <h2>دكّان التحف</h2>
+    <p class="note">زر الشراء عليه السعر بالريال، وزر البيع هادي، وزر التراجع شفاف.</p>
+    <div class="stage">
+      <button type="button" class="mbtn v-sun" style="--w:220;--h:74;--fs:26"><span class="lab">اشترِ <small>٦ ريال</small></span></button>
+      <button type="button" class="mbtn v-pass" style="--w:170;--h:74;--fs:26"><span class="lab">بيع</span></button>
+      <button type="button" class="mbtn v-ghost" style="--w:170;--h:74;--fs:24"><span class="lab">لا، خلّه</span></button>
+    </div>
+  </section>
+
+  <section>
+    <h2>الحالات</h2>
+    <p class="note">نفس الزر: عادي، ومضغوط (ينزل للأسفل ويقل ظله)، ومعطّل (باهت ورمادي، مثل صن بعد ما يشتري أحد).</p>
+    <div class="stage">
+      <div class="pair"><button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="mbtn v-hokum is-pressed" style="--w:184;--h:74;--fs:28" tabindex="-1"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">مضغوط</span></div>
+      <div class="pair"><button type="button" class="mbtn v-hokum" style="--w:184;--h:74;--fs:28" disabled><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">معطّل</span></div>
+    </div>
+  </section>
+
+  <footer>
+    الإطار كله مرسوم بالكود (مسار بخطوتين وخطين ذهب)، فيتمدد على أي مقاس بدون ما يتشوّه، ونفس الطريقة تنقل للعبة في <code>src/scenes/ui.ts</code>. الخطوة في الزر ربع ارتفاعه تقريباً، والخط الداخلي يبعد عن الخارجي نفس المسافة في كل الأضلاع.
+  </footer>
+</div>
+
+<script>
+  // Stepped double-gold frame: the same shape as the court cards (steps at top-left and bottom-right).
+  function roundedPath(pts, r) {
+    const n = pts.length; let d = "";
+    for (let i = 0; i < n; i++) {
+      const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n];
+      const v1 = [p0[0] - p1[0], p0[1] - p1[1]], v2 = [p2[0] - p1[0], p2[1] - p1[1]];
+      const l1 = Math.hypot(...v1), l2 = Math.hypot(...v2);
+      const rr = Math.min(r, l1 / 2, l2 / 2);
+      const a = [p1[0] + v1[0] / l1 * rr, p1[1] + v1[1] / l1 * rr];
+      const b = [p1[0] + v2[0] / l2 * rr, p1[1] + v2[1] / l2 * rr];
+      d += (i ? "L" : "M") + a[0].toFixed(2) + " " + a[1].toFixed(2) + "Q" + p1[0] + " " + p1[1] + " " + b[0].toFixed(2) + " " + b[1].toFixed(2);
+    }
+    return d + "Z";
+  }
+  function stepPoints(x, y, w, h, sx, sy) {
+    return [[x + sx, y], [x + w, y], [x + w, y + h - sy], [x + w - sx, y + h - sy], [x + w - sx, y + h], [x, y + h], [x, y + sy], [x + sx, y + sy]];
+  }
+  function drawButton(btn) {
+    const w = btn.clientWidth, h = btn.clientHeight;
+    if (!w || !h) return;
+    const s = Math.min(h * 0.26, w * 0.12);           // step size
+    const outerW = Math.max(2, h * 0.05);              // outer gold line
+    const innerW = Math.max(1, h * 0.022);             // inner gold line
+    const gap = Math.max(3, h * 0.085);                // teal-free band between the lines
+    const r = Math.max(1.5, h * 0.05);
+    const o = outerW / 2 + 1;
+    const outer = roundedPath(stepPoints(o, o, w - 2 * o, h - 2 * o, s, s), r);
+    const ii = o + gap;
+    const inner = roundedPath(stepPoints(ii, ii, w - 2 * ii, h - 2 * ii, s, s), r * 0.8);
+    let svg = btn.querySelector("svg");
+    if (!svg) { svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); btn.prepend(svg); }
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML =
+      `<path class="fillp" d="${outer}"/>` +
+      `<path class="sheen" d="${outer}"/>` +
+      `<path class="ink" d="${outer}" stroke-width="${outerW + 2.4}"/>` +
+      `<path class="goldline" d="${outer}" stroke-width="${outerW}"/>` +
+      `<path class="ink" d="${inner}" stroke-width="${innerW + 1.6}" opacity=".85"/>` +
+      `<path class="goldline" d="${inner}" stroke-width="${innerW}"/>`;
+  }
+  const buttons = [...document.querySelectorAll(".mbtn")];
+  const redraw = () => buttons.forEach(drawButton);
+  if ("ResizeObserver" in window) { const ro = new ResizeObserver(redraw); buttons.forEach(b => ro.observe(b)); }
+  redraw();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+
+  function bindSeg(id, attr, apply) {
+    const seg = document.getElementById(id);
+    seg.addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      apply(b.dataset[attr]);
+      try { localStorage.setItem("ui-buttons-" + id, b.dataset[attr]); } catch (_) {}
+    });
+    let saved = null; try { saved = localStorage.getItem("ui-buttons-" + id); } catch (_) {}
+    if (saved) { const b = seg.querySelector(`[data-${attr}="${saved}"]`); if (b) b.click(); }
+  }
+  bindSeg("bgSeg", "bg", v => document.body.classList.toggle("on-paper", v === "paper"));
+  bindSeg("scaleSeg", "scale", v => { document.documentElement.style.setProperty("--scale", v); requestAnimationFrame(redraw); });
+</script>
