@@ -164,6 +164,38 @@
     display: inline-block;
   }
 
+  /* ---------- illustrated plates (generated art, 3-slice: the ends keep their ornaments, the plain middle stretches) ---------- */
+  .pbtn {
+    --w: 280; --h: 84; --r: 1.1;
+    position: relative;
+    box-sizing: border-box;
+    width: calc(var(--w) * var(--scale) * 1px);
+    height: calc(var(--h) * var(--scale) * 1px);
+    padding: 0;
+    background: none;
+    border-style: solid;
+    border-width: 0 calc(var(--h) * var(--scale) * var(--r) * 1px);
+    border-image-repeat: stretch;
+    cursor: pointer;
+    color: var(--paper);
+    font-family: "Reem Kufi", Tajawal, sans-serif;
+    font-weight: 700;
+    font-size: calc(var(--fs, 30) * var(--scale) * 1px);
+    line-height: 1;
+    filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5));
+    transition: transform .08s ease-out, filter .08s ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pbtn .lab { display: flex; align-items: center; justify-content: center; gap: .3em; height: 100%; white-space: nowrap; text-shadow: 0 1px 0 rgba(0,0,0,.45), 0 0 6px rgba(0,0,0,.35); }
+  .pbtn .lab small { font-family: Tajawal, sans-serif; font-weight: 500; font-size: .62em; opacity: .9; }
+  .pbtn.dark-label { color: var(--ink); }
+  .pbtn.dark-label .lab { text-shadow: 0 1px 0 rgba(255, 244, 220, .6); }
+  .pbtn:hover { filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(1.07); }
+  .pbtn:active, .pbtn.is-pressed { transform: translateY(calc(4px * var(--scale))); filter: drop-shadow(0 calc(1px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(.92); }
+  .pbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
+  .pbtn[disabled] { cursor: not-allowed; filter: grayscale(.75) brightness(.8); opacity: .55; transform: none; }
+  .badge { font-size: 12px; color: var(--ink); background: var(--gold-hi); border-radius: 999px; padding: 1px 10px; font-weight: 700; justify-self: start; }
+
   footer { color: var(--muted); font-size: 13px; border-block-start: 1px solid var(--line); padding-block-start: 14px; }
   @media (prefers-reduced-motion: reduce) { .mbtn { transition: none; } }
 </style>
@@ -199,7 +231,40 @@
   </div>
 
   <section>
-    <h2>الزر الرئيسي</h2>
+    <span class="badge">جديد</span>
+    <h2>مرسومة بالموديل</h2>
+    <p class="note">لوحات رسمها GPT Image 2.5 Flare بنفس أسلوب الورقة، بدون كتابة، والكود يكتب الاسم فوقها. الزخرفة في الطرفين تبقى ثابتة، والوسط الفاضي يتمدد حسب طول الزر. فيه نسختين من التوليد، بدّل بينهم.</p>
+    <div class="controls" style="position:static;border:0;padding:0;margin:0;background:none">
+      <span class="lbl">النسخة</span>
+      <div class="seg" id="plateSeg">
+        <button type="button" data-set="0" aria-pressed="true">نسخة ١</button>
+        <button type="button" data-set="1" aria-pressed="false">نسخة ٢</button>
+      </div>
+    </div>
+    <div class="stage">
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:280;--h:84"><span class="lab">كمّل</span></button>
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:360;--h:84"><span class="lab">متابعة الرحلة</span></button>
+    </div>
+    <div class="stage">
+      <button type="button" class="pbtn dark-label" data-plate="sun" style="--w:200;--h:74;--fs:28"><span class="lab">صن</span></button>
+      <button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♠</span></span></button>
+      <button type="button" class="pbtn" data-plate="teal" style="--w:200;--h:74;--fs:28"><span class="lab">أشكل</span></button>
+      <button type="button" class="pbtn dark-label" data-plate="paper" style="--w:200;--h:74;--fs:28"><span class="lab">بس</span></button>
+    </div>
+    <div class="stage">
+      <button type="button" class="pbtn" data-plate="olive" style="--w:190;--h:64;--fs:26"><span class="lab">سوا</span></button>
+      <button type="button" class="pbtn dark-label" data-plate="sun" style="--w:240;--h:74;--fs:26"><span class="lab">اشترِ <small>٦ ريال</small></span></button>
+      <button type="button" class="pbtn dark-label" data-plate="paper" style="--w:190;--h:74;--fs:26"><span class="lab">بيع</span></button>
+    </div>
+    <div class="stage">
+      <div class="pair"><button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="pbtn is-pressed" data-plate="navy" style="--w:200;--h:74;--fs:28" tabindex="-1"><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">مضغوط</span></div>
+      <div class="pair"><button type="button" class="pbtn" data-plate="navy" style="--w:200;--h:74;--fs:28" disabled><span class="lab">حكم <span class="suit">♥</span></span></button><span class="cap">معطّل</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>مرسومة بالكود: الزر الرئيسي</h2>
     <p class="note">للأفعال اللي تكمّل اللعب: كمّل، ابدأ، متابعة الرحلة. أحمر عنابي مثل خلفية الهاص.</p>
     <div class="stage">
       <button type="button" class="mbtn v-primary" style="--w:280;--h:84"><span class="lab">كمّل</span></button>
@@ -321,6 +386,18 @@
     let saved = null; try { saved = localStorage.getItem("ui-buttons-" + id); } catch (_) {}
     if (saved) { const b = seg.querySelector(`[data-${attr}="${saved}"]`); if (b) b.click(); }
   }
+  // slice = width of each ornamented end in the source plate (px); h = source plate height.
+  const PLATES = {"0_burgundy":{"h":180,"slice":200},"0_navy":{"h":192,"slice":223},"0_olive":{"h":190,"slice":196},"0_paper":{"h":199,"slice":150},"0_sun":{"h":184,"slice":215},"0_teal":{"h":186,"slice":214},"1_burgundy":{"h":180,"slice":195},"1_navy":{"h":185,"slice":246},"1_olive":{"h":185,"slice":206},"1_paper":{"h":190,"slice":150},"1_sun":{"h":182,"slice":215},"1_teal":{"h":183,"slice":218}};
+  function applyPlates(set) {
+    document.querySelectorAll(".pbtn").forEach(b => {
+      const key = set + "_" + b.dataset.plate, p = PLATES[key];
+      b.style.borderImageSource = `url("ui-plates/${key}.webp")`;
+      b.style.borderImageSlice = `0 ${p.slice} fill`;
+      b.style.setProperty("--r", (p.slice / p.h).toFixed(3));
+    });
+  }
+  applyPlates("0");
+  bindSeg("plateSeg", "set", applyPlates);
   bindSeg("bgSeg", "bg", v => document.body.classList.toggle("on-paper", v === "paper"));
   bindSeg("scaleSeg", "scale", v => { document.documentElement.style.setProperty("--scale", v); requestAnimationFrame(redraw); });
 </script>
