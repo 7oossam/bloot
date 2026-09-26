@@ -1,9 +1,15 @@
 # PROJECT HANDOFF & STATE
 
 **Last Updated By:** Claude Code
-**Current Phase:** The run is a real roguelike (branching map, rule-bending opponents, events, blessings, partners). The theme is chosen: «المعزّب — ليلة الأربعين» (`docs/theme.md`). Next: apply the theme's names in the code, three maps (acts), art.
+**Current Phase:** The run is a real roguelike (branching map, rule-bending opponents, events, blessings, partners). The theme is chosen: «المعزّب — ليلة الأربعين» (`docs/theme.md`). **Now: restructuring the items** — the player feels lost in a run and the items feel random; proposal in `docs/items-restructure.md`, waiting on the player. Then: the theme's names, three maps (acts), art.
 
 ## 1. What We Just Did
+
+### Items review (latest session) — proposal only, no code changed
+- `docs/items.docx`: every item with its description (jokers by family with every level, synergies, consumables, upgrades, blessings, partners), built from the catalogs. The player wrote notes on each family heading and sent it back.
+- **Root cause of "I feel lost / items are random", measured:** `rollShop` (`RunController.ts`) picks jokers by rarity only — the ×3 lean to owned families exists for the post-match spoils (`rollRewards`) but NOT the shop, although the design bible says the shop leans. A 3-slot shop shows even one joker of a given family only 13–34% of the time (100k simulated shops). Also: 13 families for 55 jokers, no starting direction, 24 synergy rules to remember, many jokers are flat "+points" with no decision, and the UI never shows a joker's role (Payoff/Supply/Forge/Reward) or what your build is missing.
+- **The proposal (`docs/items-restructure.md`):** 6 paths instead of 13 families (الشكل، الصغار، المشاريع، السيطرة، العقاب، القراءة); «شكلك» — the spade build generalised to a suit you choose (also answers the player's Jack note); a role icon on every joker and a path counter; one synergy step per path (3 = its rule-breaker free); pick a path at the start of the run; the shop keeps a slot for your path; a collection screen; per-family fixes from the player's notes (الحرقة → triggers on a cut, not the trump Jack; المرتّب → a Forge with a choice; «آخر الكلام» for الأرض; «الورطة» for الدفاع; «عين الدبل»/«التأمين» for الدبل; «إعلان الكبوت»; الإشارة الذهبية also pays when you answer your partner; consumables used at the table; blessings that set the run's direction). Nothing is removed (player's rule).
+- `docs/jokers.md` was stale (still listed the removed جيب زيادة upgrade) — regenerated.
 
 ### Baloot play and AI
 - **التهريب follows the player's video** (`docs/baloot-guide.md` §4 is the source): a discarded suit is NOT wanted and asks for its brother (ديمن → هاص); two suits of one colour, or the led suit's brother, ask for the other colour; climbing in one suit (7→8→بنت) asks for that suit. Reading: `src/ai/beliefs.ts`; sending/answering: `chooseDiscard` / `chooseLead` in `src/ai/play-ai.ts`. The partner answers your signal with its biggest card once it has no winners of its own; a برقية comes first always.
@@ -75,6 +81,7 @@
 - **Ideas from the player's terms video, waiting on the player:** opponents built on table culture (الجفرة، أهل الرصّة، ياخذون القلم…), and the bidding rules قبلك / ما لك ثالث (a later seat's sun in round 1 can be claimed by an earlier seat who passed, not from your partner; after ولا you can't buy a third time). The terms themselves: `docs/` has no copy — ask the player for the video file if needed.
 
 ## 3. Next Steps (Where to pick up)
+- **Items restructure — ask the player which parts of `docs/items-restructure.md` to do**, then go in its order (measure each step with `sim.ts`): (1) the shop leans to your path + «يكمّل بناك / ينقصك» on shop cards — smallest change, biggest effect; (2) role icons + path counter; (3) the 6 paths (re-tag only) + one-step synergy + a starting path; (4) «شكلك»; (5) the per-family reworks one by one; (6) table consumables, upgrades, blessings. Open question for the player: «الورطة» failing costs the match or (their idea) the whole run?
 - **Apply the theme's names** (`docs/theme.md` §3–§8): text-only, no system changes.
 - **Higgsfield is connected as an MCP connector** (`mcp__higgsfield__*`, OAuth, ~70 credits on the basic plan at the start). The first reference shots (art-direction §8 step 1), each place with two models, waiting on the player's pick:
   - nano_banana_pro (served as nano_banana_2, 1536×2752, 2 credits): hara `d7908342-e753-47cf-9167-336896092796`, andalus `d6875141-5f66-4d50-b466-491f90d0f409`, qasr `14d34da7-86f1-48c0-8069-9534925d4371`
