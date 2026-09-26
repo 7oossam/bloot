@@ -95,7 +95,9 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + HABIT_TRUST;
+  // The habit (play-ai) doesn't know a rival's weak Jack; the playouts do, so there the search decides.
+  const trust = weakJackFor(round.currentTrick!, seat) ? 0 : HABIT_TRUST;
+  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + trust;
   for (const card of candidates) {
     const score = totals.get(cardId(card))! / worlds - penalty(card);
     if (score > bestScore) {
@@ -242,7 +244,9 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
         // المحكم يسحب الحكم: the buyer with the top trump pulls trumps while an opponent may
         // still hold some.
         const opponentsTrumps = ([1, 3] as const).some((k) => !beliefs.voids[((seat + k) % 4) as Seat][trumpSuit]) && outstanding(beliefs, hand, trumpSuit).length > 0;
-        const topTrump = hand.some((c) => c.suit === trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit));
+        // Under خاطفين الولد our ولد is the weakest trump, never the top one.
+        const weak = weakJackFor(trick, seat);
+        const topTrump = hand.some((c) => c.suit === trumpSuit && !(weak && c.rank === "J") && isBoss(c, hand, beliefs, mode, trumpSuit));
         if (opponentsTrumps && topTrump) pool = narrow(pool, (c) => c.suit === trumpSuit, "المحكم يسحب الحكم");
       }
       // No hard rule for the buyer's partner (the player's note asked him to cash first, then go
@@ -280,6 +284,13 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     if (ace && aceMustPlay(ace, legal, trick, mode, trumpSuit, seat) && !mayHoldAce(hand, ace, mode, trumpSuit, seat, declarer, beliefs)) {
       return narrow(legal, (c) => cardId(c) === cardId(ace), "الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
     }
+  }
+  // The partner led the suit: he's strong in it and wants its Ace down so his cards are the top
+  // ones, so the Ace goes on his card. The ban on giving the Ace to the partner's trick is about
+  // discarding it (التهريب), not this — the player's note. Measured neutral (paired, 1,000 hands).
+  if (following && !ledTrump && trick.order[0] === ((seat + 2) % 4)) {
+    const ace = legal.find((c) => c.suit === led && c.rank === "A");
+    if (ace) return narrow(legal, (c) => cardId(c) === cardId(ace), "خويه حل بالشكل: الإكة تطيح عليه");
   }
   // In the last two tricks an Ace thrown onto the partner's trick isn't wasted: the lead may
   // never come back to it, so it's تكبير — fattening the partner's trick. (With three left it
@@ -499,6 +510,11 @@ function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Ca
  * 5 → +0.11 (± 0.27), 8 → -0.35. So 3.
  */
 const HABIT_TRUST = 3;
+
+/** خاطفين الولد: is this seat's side playing with its trump Jack knocked down? */
+function weakJackFor(trick: Trick, seat: Seat): boolean {
+  return trick.rules?.rival?.weakJack !== undefined && trick.rules.rival.weakJack === teamOf(seat);
+}
 
 /** A raw point (أبنط) in a playout's score: 20 of them are a tenth of a game point. */
 const RAW_TIEBREAK = 0.005;

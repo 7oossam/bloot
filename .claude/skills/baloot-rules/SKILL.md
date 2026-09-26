@@ -99,6 +99,8 @@ Ground rules when working on the game:
    - The hokum buyer pulls trumps: with the top trump in hand and trumps still out, lead them.
    - No hard rule for the buyer's partner (cash first / go back to the buyer): every form
      measured weaker than the search's own choice (see the comment in `playerRules`).
+   - When the partner LEADS a suit and you hold its Ace, the Ace goes on his card (he's strong
+     there and wants it down). The "no Ace to the partner's trick" ban is for discards.
    - The search's playouts score game points, with the raw points only as a tie-break
      (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards

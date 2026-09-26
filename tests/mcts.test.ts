@@ -96,7 +96,9 @@ describe("the search AI", () => {
           // the last tricks it may fatten the partner's trick (تكبير).
           const hokumOnSuit = mode === "hokum" && card.suit === led;
           const fattening = handSize <= 2 && partnerWinning;
-          if ((card.suit !== led || partnerWinning) && !hokumOnSuit && !fattening) {
+          // …and on the partner's own lead the Ace goes (he wants it down).
+          const onPartnersLead = card.suit === led && trick.order[0] === (seat + 2) % 4;
+          if ((card.suit !== led || partnerWinning) && !hokumOnSuit && !fattening && !onPartnersLead) {
             expect(cardId(card)).toBe(cardId(ruleMove(r, seat))); // only as the rule AI's برقية
             checked++;
           }

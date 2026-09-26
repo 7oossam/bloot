@@ -13,7 +13,7 @@
  */
 import { readFileSync } from "node:fs";
 import { reviewHand } from "../src/ai/solver";
-import type { Card, Seat, Suit, Trick } from "../src/engine/types";
+import type { Card, Seat, Suit, Trick, TrickRules } from "../src/engine/types";
 import type { HandSnapshot } from "../src/game/GameController";
 
 type Hand = Omit<HandSnapshot, "hands" | "currentTrick" | "initialHands"> & { match?: string };
@@ -40,6 +40,13 @@ for (const h of hands) {
   handNo.push(seen.get(m)!);
 }
 
+/** Older exports carry only the rival's name: the rules that bend the tricks, from it. */
+function rulesFromRival(rival?: string): TrickRules | undefined {
+  if (rival?.includes("خاطفين الولد")) return { rival: { weakJack: 0, jackBottom: true } };
+  if (rival?.includes("حرّاس الإكك")) return { rival: { noAceLead: 0 } };
+  return undefined;
+}
+
 const lostBySeat = [0, 0, 0, 0];
 const byKind = new Map<string, { n: number; points: number }>();
 const byRule = new Map<string, { n: number; points: number }>();
@@ -64,7 +71,8 @@ hands.forEach((h, i) => {
     return trick;
   });
   const started = Date.now();
-  const reviews = reviewHand(start, tricks, mode, trumpSuit, [1, 2, 3]);
+  const rules = h.trickRules ?? rulesFromRival(h.rival);
+  const reviews = reviewHand(start, tricks, mode, trumpSuit, [1, 2, 3], { rules });
   analysed++;
   const lost = reviews.filter((r) => r.lost >= minLoss);
   const label = matchNo.size > 1 ? `الصكة ${matchNo.get(h.match ?? "")} — اليد ${handNo[i]}` : `اليد ${i + 1}`;

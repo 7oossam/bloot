@@ -1,6 +1,6 @@
 import { cardPoints, rankStrength } from "../engine/cards";
 import { currentWinner, legalMoves } from "../engine/trick";
-import { SUITS, RANKS, teamOf, type Card, type Mode, type Seat, type Suit, type Trick } from "../engine/types";
+import { SUITS, RANKS, teamOf, type Card, type Mode, type Seat, type Suit, type Trick, type TrickRules } from "../engine/types";
 
 /**
  * The perfect-information solver (double-dummy, as bridge players call it): with every hand
@@ -38,6 +38,8 @@ export class Solver {
     private readonly trumpSuit: Suit | undefined,
     private readonly closed = false,
     private readonly lastTrickBonus = 10,
+    /** The table's bent rules (a rival's weak Jack, say), carried on every trick. */
+    private readonly rules?: TrickRules,
   ) {}
 
   /** The value of the position for team 0 (team 0's points minus team 1's, from here on). */
@@ -57,12 +59,12 @@ export class Solver {
 
   private play(hands: Record<Seat, Card[]>, trick: Trick, done: number, seat: Seat, card: Card) {
     const nextHands = { ...hands, [seat]: hands[seat].filter((c) => c !== card) } as Record<Seat, Card[]>;
-    const t: Trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat] };
+    const t: Trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: this.rules };
     if (t.order.length < 4) return { hands: nextHands, trick: t, done, gained: 0 };
     const winner = currentWinner(t, this.mode, this.trumpSuit);
     let points = t.order.reduce<number>((n, s) => n + cardPoints(t.cards[s]!, this.mode, this.trumpSuit), 0);
     if (done === 7) points += this.lastTrickBonus;
-    return { hands: nextHands, trick: { leader: winner, cards: {}, order: [] } as Trick, done: done + 1, gained: teamOf(winner) === 0 ? points : -points };
+    return { hands: nextHands, trick: { leader: winner, cards: {}, order: [], rules: this.rules } as Trick, done: done + 1, gained: teamOf(winner) === 0 ? points : -points };
   }
 
   private key(hands: Record<Seat, Card[]>, leader: Seat): string {
@@ -117,7 +119,8 @@ export class Solver {
    * between them (the 7 and 8 of a suit, say). Only one of each group needs searching.
    */
   private distinct(cards: Card[], hands: Record<Seat, Card[]>, seat: Seat): Card[] {
-    if (cards.length < 2) return cards;
+    // A bent rule can reorder a suit (a weak Jack): then every card is searched.
+    if (cards.length < 2 || this.rules) return cards;
     const strength = (c: Card) => rankStrength(c, this.mode, this.trumpSuit);
     const others = ([0, 1, 2, 3] as Seat[]).filter((s) => s !== seat).flatMap((s) => hands[s]);
     const sorted = [...cards].sort((a, b) => (a.suit === b.suit ? strength(a) - strength(b) : a.suit < b.suit ? -1 : 1));
@@ -160,15 +163,15 @@ export function reviewHand(
   mode: Mode,
   trumpSuit: Suit | undefined,
   seats: Seat[],
-  opts: { closed?: boolean; lastTrickBonus?: number } = {},
+  opts: { closed?: boolean; lastTrickBonus?: number; rules?: TrickRules } = {},
 ): PlayReview[] {
-  const solver = new Solver(mode, trumpSuit, opts.closed, opts.lastTrickBonus);
+  const solver = new Solver(mode, trumpSuit, opts.closed, opts.lastTrickBonus, opts.rules);
   const reviews: PlayReview[] = [];
   let hands = { ...start } as Record<Seat, Card[]>;
   // A replay can start mid-hand: the tricks already gone are the cards missing from a full hand.
   const before = tricks.length ? 8 - start[tricks[0].leader].length : 0;
   tricks.forEach((played, t) => {
-    let trick: Trick = { leader: played.leader, cards: {}, order: [] };
+    let trick: Trick = { leader: played.leader, cards: {}, order: [], rules: opts.rules };
     for (const seat of played.order) {
       const card = played.cards[seat]!;
       if (seats.includes(seat)) {
@@ -178,7 +181,7 @@ export function reviewHand(
         if (mine) reviews.push({ trick: t + 1, seat, played: card, best: bestMove.card, lost: bestMove.value - mine.value });
       }
       hands = { ...hands, [seat]: hands[seat].filter((c) => !(c.suit === card.suit && c.rank === card.rank)) } as Record<Seat, Card[]>;
-      trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat] };
+      trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: opts.rules };
     }
   });
   return reviews;
