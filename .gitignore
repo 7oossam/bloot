@@ -3,3 +3,5 @@ dist/
 *.log
 *.tsbuildinfo
 *.mp4
+.env.local
+

@@ -28,8 +28,8 @@ const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
 const RADIUS = 44;
 /** How far apart the map's lanes are. */
 const LANE_GAP = 250;
-const THEME_BG = 0x2a1a3a;
-const THEME_NODE = 0x1c102a;
+const THEME_BG = 0x000000;
+const THEME_NODE = 0x000000;
 const THEME_GOLD = 0xd4af37;
 const TOP_MARGIN = 320;
 const BOTTOM_MARGIN = 130;
@@ -45,7 +45,11 @@ export class MapScene extends Phaser.Scene {
   }
 
   create(): void {
-    paintBackdrop(this);
+    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, "start_bg").setScrollFactor(0);
+    bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
+    const dim = this.add.graphics().setScrollFactor(0);
+    dim.fillStyle(0x000000, 0.4);
+    dim.fillRect(0, 0, WIDTH, HEIGHT);
     addAmbience(this);
     addCameraGrade(this);
     arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
@@ -140,7 +144,7 @@ export class MapScene extends Phaser.Scene {
 const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_NODE;
     const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0xf1c40f : 0x3a2a4a;
 
-    const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
+    const circle = this.add.circle(0, 0, RADIUS, color, 0.6).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
     const icon = this.add.text(0, -4, NODE_TYPE_ICON[node.type], { fontSize: "32px" }).setOrigin(0.5);
     const target = runController.matchTargetFor(node);
     const label = arabicText(this, 0, radius + 20, NODE_TYPE_LABEL_AR[node.type] + (target !== undefined ? ` ${target}` : ""), {
@@ -197,7 +201,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
     const bg = this.add.graphics();
-    bg.fillStyle(THEME_NODE, 0.97);
+    bg.fillStyle(0x000000, 0.7);
     bg.fillRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
     bg.lineStyle(6, border, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
@@ -292,7 +296,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
     const bg = this.add.graphics();
-    bg.fillStyle(0x1c102a, 0.98);
+    bg.fillStyle(0x000000, 0.7);
     bg.fillRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
     bg.lineStyle(6, 0xd4af37, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
@@ -303,7 +307,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       const y = -470 + i * 300;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
-      cbg.fillStyle(0x2a1a3a, 1);
+      cbg.fillStyle(0x000000, 0.6);
       cbg.fillRoundedRect(-cardW / 2, -130, cardW, 260, 22);
       cbg.lineStyle(3, 0xd4af37, 0.8);
       cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 22);
@@ -328,7 +332,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
     const bg = this.add.graphics();
-    bg.fillStyle(0x0d2a3a, 0.98);
+    bg.fillStyle(0x000000, 0.7);
     bg.fillRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
     bg.lineStyle(6, 0x4fb3d9, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
@@ -342,7 +346,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       const y = -170 + i * 250;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
-      cbg.fillStyle(0x163d52, 1);
+      cbg.fillStyle(0x000000, 0.6);
       cbg.fillRoundedRect(-cardW / 2, -105, cardW, 210, 22);
       cbg.lineStyle(3, def.price ? 0xe0a040 : 0x4fb3d9, 1);
       cbg.strokeRoundedRect(-cardW / 2, -105, cardW, 210, 22);
@@ -373,7 +377,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     this.overlay = panel;
 
     const bg = this.add.graphics();
-    bg.fillStyle(THEME_NODE, 1);
+    bg.fillStyle(0x000000, 0.7);
     bg.fillRoundedRect(-panelW / 2, -220, panelW, 440, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -220, panelW, 440, 28);

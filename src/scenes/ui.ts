@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
+const ARABIC_FONT = "Amiri, Tahoma, 'Segoe UI', Arial, sans-serif";
 
 export function arabicText(
   scene: Phaser.Scene,
@@ -40,7 +40,7 @@ export function makeButton(
   const height = opts.height ?? 84;
   const color = opts.color === undefined || opts.color === 0xd4af37 ? 0xe3a33b : opts.color;
   const light = color === 0xe3a33b;
-  const textColor = opts.textColor ?? (light ? "#3a2620" : "#ffffff");
+  const textColor = opts.textColor ?? (light ? "#ffd700" : "#ffffff");
 
   // A raised tile: soft shadow, the face, a lighter upper half for depth, and a warm rim.
   const bg = scene.add.graphics();

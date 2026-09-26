@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { MapScene } from "./scenes/MapScene";
+import { StartScene } from "./scenes/StartScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { RewardScene } from "./scenes/RewardScene";
 import { TableScene } from "./scenes/TableScene";
@@ -25,7 +26,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
       touch: true,
       mouse: true,
     },
-    scene: [MapScene, TableScene, ShopScene, RewardScene],
+    scene: [StartScene, MapScene, TableScene, ShopScene, RewardScene],
   };
 }
 

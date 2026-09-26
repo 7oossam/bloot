@@ -39,7 +39,11 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
-    paintBackdrop(this);
+    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, 'market_bg').setScrollFactor(0);
+    bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
+    const dim = this.add.graphics();
+    dim.fillStyle(0x000000, 0.4);
+    dim.fillRect(0, 0, WIDTH, HEIGHT);
     addAmbience(this);
     addCameraGrade(this);
     arabicText(this, WIDTH / 2, 58, "المتجر", { fontSize: "44px" });
