@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, setBoxHitArea } from "./ui";
+import { arabicText, makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
@@ -34,6 +34,10 @@ export class RewardScene extends Phaser.Scene {
 
   init(data: RewardSceneData): void {
     this.goldEarned = data?.goldEarned ?? 0;
+  }
+
+  preload(): void {
+    preloadUi(this);
   }
 
   create(): void {
@@ -70,7 +74,7 @@ export class RewardScene extends Phaser.Scene {
         runController.skipReward();
         this.scene.start("map");
       },
-      { width: 420, height: 84, color: 0x5d5d5d },
+      { width: 420, height: 84, plate: "paper" },
     );
   }
 
@@ -123,7 +127,7 @@ export class RewardScene extends Phaser.Scene {
         this.celebrate(def.icon);
         this.time.delayedCall(650, () => this.scene.start("map"));
       },
-      { width: reason ? 420 : 240, height: 74, fontSize: reason ? "21px" : "28px", color: reason ? 0x3a3a3a : 0x1f6f43 },
+      { width: reason ? 420 : 240, height: 74, plate: "sun", disabled: !!reason },
     );
     card.add(btn.container);
     if (def.rarity === "legendary") this.tweens.add({ targets: bg, alpha: 0.78, duration: 700, yoyo: true, repeat: -1 });

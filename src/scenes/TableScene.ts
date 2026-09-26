@@ -36,7 +36,7 @@ import {
   handPositions,
   sortHandForDisplay,
 } from "./layout";
-import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, playToneFor, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -232,7 +232,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   preload(): void {
-    
+    preloadUi(this);
   }
 
   create(): void {
@@ -513,7 +513,7 @@ export class TableScene extends Phaser.Scene {
   /** The sort button beside your name, and (with الذاكرة) the cards-still-out line. */
   private buildHandTools(): void {
     const y = HAND_ANCHOR[HUMAN_SEAT].y - 128;
-    const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
+    const btn = makeButton(this, WIDTH - 110, y, "ترتيب", () => this.cycleSort(), { width: 170, height: 58, kind: "play", tone: "quiet" });
     btn.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
       const below = this.nodeData.modifiers.rivalLabel ? 36 : 0;
@@ -624,7 +624,7 @@ export class TableScene extends Phaser.Scene {
     this.sawaButton?.destroy();
     this.sawaButton = undefined;
     if (!this.controller.canClaimSawa()) return;
-    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
+    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا", () => {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
       // Right or wrong, the hand plays itself out from here.
@@ -641,7 +641,7 @@ export class TableScene extends Phaser.Scene {
         v.setDimmed(false);
       }
       this.driveAI();
-    }, { width: 170, height: 58, fontSize: "25px", color: 0x8a5a12 });
+    }, { width: 170, height: 64, kind: "play", tone: "sawa" });
     this.sawaButton.container.setDepth(6);
   }
 
@@ -861,7 +861,7 @@ export class TableScene extends Phaser.Scene {
           this.clearBidButtons();
           item.onClick();
         },
-        { width: 184, height: 74, fontSize: "26px" },
+        { width: 184, height: 74, kind: "play", tone: playToneFor(item.label) },
       );
       this.bidButtons.push(btn);
     });
@@ -1167,8 +1167,8 @@ export class TableScene extends Phaser.Scene {
     this.actionSkip = makeButton(this, CENTER_X, HAND_ANCHOR[0].y - 285, "تخطّي", () => this.onActionSkip(), {
       width: 170,
       height: 60,
-      fontSize: "24px",
-      color: 0x5d5d5d,
+      kind: "play",
+      tone: "quiet",
     });
     this.actionSkip.container.setDepth(12);
 
@@ -1803,7 +1803,7 @@ export class TableScene extends Phaser.Scene {
         }
         this.driveAI();
       },
-      { width: right - left, height: 88, color: 0x5d5d5d },
+      { width: right - left, height: 88 },
     );
     panel.add(btn.container);
   }
