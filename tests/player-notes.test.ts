@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchCardTraced } from "../src/ai/mcts";
+import { likelihood, searchCardTraced } from "../src/ai/mcts";
 import { decideCard } from "../src/ai/play-ai";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
@@ -310,5 +310,26 @@ describe("the player's notes", () => {
     const t = think(r, 2);
     expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("S7");
     expect((t.softRules ?? []).map((x) => x.card.suit + x.card.rank)).toContain("S7");
+  });
+
+});
+
+describe("guessing the hidden hands from what the table has said", () => {
+  // You defend يسار's hokum ♠ at the first trick.
+  const base: Moment = {
+    dealer: 2, mode: "hokum", trumpSuit: "S", declarer: 3, ground: "S10",
+    hands: { 0: [], 1: [], 2: [], 3: [] }, tricks: [], current: trick(3, []),
+  };
+  const r = at(base);
+  (r as unknown as { bidding: { history: unknown[] } }).bidding.history = [{ seat: 3, call: "hokum", suit: "S" }, { seat: 0, call: "pass" }, { seat: 1, call: "pass" }, { seat: 2, call: "pass" }];
+  const likely = likelihood(r, 0);
+  const deal = (buyer: string[], right: string[]) => ({ 0: [], 1: cards(...right), 2: [], 3: cards(...buyer) }) as unknown as Record<Seat, Card[]>;
+
+  it("a hokum buyer most likely holds the ولد or the تسعة", () => {
+    expect(likely(deal(["SJ", "S9", "S10"], ["S7", "S8", "SQ"]))).toBeGreaterThan(likely(deal(["S7", "S8", "S10"], ["SJ", "S9", "SQ"])));
+  });
+
+  it("a player who passed rarely held the ولد and the تسعة of the ground suit", () => {
+    expect(likely(deal(["SJ", "SA", "S10"], ["S9", "S7", "SQ"]))).toBeGreaterThan(likely(deal(["SA", "S7", "S10"], ["SJ", "S9", "SQ"])));
   });
 });
