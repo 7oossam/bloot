@@ -32,7 +32,7 @@ Ground rules when working on the game:
    the NON-buyer is counted (hokum ÷10 dropping 1–5, raising 6–9; sun ÷10 raising 5+, then
    ×2) and the buyer takes the rest; if the non-buyer's أبناط (cards + الأرض + raw projects)
    beat the buyer's, the buyer lost (خسرانة) and the hand + all projects go to the other
-   side (بلوت stays with its holder); كبوت = 25 hokum / 44 sun. Don't reintroduce "sun ÷5".
+   side (بلوت is never taken by the other side, and a losing side scores zero — so a loser's بلوت counts for no one; the player's reading); كبوت = 25 hokum / 44 sun. Don't reintroduce "sun ÷5".
 5. **أشكل** is for the dealer and the dealer's left only — on their own turn in either round
    (the player's call, over the regulation's 8-1), or over the other team's hokum unless
    they already said ولا in round 2. The caller buys sun; the partner takes the ground card.
