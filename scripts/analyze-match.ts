@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { reviewHand } from "../src/ai/solver";
 import type { Card, Seat, Suit, Trick, TrickRules } from "../src/engine/types";
 import type { HandSnapshot } from "../src/game/GameController";
+import { unpackHand, type PackedHand } from "../src/game/notes";
 
 type Hand = Omit<HandSnapshot, "hands" | "currentTrick" | "initialHands"> & { match?: string };
 
@@ -22,10 +23,18 @@ const SEAT = ["أنت", "يمين", "خويك", "يسار"];
 const card = (id: string): Card => ({ suit: id[0] as Suit, rank: id.slice(1) as Card["rank"] });
 const name = (c: Card) => c.suit + c.rank;
 
+// The file may hold several pasted parts, each its own ```json block (or bare JSON).
 const raw = readFileSync(process.argv[2], "utf8");
-const json = raw.includes("```json") ? raw.slice(raw.indexOf("```json") + 7, raw.lastIndexOf("```")) : raw;
-const data = JSON.parse(json);
-const hands: Hand[] = Array.isArray(data) ? data.map((n: { snapshot: HandSnapshot }) => n.snapshot) : data.hands ?? [data];
+const blocks = raw.includes("```json") ? raw.split("```json").slice(1).map((b) => b.slice(0, b.indexOf("```"))) : [raw];
+const hands: Hand[] = [];
+for (const block of blocks) {
+  const data = JSON.parse(block);
+  for (const item of Array.isArray(data) ? data : data.hands ?? [data]) {
+    if (typeof item.s === "string") hands.push(unpackHand(item as PackedHand)); // a packed hand
+    else if (item.h) hands.push(unpackHand(item.h as PackedHand)); // a packed note
+    else hands.push(item.snapshot ?? item); // the older, longer formats
+  }
+}
 const minLoss = Number(process.argv[3] ?? 5);
 const [shard, shards] = (process.env.SHARD ?? "1/1").split("/").map(Number);
 
@@ -72,7 +81,9 @@ hands.forEach((h, i) => {
   });
   const started = Date.now();
   const rules = h.trickRules ?? rulesFromRival(h.rival);
-  const reviews = reviewHand(start, tricks, mode, trumpSuit, [1, 2, 3], { rules });
+  // The solver scores the margin between the teams; a point lost moves from one side to the
+  // other, so half the margin change is the points the play actually gave away.
+  const reviews = reviewHand(start, tricks, mode, trumpSuit, [1, 2, 3], { rules }).map((r) => ({ ...r, lost: r.lost / 2 }));
   analysed++;
   const lost = reviews.filter((r) => r.lost >= minLoss);
   const label = matchNo.size > 1 ? `الصكة ${matchNo.get(h.match ?? "")} — اليد ${handNo[i]}` : `اليد ${i + 1}`;

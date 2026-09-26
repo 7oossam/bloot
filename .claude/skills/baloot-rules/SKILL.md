@@ -101,6 +101,9 @@ Ground rules when working on the game:
      measured weaker than the search's own choice (see the comment in `playerRules`).
    - When the partner LEADS a suit and you hold its Ace, the Ace goes on his card (he's strong
      there and wants it down). The "no Ace to the partner's trick" ban is for discards.
+   - Holding the Ace and the 10 of a suit, play the Ace first — the partner knows the trick is
+     ours and can fatten it.
+   - The sun buyer with winners in hand doesn't open with a lone small card (soft rule).
    - The search's playouts score game points, with the raw points only as a tie-break
      (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards
