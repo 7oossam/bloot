@@ -87,11 +87,16 @@ describe("the search AI", () => {
       while (r.phase === "playing") {
         const seat = r.turnSeat!;
         const trick = r.currentTrick!;
+        const handSize = r.hands[seat].length;
         const card = searchCard(r, seat, { worlds: 6, rand: mulberry32(seed) });
         if (trick.order.length > 0 && card.rank === "A" && !isTrumpCard(card, mode, trumpSuit)) {
           const led = trick.cards[trick.order[0]]!.suit;
           const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
-          if (card.suit !== led || partnerWinning) {
+          // The player's exceptions: in hokum the Ace plays on its own suit (no فرنكة), and in
+          // the last tricks it may fatten the partner's trick (تكبير).
+          const hokumOnSuit = mode === "hokum" && card.suit === led;
+          const fattening = handSize <= 2 && partnerWinning;
+          if ((card.suit !== led || partnerWinning) && !hokumOnSuit && !fattening) {
             expect(cardId(card)).toBe(cardId(ruleMove(r, seat))); // only as the rule AI's برقية
             checked++;
           }
@@ -104,8 +109,10 @@ describe("the search AI", () => {
 
   it("out-scores the rule-based AI on the same deals (each side playing both seat pairs)", () => {
     let margin = 0, hands = 0;
-    // 120 hands: at 60 the sample was too small to tell a real regression from luck.
-    for (let seed = 1; hands < 120; seed++) {
+    // 240 hands: smaller samples were too noisy to tell a real regression from luck (120 gave
+    // 0.8 where 240 gives 2.0 and 400 gives 1.96 — against a rule AI that itself got +0.7 a
+    // hand stronger from the player's first notes).
+    for (let seed = 1; hands < 240; seed++) {
       for (const team of [0, 1] as const) {
         const r = playable(seed);
         if (!r) continue;
@@ -119,5 +126,5 @@ describe("the search AI", () => {
       }
     }
     expect(margin / hands).toBeGreaterThan(1);
-  }, 60_000);
+  }, 120_000);
 });

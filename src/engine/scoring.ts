@@ -33,7 +33,8 @@ export interface HandExtras {
  *   not (7-7).
  * - A doubled hand (البند 7) is all or nothing: whoever raised last must out-count the other
  *   side (a tie goes against them, 7-6), and the winner takes the hand × the level plus every
- *   project — doubled only at دبل (5-4, 5-5); بلوت stays 2 with its holder.
+ *   project — doubled only at دبل (5-4, 5-5); بلوت stays 2 with its holder — unless its side
+ *   lost the hand: the other side never takes it, and a loser scores zero (the player's rule).
  *
  * `lastTrickBonus` defaults to 10 but a joker can change it.
  */
@@ -110,7 +111,11 @@ export function scoreHand(
     projectPoints[0] = projectGame[0];
     projectPoints[1] = projectGame[1];
   }
-  if (balootTeam !== undefined) projectPoints[balootTeam] += BALOOT_VALUE;
+  // بلوت is never taken by the other side — and a side that loses the hand scores nothing, so a
+  // loser's بلوت counts for no one (the player's reading of the regulation).
+  const loser: Team | undefined =
+    kabootTeam !== undefined ? (kabootTeam === 0 ? 1 : 0) : winner !== undefined ? (winner === 0 ? 1 : 0) : buyer === "lost" ? declarerTeam : undefined;
+  if (balootTeam !== undefined && balootTeam !== loser) projectPoints[balootTeam] += BALOOT_VALUE;
 
   const gamePoints: Record<Team, number> = { 0: result[0] + projectPoints[0], 1: result[1] + projectPoints[1] };
   const multiplier = MODE_MULTIPLIER[mode];

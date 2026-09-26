@@ -318,10 +318,12 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
     const t = trickOf(0, "AH", "7H");
     const chosen = decideCard(cards("7S", "JS", "8D", "9C"), t, "hokum", "S", 2, { tricks: [] });
     expect(chosen.suit).not.toBe("S");
-    // Following suit with a card that would beat the partner's is avoided too.
+    // In sun, following suit with a card that would beat the partner's is avoided too…
     const t2 = trickOf(0, "KH", "7H");
-    const follow = decideCard(cards("AH", "8H", "9C"), t2, "hokum", "S", 2, { tricks: [] });
-    expect(follow).toEqual(c("8H"));
+    expect(decideCard(cards("AH", "8H", "9C"), t2, "sun", undefined, 2, { tricks: [] })).toEqual(c("8H"));
+    // …but in hokum the Ace plays the first time its suit comes round (the player's note: held
+    // back, الفرنكة, it gets ruffed later).
+    expect(decideCard(cards("AH", "8H", "9C"), t2, "hokum", "S", 2, { tricks: [] })).toEqual(c("AH"));
   });
 
   it("never throws an Ace on the partner's trick — unless it's a برقية", () => {
@@ -357,11 +359,16 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
     // Seat 0 defends seat 1's hokum in ♠, with two trumps and an ordinary hand.
     const lead = decideCard(cards("JS", "9S", "8H", "KD", "7C"), trickOf(0), "hokum", "S", 0, { tricks: [], declarer: 1 });
     expect(lead.suit).not.toBe("S");
-    // It may when long in trumps (4+), or with a strong sun-like hand (3+ sure side winners).
+    // The player's exceptions: a strong hokum of your own (4+ trumps, or 3 with the ولد or the
+    // تسعة), or a very strong sun-like hand (4+ sure side winners).
     const none = buildBeliefs([], undefined, "hokum", "S");
     expect(defenderMayLeadTrump(cards("JS", "9S", "8H", "KD", "7C"), "hokum", "S", none)).toBe(false);
     expect(defenderMayLeadTrump(cards("JS", "9S", "AS", "8S", "7C"), "hokum", "S", none)).toBe(true);
-    expect(defenderMayLeadTrump(cards("8S", "AH", "AD", "AC", "7C"), "hokum", "S", none)).toBe(true);
+    expect(defenderMayLeadTrump(cards("9S", "8S", "7S", "KD", "7C"), "hokum", "S", none)).toBe(true);
+    expect(defenderMayLeadTrump(cards("8S", "AH", "AD", "AC", "10C", "7D"), "hokum", "S", none)).toBe(true);
+    // The player's note: a lone trump Ace with three side winners isn't one — don't lead it
+    // into the buyer's ولد.
+    expect(defenderMayLeadTrump(cards("AS", "AH", "AD", "10D", "7C"), "hokum", "S", none)).toBe(false);
     // The buyer's side still pulls trumps.
     expect(decideCard(cards("JS", "9S", "7S", "AH", "8D"), trickOf(0), "hokum", "S", 0, { tricks: [], declarer: 0 })).toEqual(c("JS"));
   });

@@ -224,7 +224,7 @@ fights for more rewards, a ديوانية for a gamble, an elite for rarer spoil
 ### السوا is for everyone
 The سوا button shows whenever you lead; either way the rest plays itself out. Right keeps the
 hand as it falls; **wrong hands the whole hand to the other side** (26 or 16, doubled if
-doubled, plus every project — only your own بلوت stays yours; your jokers' bonuses don't count).
+doubled, plus every project and your بلوت — you score zero; your jokers' bonuses don't count).
 The السوا joker only adds a bonus on a right call.
 
 ### Jokers are relics (no cap)

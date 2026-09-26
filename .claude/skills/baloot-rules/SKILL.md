@@ -32,7 +32,7 @@ Ground rules when working on the game:
    the NON-buyer is counted (hokum ÷10 dropping 1–5, raising 6–9; sun ÷10 raising 5+, then
    ×2) and the buyer takes the rest; if the non-buyer's أبناط (cards + الأرض + raw projects)
    beat the buyer's, the buyer lost (خسرانة) and the hand + all projects go to the other
-   side (بلوت stays with its holder); كبوت = 25 hokum / 44 sun. Don't reintroduce "sun ÷5".
+   side (بلوت is never taken by the other side, and a losing side scores zero — so a loser's بلوت counts for no one; the player's reading); كبوت = 25 hokum / 44 sun. Don't reintroduce "sun ÷5".
 5. **أشكل** is for the dealer and the dealer's left only — on their own turn in either round
    (the player's call, over the regulation's 8-1), or over the other team's hokum unless
    they already said ولا in round 2. The caller buys sun; the partner takes the ground card.
@@ -64,13 +64,40 @@ Ground rules when working on the game:
 11. **حل الحكم (the player's rule for the AI):** the side that didn't buy the hokum never leads
    trumps — it only spends its own cuts and helps the buyer — unless it's long in trumps (4+)
    or holds a strong sun-like hand (3+ sure side winners) and wants the trumps gone fast.
-   `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too.
+   `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too. The player's
+   exceptions, tightened by a note: a strong hokum of your own (4+ trumps, or 3 with the ولد
+   or the تسعة) that wants the buyer's big trumps down, or a very strong sun-like hand (4+
+   sure side winners). A lone trump Ace led into the buyer is neither.
+   **More rules from the player's table notes** (hard rules over the search, `playerRules`
+   in `src/ai/mcts.ts`; each note is a test in `tests/player-notes.test.ts`):
+   - In hokum the defenders cash a side-suit Ace while it still wins, before it gets ruffed.
+   - The buyer's opponents don't go back into a suit the buyer led (his حلة) except with a
+     sure winner (the top card still out) — a second-best card only feeds him the card above
+     it. The buyer's partner goes back to him freely.
+   - Don't discard from a suit you hold the Ace of — it tells the partner you don't want it.
+     Signal with the small card of the brother suit; feed the 10 in a later trick. But when
+     every other discard costs (a 10 thrown, or a 10 left bare — عشرة معلّقة), a small card of
+     the Ace's suit may go; its 10 never does.
+   - Nothing with points goes into the other side's trick when a small card will do — not
+     even a 10 thrown to keep it from being bare.
+   - Don't lead a small card of a suit you hold the Ace of: lead the Ace. A *soft* rule (the
+     search marks the card down by 6 game points): sometimes going under it drops their 10.
+   - In hokum an Ace plays the first time its suit comes round while it still wins — even
+     onto the partner's trick. Holding it back (الفرنكة) gets it ruffed later.
+   - Ruffing while the ولد is still out, ruff with the تسعة, or the ولد catches it later —
+     unless an opponent still to play may ruff over it (shown out of the suit, or the suit
+     too run down for everyone to follow).
+   - No برقية when the partner has shown he has none of the Ace's suit to come back with. In
+     the last two tricks an Ace thrown onto the partner's trick is تكبير, not a برقية.
+   - The search's playouts score game points, with the raw points only as a tie-break
+     (heavier weights made it weaker).
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards
    wins every trick left whatever the opponents do — order matters (lead the 9 of trumps to
    draw their King, then the 8). The partner plays along. `src/engine/sawa.ts`; after a right
    claim the play-out follows that order. **سوا غلط** is judged like a buy that failed: the
-   whole hand to the other side (its full value, doubled if doubled, plus every project; only
-   the claimer's own بلوت stays), and the sheet reads خسرانة for the claimer's side.
+   whole hand to the other side (its full value, doubled if doubled, plus every project and
+   the بلوت too — the claimer's side scores zero, the player's rule), and the sheet reads
+   خسرانة for the claimer's side.
 13. **الدبل comes before the rest of the deal:** it's decided on the first five cards (six for
    whoever takes the ground card); the last three are dealt once the دبل round is settled. A
    joker could lift this later (the player's idea).

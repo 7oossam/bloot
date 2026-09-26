@@ -8,7 +8,7 @@
 ### Baloot play and AI
 - **التهريب follows the player's video** (`docs/baloot-guide.md` §4 is the source): a discarded suit is NOT wanted and asks for its brother (ديمن → هاص); two suits of one colour, or the led suit's brother, ask for the other colour; climbing in one suit (7→8→بنت) asks for that suit. Reading: `src/ai/beliefs.ts`; sending/answering: `chooseDiscard` / `chooseLead` in `src/ai/play-ai.ts`. The partner answers your signal with its biggest card once it has no winners of its own; a برقية comes first always.
 - **حل الحكم:** the side that didn't buy the hokum never leads trumps, unless it holds 4+ trumps or 3+ sure side winners (`defenderMayLeadTrump`, obeyed by the search AI's hard rules too). +0.3 to +0.5 a hand over the previous AI.
-- **السوا is part of the game** (not a joker): whenever you lead. Either way the rest plays itself out; a wrong one hands the whole hand to the other side (full value, doubled if doubled, plus every project; only your own بلوت stays). The السوا joker just pays a bonus on a right call.
+- **السوا is part of the game** (not a joker): whenever you lead. Either way the rest plays itself out; a wrong one hands the whole hand to the other side (full value, doubled if doubled, plus every project and your بلوت: you score zero). The السوا joker just pays a bonus on a right call.
 - **اللعب طلوع** (from the player's terms video): when trumps are led in hokum you must follow with a higher trump than the best on the table if you hold one (`legalMoves` in `src/engine/trick.ts`).
 - **سوالف الطاولة** (`src/game/chatter.ts`): the computer players react in the words Baloot players use — فن / حكيم when their partner buys, تعيش سنين for a خمسين, بالزنوبة when an Ace is ruffed with a tiny trump, خسرانة, كبوت, الأولى للغشمان, قامت. Your seat never talks for you.
 - **السوا is judged by order** (`src/engine/sawa.ts`): right when some order of your cards wins every trick whatever they hold (9 of trumps first to draw the King). The play-out follows that order. A wrong one reads خسرانة on the sheet.
@@ -38,6 +38,24 @@
 - Motion: cards travel in arcs (`arcTo`) and land askew with a puff; the trick winner flares and motes rise; كبوت gets fireworks and a flash; a won match celebrates.
 - Arabic text uses Tajawal (Google Fonts; `main.ts` waits for it up to 2.5 s, then falls back) with a soft dark shadow. Buttons are raised sun-gold tiles.
 - All textures are painted into canvases at runtime, with blur done through `shadowBlur` (Safari has no canvas `filter`). When the Higgsfield art is approved, these are the places to swap in images.
+
+### «ليش؟» and the player's notes (the AI-teaching loop)
+- The table's «ليش؟ 📝» button (top-left) pauses the game and opens an HTML panel (`src/scenes/notesPanel.ts`): every computer play this hand, newest first, each with why (`src/game/explain.ts`, from the `PlayTrace` that `searchCardTraced` in `src/ai/mcts.ts` records: forced / convention / rules / the search's average margin per candidate / habit / سوا).
+- The player writes a note or question about a play; it's saved in localStorage with a full `HandSnapshot` (deal, bids, contract, tricks, every hand, the AI's scores). «انسخ» copies them all as JSON to paste to Claude.
+- **When the player pastes notes:** rebuild the moment from the snapshot, decide whether the AI was wrong (check the rules skill and `docs/baloot-guide.md`), fix the rule in `play-ai.ts` / `mcts.ts`, and add the moment as a test so it never comes back. If the AI was right, explain why. Stage 2 (later, if wanted): Claude answering in-game through a small server holding the API key.
+
+### The player's first notes (5), all fixed — `tests/player-notes.test.ts` rebuilds each moment
+- A defender led a lone trump Ace into the buyer's hokum → `defenderMayLeadTrump` tightened.
+- The partner threw a 10 into the opponents' trick to keep it from being bare → points into their trick weigh 4× in `chooseDiscard`.
+- A defender went back into the buyer's opening suit in sun → hard rule.
+- The partner discarded from his Ace's suit instead of signalling with the brother suit → hard rule + the signal now comes before feeding a 10 into our own trick.
+- A hokum defender didn't cash his side Ace → hard rule.
+- The rule AI is +0.7 a hand stronger than before (≈6,900 hands head to head, twice); the search's lead over it is now ≈2.0 a hand (400 hands), and the strength test runs 240 hands.
+- Second batch (5 notes, tests 6–10): no underleading your own Ace; no فرنكة in hokum (the Ace plays the first time its suit comes round, even onto the partner's trick); ruff with the تسعة while the ولد is out; no برقية into a partner known void in the suit. The rule AI gained another +0.7 a hand; the search still leads it by ≈1.9.
+- The player's corrections to that batch: the under-the-Ace rule became *soft* (a penalty the search can overcome — `SoftRule`), the تسعة ruff waits when someone after may over-ruff (`overRuffRisk`), an Ace may fatten the partner's trick in the last two tricks (تكبير), and playouts break ties on raw points. The rule AI gained another +0.6.
+- **The search guesses hidden hands by likelihood, not just possibility** (`likelihood` in `src/ai/mcts.ts`): each guessed deal is weighted by the bidding (a hokum buyer usually has the ولد/تسعة, a sun buyer Aces, a first-round passer rarely held the ground suit's ولد+تسعة) and the signals (no Ace in a suit a discard rejected; an Ace in a suit asked for), and the playouts are averaged by weight. Measured paired over 1,000 hands: +0.14 a hand (± 0.21), ahead in all four blocks — small but steady. To measure a change like this, play each deal twice (with/without) and compare per deal; unpaired runs of 600 are too noisy (±0.4).
+- «ليش؟» now shows every trick card by card (tap a computer card for its reason, any card to write about it), every seat's full hand as play began (played cards struck), and a tab for the previous hand once it's over (`getLastHand`, `startHands` in the snapshot).
+- الذاكرة now shows four suit tiles between the table and your hand (left in each suit; at level 2 which Ace/10 are still out).
 
 ### Where the truth lives
 - Theme/story: `docs/theme.md`. Art (style, prompts, asset specs): `docs/art-direction.md`.

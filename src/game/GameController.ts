@@ -2,7 +2,7 @@ import { sawaHolds, sawaMove, type SawaTable } from "../engine/sawa";
 import { decideBid } from "../ai/bidding-ai";
 import { decideCard, type PlayContext } from "../ai/play-ai";
 import { buildBeliefs } from "../ai/beliefs";
-import { buyerWouldLose, searchCard } from "../ai/mcts";
+import { buyerWouldLose, searchCardTraced, type PlayTrace } from "../ai/mcts";
 import { mulberry32 } from "../engine/rng";
 import { decideDouble } from "../ai/doubling-ai";
 import type { DoubleBid, DoubleLevel, LegalDouble } from "../engine/doubling";
@@ -279,6 +279,36 @@ export type StepResult = "advanced" | "waiting-human" | "match-complete" | "idle
  * timing/animation stays entirely in the scene (see game-ui-ux: event-driven
  * HUD, no polling).
  */
+/** One card the computer played, and why. */
+export interface PlayLogEntry {
+  seat: Seat;
+  /** Which trick of the hand (1–8), and how many cards were already down in it. */
+  trick: number;
+  position: number;
+  trace: PlayTrace;
+  /** What this seat's partner was asking for by التهريب at that moment. */
+  partnerAsks: Suit[];
+  partnerBarqiya: Suit[];
+}
+
+/** A hand frozen at the moment of a note (cards as ids like "JH"). */
+export interface HandSnapshot {
+  dealer: Seat;
+  initialHands: Record<Seat, string[]>;
+  groundCard: string;
+  bids: string[];
+  contract?: { mode: Mode; trumpSuit?: Suit; declarer: Seat; ashkal: boolean };
+  doubleLevel?: number;
+  hands: Record<Seat, string[]>;
+  startHands: Record<Seat, string[]>;
+  tricks: Array<{ leader: Seat; cards: string[]; winner?: Seat }>;
+  currentTrick: string[];
+  matchScore: Record<Team, number>;
+  partner?: string;
+  rival?: string;
+  plays: Array<{ seat: Seat; trick: number; card: string; kind: string; habit?: string; scores?: string[]; ruledOut?: string[]; rules?: string[] }>;
+}
+
 export class GameController extends Emitter<EventMap> {
   private round!: Round;
   private dealer: Seat = 0;
@@ -313,6 +343,8 @@ export class GameController extends Emitter<EventMap> {
   private akkaCuts = 0;
   /** السوا this hand: undefined = not claimed, true = claimed right (you auto-play the rest), false = wrong. */
   private sawaClaim?: boolean;
+  private playLog: PlayLogEntry[] = [];
+  private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
   /** The search AI's own random stream, so thinking never shifts the deal's. */
   private searchRand?: () => number;
 
@@ -339,6 +371,72 @@ export class GameController extends Emitter<EventMap> {
     const out = {} as Record<Seat, { wants: Suit[]; barqiya: Suit[] }>;
     for (const seat of [0, 1, 2, 3] as Seat[]) out[seat] = { wants: b.wants[seat], barqiya: b.barqiya[seat] };
     return out;
+  }
+
+  /** Every card the computer played this hand, with why (for «ليش؟» and the player's notes). */
+  getPlayLog(): readonly PlayLogEntry[] {
+    return this.playLog;
+  }
+
+  /** The hand before this one, as it ended — so «ليش؟» can still look back at it. */
+  getLastHand(): { plays: readonly PlayLogEntry[]; snapshot: HandSnapshot } | undefined {
+    return this.lastHand;
+  }
+
+  private logPlay(seat: Seat, trace: PlayTrace): void {
+    const r = this.round;
+    const { mode, trumpSuit } = r.bidding.result!;
+    const beliefs = buildBeliefs(r.tricks, r.currentTrick, mode, trumpSuit);
+    const partner = partnerOf(seat);
+    this.playLog.push({
+      seat,
+      trick: r.tricks.length + 1,
+      position: r.currentTrick!.order.length,
+      trace,
+      partnerAsks: beliefs.wants[partner],
+      partnerBarqiya: beliefs.barqiya[partner],
+    });
+  }
+
+  /**
+   * Everything needed to replay a moment of this hand, for a note the player writes about it:
+   * the deal, the contract, the tricks so far, every hand as it stands, and the AI's reasons.
+   */
+  snapshot(): HandSnapshot {
+    const r = this.round;
+    const ids = (cards: readonly Card[]) => cards.map(cardId);
+    const res = r.bidding.result;
+    return {
+      dealer: r.dealer,
+      initialHands: Object.fromEntries(([0, 1, 2, 3] as Seat[]).map((s) => [s, ids(r.initial.hands[s])])) as Record<Seat, string[]>,
+      groundCard: cardId(r.initial.stock[0]),
+      bids: r.bidding.history.map((b) => `${b.seat}:${b.call}${b.suit ?? ""}`),
+      contract: res ? { mode: res.mode, trumpSuit: res.trumpSuit, declarer: res.declarer, ashkal: !!res.ashkal } : undefined,
+      doubleLevel: r.doubling?.level,
+      hands: Object.fromEntries(([0, 1, 2, 3] as Seat[]).map((s) => [s, ids(r.hands[s])])) as Record<Seat, string[]>,
+      // Every seat's cards as play began: what it still holds plus what it has played.
+      startHands: Object.fromEntries(
+        ([0, 1, 2, 3] as Seat[]).map((s) => [
+          s,
+          ids([...[...r.tricks, ...(r.currentTrick ? [r.currentTrick] : [])].flatMap((t) => (t.cards[s] ? [t.cards[s]!] : [])), ...r.hands[s]]),
+        ]),
+      ) as Record<Seat, string[]>,
+      tricks: r.tricks.map((t) => ({ leader: t.leader, cards: t.order.map((s) => `${s}:${cardId(t.cards[s]!)}`), winner: t.winner })),
+      currentTrick: r.currentTrick ? r.currentTrick.order.map((s) => `${s}:${cardId(r.currentTrick!.cards[s]!)}`) : [],
+      matchScore: { ...this.matchScore },
+      partner: this.options.partnerLabel,
+      rival: this.options.rivalLabel,
+      plays: this.playLog.map((p) => ({
+        seat: p.seat,
+        trick: p.trick,
+        card: cardId(p.trace.card),
+        kind: p.trace.kind,
+        habit: p.trace.ruleChoice ? cardId(p.trace.ruleChoice) : undefined,
+        scores: p.trace.scores?.map((x) => `${cardId(x.card)}=${x.avg.toFixed(2)}`),
+        ruledOut: p.trace.ruledOut?.map(cardId),
+        rules: p.trace.rules,
+      })),
+    };
   }
 
   getRound(): Round {
@@ -380,6 +478,7 @@ export class GameController extends Emitter<EventMap> {
     this.signalHits = 0;
     this.akkaCuts = 0;
     this.sawaClaim = undefined;
+    this.playLog = [];
     const o = this.options;
     const supplied = !!(o.guaranteedJacks || o.guaranteedLow || o.completeRunTo);
     this.round = new Round(this.dealer, this.rand, {
@@ -522,6 +621,7 @@ export class GameController extends Emitter<EventMap> {
       if (this.sawaClaim && (seat === HUMAN_SEAT || (seat === partnerOf(HUMAN_SEAT) && trick.leader === HUMAN_SEAT))) {
         const sure = sawaMove(this.sawaTable(), trick, seat);
         if (sure) {
+          this.logPlay(seat, { kind: "sawa", card: sure });
           this.applyCard(seat, sure);
           return "advanced";
         }
@@ -529,15 +629,16 @@ export class GameController extends Emitter<EventMap> {
       // Your own seat on autopilot after a سوا plays the rule-based way.
       const think = this.options.searchAI && seat !== HUMAN_SEAT && !(seat === partnerOf(HUMAN_SEAT) && this.options.partner?.noSearch);
       if (think && !this.searchRand) this.searchRand = mulberry32(Math.floor(this.rand() * 2147483647));
-      const card = think
-        ? searchCard(this.round, seat, {
+      const trace: PlayTrace = think
+        ? searchCardTraced(this.round, seat, {
             ctx,
             rand: this.searchRand,
             worlds: 40,
             timeBudgetMs: 150,
           })
-        : decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, ctx);
-      this.applyCard(seat, card);
+        : { kind: "habit", card: decideCard(this.round.hands[seat], this.round.currentTrick!, result.mode, result.trumpSuit, seat, ctx) };
+      if (seat !== HUMAN_SEAT) this.logPlay(seat, trace);
+      this.applyCard(seat, trace.card);
       return "advanced";
     }
 
@@ -1005,14 +1106,14 @@ export class GameController extends Emitter<EventMap> {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
     }
-    // سوا غلط: the hand goes to the other side — the whole of it, projects too (only your own
-    // بلوت stays yours), and none of your jokers' bonuses count.
+    // سوا غلط: the hand goes to the other side — the whole of it, projects too — and you score
+    // zero, your بلوت included (it goes to no one). None of your jokers' bonuses count.
     // The sheet says so too: the hand reads as a خسرانة for your side, whoever bought it.
     if (this.sawaClaim === false) {
-      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
-      const total = result.gamePoints[us] + result.gamePoints[them];
-      gained[them] = total - ourBaloot;
-      gained[us] = ourBaloot;
+      // Your بلوت goes to no one: the other side never takes it.
+      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us && result.gamePoints[us] > 0 ? BALOOT_VALUE : 0;
+      gained[them] = result.gamePoints[us] + result.gamePoints[them] - ourBaloot;
+      gained[us] = 0;
       bonuses.length = 0;
       if (result.sheet) {
         result.sheet.outcome = "lost";
@@ -1048,6 +1149,8 @@ export class GameController extends Emitter<EventMap> {
     if (seat === HUMAN_SEAT) this.humanAsks = buildBeliefs(this.round.tricks, this.round.currentTrick, mode, trumpSuit).wants[HUMAN_SEAT];
 
     if (this.round.phase === "complete") {
+      // Kept for «ليش؟» after the hand is over.
+      this.lastHand = { plays: [...this.playLog], snapshot: this.snapshot() };
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
       // المدبّلين: a hand your team bought and lost counts double for them.

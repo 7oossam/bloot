@@ -1,8 +1,8 @@
 import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
-import { currentWinner } from "../engine/trick";
+import { currentWinner, wouldWinAgainstCurrent } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, defenderMayLeadTrump, type PlayContext } from "./play-ai";
+import { decideCard, defenderMayLeadTrump, isBoss, overRuffRisk, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -33,43 +33,133 @@ export interface SearchOptions {
 
 export const DEFAULT_WORLDS = 20;
 
+/**
+ * Why a card was played — kept so the player can ask «ليش؟» at the table (and send notes to
+ * improve the AI). `scores` is each candidate's average game-point margin for this seat's
+ * team over the guessed hands; `ruledOut` are the legal cards the player's rules removed.
+ */
+export interface PlayTrace {
+  kind: "only" | "convention" | "rules" | "search" | "habit" | "sawa";
+  card: Card;
+  /** What the rule-based habit would have played. */
+  ruleChoice?: Card;
+  ruledOut?: Card[];
+  /** Which of the player's rules removed them, in the player's words. */
+  rules?: string[];
+  /** Soft rules: cards kept in play but marked down (already taken off their `scores`). */
+  softRules?: Array<{ card: Card; points: number; reason: string }>;
+  scores?: Array<{ card: Card; avg: number }>;
+  worlds?: number;
+}
+
 export function searchCard(round: Round, seat: Seat, opts: SearchOptions = {}): Card {
+  return searchCardTraced(round, seat, opts).card;
+}
+
+export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions = {}): PlayTrace {
   const rand = opts.rand ?? Math.random;
   const res = round.bidding.result!;
   const ctx: PlayContext = opts.ctx ?? { tricks: round.tricks, declarer: res.declarer, closed: round.closed };
   const ruleChoice = decideCard(round.hands[seat], round.currentTrick!, res.mode, res.trumpSuit, seat, ctx);
   const legal = round.legalMovesFor(seat);
-  if (legal.length <= 1) return legal[0] ?? ruleChoice;
+  if (legal.length <= 1) return { kind: "only", card: legal[0] ?? ruleChoice };
   // A partner's برقية is a convention, not a calculation: answer it.
-  if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return ruleChoice;
+  if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return { kind: "convention", card: ruleChoice, ruleChoice };
 
-  const candidates = playerRules(round, seat, legal, ruleChoice);
-  if (candidates.length === 1) return candidates[0];
+  const rules: string[] = [];
+  const soft = new Map<string, SoftRule>();
+  const candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  const penalty = (c: Card) => soft.get(cardId(c))?.points ?? 0;
+  const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
+  if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut, rules };
 
   const constraints = inferConstraints(round, seat);
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
   const started = Date.now();
+  const likely = likelihood(round, seat);
   let worlds = 0;
+  let weightSum = 0;
   for (let w = 0; w < (opts.worlds ?? DEFAULT_WORLDS); w++) {
     const hands = sampleWorld(round, seat, constraints, rand);
     if (!hands) continue;
     worlds++;
-    for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card));
+    // Deals that fit the bidding and the signals count for more (see `likelihood`).
+    const weight = likely(hands);
+    weightSum += weight;
+    for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + weight * rollout(round, hands, seat, card));
     if (opts.timeBudgetMs !== undefined && Date.now() - started > opts.timeBudgetMs) break;
   }
-  if (worlds === 0) return ruleChoice;
+  if (worlds === 0) return { kind: "habit", card: ruleChoice, ruleChoice, ruledOut, rules };
+  // Weighted averages from here on: "/ worlds" below reads as "/ total weight".
+  for (const [id, total] of totals) totals.set(id, (total / weightSum) * worlds);
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds + 0.25;
+  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + 0.25;
   for (const card of candidates) {
-    const score = totals.get(cardId(card))! / worlds;
+    const score = totals.get(cardId(card))! / worlds - penalty(card);
     if (score > bestScore) {
       best = card;
       bestScore = score;
     }
   }
-  return best;
+  const scores = candidates.map((card) => ({ card, avg: totals.get(cardId(card))! / worlds - penalty(card) })).sort((a, b) => b.avg - a.avg);
+  const softRules = [...soft.entries()].filter(([id]) => candidates.some((c) => cardId(c) === id)).map(([id, r]) => ({ card: candidates.find((c) => cardId(c) === id)!, ...r }));
+  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds, rules, softRules };
+}
+
+// ------------------------------------------------------------------ what's likely, not just possible
+
+/**
+ * How well a guessed deal fits what the table has *said*, not just shown: the bidding and the
+ * signals. `sampleWorld` only rules out the impossible; this weighs the possible.
+ * - A hokum buyer usually holds the ولد or the تسعة; a sun buyer usually holds Aces.
+ * - A player who passed on a ground suit he held the ولد and the تسعة of is unlikely.
+ * - A suit a player's discard said "don't lead me this" rarely hides his Ace there; a suit he
+ *   asked for usually does.
+ * Cards already played count toward what a seat held.
+ *
+ * Measured over 1,000 hands, each dealt twice (with and without): +0.14 a hand (± 0.21),
+ * ahead in all four blocks of 250; squaring the weights was noisier (+0.21 ± 0.28, one block
+ * behind). Small but steady, so kept at these values.
+ */
+export function likelihood(round: Round, me: Seat): (hands: Record<Seat, Card[]>) => number {
+  const res = round.bidding.result!;
+  const { mode, trumpSuit, declarer } = res;
+  const tricks = [...round.tricks, ...(round.currentTrick ? [round.currentTrick] : [])];
+  const playedBy = (s: Seat) => tricks.flatMap((t) => (t.cards[s] ? [t.cards[s]!] : []));
+  const beliefs = buildBeliefs(round.tricks, round.currentTrick, mode, trumpSuit);
+  const ground = round.groundCard;
+  // Seats that passed on the ground suit in the first round (before anyone bought it).
+  const firstRound = round.bidding.history.slice(0, 4);
+  const passedOnGround = new Set(firstRound.filter((b) => b.call === "pass").map((b) => b.seat));
+  const others = ([0, 1, 2, 3] as Seat[]).filter((s) => s !== me);
+  return (hands) => {
+    let w = 1;
+    const held = (s: Seat) => [...playedBy(s), ...(hands[s] ?? [])];
+    if (declarer !== me) {
+      const cards = held(declarer);
+      if (mode === "hokum" && trumpSuit) {
+        const top = cards.filter((c) => c.suit === trumpSuit && (c.rank === "J" || c.rank === "9")).length;
+        w *= top === 0 ? 0.35 : top === 1 ? 1 : 1.3;
+      } else {
+        const aces = cards.filter((c) => c.rank === "A").length;
+        w *= [0.3, 0.7, 1, 1.2, 1.3][aces];
+      }
+    }
+    for (const s of others) {
+      const cards = held(s);
+      if (passedOnGround.has(s) && s !== declarer) {
+        const jack = cards.some((c) => c.suit === ground.suit && c.rank === "J");
+        const nine = cards.some((c) => c.suit === ground.suit && c.rank === "9");
+        if (jack && nine) w *= 0.5;
+      }
+      const hand = hands[s] ?? [];
+      for (const suit of beliefs.rejects[s]) if (hand.some((c) => c.suit === suit && c.rank === "A")) w *= 0.5;
+      for (const suit of beliefs.wants[s]) w *= hand.some((c) => c.suit === suit && c.rank === "A") ? 1.3 : 0.8;
+    }
+    return w;
+  };
 }
 
 // ------------------------------------------------------------------ the player's rules
@@ -87,30 +177,120 @@ function followsConvention(round: Round, seat: Seat, answerFirst = false): boole
 }
 
 /**
- * Never feed an Ace to a partner who's winning, and never throw an Ace away when you can't
- * follow — unless it's the برقية the rule-based AI chose.
+ * The player's rules, kept as hard rules over the search (each came from a note the player
+ * wrote at the table):
+ * - Leading, in hokum, the side that didn't buy: no trumps (bar the exceptions in
+ *   `defenderMayLeadTrump`), and cash a side-suit Ace while it still wins — later the buyer
+ *   may be void and ruff it.
+ * - Leading against the buyer: never go back into a suit the buyer led (his حلة) unless with a
+ *   sure winner in it.
+ * - Following: never feed an Ace to a partner who's winning, and never throw an Ace away —
+ *   unless it's the برقية the rule-based AI chose.
+ * - Discarding: never from a suit where you hold its Ace — that tells the partner you don't
+ *   want the suit you're strongest in.
  */
-function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card): Card[] {
+/**
+ * A soft rule: the card stays in play, but its score is marked down by `points` (game points),
+ * so the search only goes against the rule when the playouts say it clearly pays.
+ */
+export interface SoftRule {
+  points: number;
+  reason: string;
+}
+
+/**
+ * Leading a small card under your own Ace: wrong almost always, but sometimes it drops their 10
+ * (the player's word). The playouts must show a big gain to do it — in the player's noted hand
+ * they favoured the 7 by 5.4, and it was still wrong.
+ */
+const UNDERLEAD_PENALTY = 6;
+
+function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, why: string[] = [], soft: Map<string, SoftRule> = new Map()): Card[] {
   const trick = round.currentTrick!;
   const { mode, trumpSuit, declarer } = round.bidding.result!;
+  const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
+  const hand = round.hands[seat];
+  const against = teamOf(declarer) !== teamOf(seat);
+  const narrow = (pool: Card[], keep: (c: Card) => boolean, reason: string) => {
+    const kept = pool.filter(keep);
+    if (kept.length === 0 || kept.length === pool.length) return pool;
+    why.push(reason);
+    return kept;
+  };
   if (trick.order.length === 0) {
-    // The side that didn't buy the hokum doesn't lead trumps, bar the exceptions.
-    if (mode !== "hokum" || teamOf(declarer) === teamOf(seat)) return legal;
-    const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
-    if (defenderMayLeadTrump(round.hands[seat], mode, trumpSuit, beliefs)) return legal;
-    const side = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-    return side.length > 0 ? side : legal;
+    let pool = legal;
+    // Never lead a small card of a suit whose Ace you hold: it hands the trick over for nothing.
+    // (Soft: leading low under the Ace can be right, to drop their 10 — the search decides.)
+    const aceHeld = (suit: Suit) => hand.some((x) => x.suit === suit && x.rank === "A");
+    for (const c of pool) {
+      if (!isTrumpCard(c, mode, trumpSuit) && aceHeld(c.suit) && c.rank !== "A" && !isBoss(c, hand, beliefs, mode, trumpSuit)) {
+        soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "يحل من تحت إكته" });
+      }
+    }
+    if (against) {
+      // حلة المشتري: suits the buying side's declarer opened.
+      const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
+      // Only a sure winner of it may go (the top card still out): anything smaller just feeds the
+      // buyer the cards he's strong in. Holding the Ace and the شايب, the Ace goes, then the
+      // شايب is the top card and goes too.
+      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || isBoss(c, hand, beliefs, mode, trumpSuit), "خصم المشتري ما يرجع في حلته إلا بورقة ماكلة");
+    }
+    if (mode === "hokum" && against) {
+      if (!defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
+      pool = narrow(pool, (c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit), "في الحكم تاكل إكتك قبل لا تنقطع");
+    }
+    return pool;
   }
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);
-  const keep = legal.filter((c) => {
+  // In hokum an Ace plays the first time its suit comes round, while it still wins — held back
+  // (الفرنكة) it gets ruffed later. Even onto the partner's trick.
+  const ledTrump = isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit);
+  if (mode === "hokum" && following && !ledTrump) {
+    const ace = legal.find((c) => c.suit === led && c.rank === "A");
+    if (ace && wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) {
+      return narrow(legal, (c) => cardId(c) === cardId(ace), "في الحكم الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
+    }
+  }
+  // In the last two tricks an Ace thrown onto the partner's trick isn't wasted: the lead may
+  // never come back to it, so it's تكبير — fattening the partner's trick. (With three left it
+  // can still take a trick, and there it reads as a برقية — the player's note 8.)
+  const endgame = hand.length <= 2;
+  let keep = narrow(legal, (c) => {
     if (c.rank !== "A" || isTrumpCard(c, mode, trumpSuit)) return true;
     if (cardId(c) === cardId(ruleChoice)) return true; // a برقية
+    if (endgame && partnerWinning) return true; // تكبير
     if (!following) return false; // thrown away
     return !partnerWinning; // fed to the partner
-  });
-  return keep.length > 0 ? keep : legal;
+  }, following ? "الإكة ما تنعطى لأكلة خويه" : "الإكة ما تنرمى");
+  // Ruffing while the buyer's ولد is still out: ruff with the تسعة (14 points), or the ولد
+  // catches it later.
+  if (mode === "hokum" && !following && !ledTrump) {
+    const nine = keep.find((c) => isTrumpCard(c, mode, trumpSuit) && c.rank === "9");
+    const jackOut = !hand.some((c) => c.suit === trumpSuit && c.rank === "J") && !beliefs.played.some((c) => c.suit === trumpSuit && c.rank === "J");
+    if (nine && jackOut && wouldWinAgainstCurrent(nine, trick, mode, trumpSuit) && !overRuffRisk(trick, seat, led, hand, beliefs, trumpSuit!)) {
+      keep = narrow(keep, (c) => !isTrumpCard(c, mode, trumpSuit) || cardId(c) === cardId(nine), "إذا قطع والولد برا، يقطع بالتسعة قبل لا ينصادها");
+    }
+  }
+  if (!following) {
+    // Not from the Ace's suit — unless everything else costs: a 10 thrown, or a 10 left bare
+    // (عشرة معلّقة). Then a small card of the Ace's suit may go; its 10 never does.
+    const aceSuits = new Set(hand.filter((c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit)).map((c) => c.suit));
+    const aceOut = (suit: Suit) => !hand.some((x) => x.suit === suit && x.rank === "A") && !beliefs.played.some((x) => x.suit === suit && x.rank === "A");
+    const costly = (c: Card) => {
+      const rest = hand.filter((x) => x.suit === c.suit && cardId(x) !== cardId(c));
+      return c.rank === "10" || (rest.length === 1 && rest[0].rank === "10" && aceOut(c.suit));
+    };
+    const others = keep.filter((c) => !aceSuits.has(c.suit));
+    const allCostly = others.length > 0 && others.every(costly);
+    keep = narrow(
+      keep,
+      (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice) || (allCostly && c.rank !== "10") || (endgame && partnerWinning && c.rank === "A"),
+      "ما يهرّب من شكل عنده إكته (يفهمها خويه إنه ما يبغاه)",
+    );
+  }
+  return keep;
 }
 
 // ------------------------------------------------------------------ what the table has shown
@@ -274,9 +454,17 @@ function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Ca
     sim.playCard(s, pick);
   }
   const team: Team = teamOf(seat);
+  const other = (1 - team) as Team;
   const g = sim.result!.gamePoints;
-  return g[team] - g[(1 - team) as Team];
+  const raw = sim.result!.rawPoints;
+  // Game points are rounded to tens, so cards that differ by a 10 or an Ace often tie there;
+  // the raw points (أبناط) break those ties. Only a tie-break: weighed any heavier, they made
+  // the search weaker (600 hands: 1.71 a hand at 0, 1.47 at 0.25, 1.31 at 0.5).
+  return g[team] - g[other] + (raw[team] - raw[other]) * RAW_TIEBREAK;
 }
+
+/** A raw point (أبنط) in a playout's score: 20 of them are a tenth of a game point. */
+const RAW_TIEBREAK = 0.005;
 
 function shuffle<T>(items: T[], rand: () => number): T[] {
   const a = [...items];
