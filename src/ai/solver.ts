@@ -73,6 +73,8 @@ export class Solver {
       let bits = 0;
       for (const c of hands[s]) bits |= 1 << index(c);
       k += ":" + (bits >>> 0).toString(36);
+      // A joker can double a card; then the bits alone can't tell the hands apart.
+      if (new Set(hands[s].map(index)).size !== hands[s].length) k += "#" + hands[s].map(index).sort().join(".");
     }
     return k;
   }
@@ -180,7 +182,9 @@ export function reviewHand(
         const mine = options.find((o) => o.card.suit === card.suit && o.card.rank === card.rank);
         if (mine) reviews.push({ trick: t + 1, seat, played: card, best: bestMove.card, lost: bestMove.value - mine.value });
       }
-      hands = { ...hands, [seat]: hands[seat].filter((c) => !(c.suit === card.suit && c.rank === card.rank)) } as Record<Seat, Card[]>;
+      // Only the one card played goes: a joker may have doubled it.
+      const at = hands[seat].findIndex((c) => c.suit === card.suit && c.rank === card.rank);
+      hands = { ...hands, [seat]: hands[seat].filter((_, i) => i !== at) } as Record<Seat, Card[]>;
       trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: opts.rules };
     }
   });
