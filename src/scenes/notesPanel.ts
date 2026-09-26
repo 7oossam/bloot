@@ -1,7 +1,7 @@
 import type { Seat } from "../engine/types";
 import type { HandSnapshot, PlayLogEntry } from "../game/GameController";
 import { explainPlay } from "../game/explain";
-import { clearNotes, exportMatch, exportNotes, loadNotes, saveNote } from "../game/notes";
+import { clearGames, clearNotes, exportGames, exportNotes, gamesCount, loadNotes, saveNote } from "../game/notes";
 
 /**
  * «ليش؟ 📝»: a page over the table (plain HTML, so typing Arabic just works). For this hand —
@@ -18,7 +18,6 @@ export interface HandView {
 export interface NotesPanelOptions {
   views: HandView[];
   /** Every hand of the صكة so far, for «انسخ الصكة». */
-  match: () => HandSnapshot[];
   seatName: (seat: Seat) => string;
   onClose: () => void;
 }
@@ -96,7 +95,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
         <button class="bn-copy"></button>
         <button class="bn-clear" style="flex:0 0 auto;min-width:0">🗑️</button>
       </div>
-      <div class="bn-row"><button class="bn-match"></button></div>
+      <div class="bn-row"><button class="bn-match"></button><button class="bn-games-clear bn-clear" style="flex:0 0 auto;min-width:0">🗑️</button></div>
       <div class="bn-msg"></div>
     </div>
   </div>`;
@@ -110,18 +109,28 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
   const refreshCount = () => (copyBtn.textContent = `انسخ الملاحظات (${loadNotes().length})`);
   refreshCount();
   const matchBtn = $<HTMLButtonElement>(".bn-match");
-  matchBtn.textContent = `📋 انسخ الصكة كاملة للتحليل (${o.match().length} يد)`;
+  const refreshGames = () => {
+    const { hands } = gamesCount();
+    matchBtn.textContent = `📋 انسخ كل لعبك للتحليل — ${hands} يد`;
+  };
+  refreshGames();
   matchBtn.addEventListener("click", async () => {
-    const text = exportMatch(o.match());
+    const text = exportGames();
     try {
       await navigator.clipboard.writeText(text);
-      msg.textContent = "انسخت الصكة ✔️ — الصقها لـ Claude وبيحللها كاملة.";
+      msg.textContent = "انسخت كل لعبك ✔️ — الصقه لـ Claude وبيحلله. بعدها تقدر تمسحه بـ 🗑️ اللي جنبه.";
     } catch {
       const area = $<HTMLTextAreaElement>("textarea");
       area.value = text;
       area.select();
       msg.textContent = "انسخ النص اللي في المربع يدوياً.";
     }
+  });
+  $<HTMLButtonElement>(".bn-games-clear").addEventListener("click", () => {
+    if (!window.confirm("تمسح كل اللعب المحفوظ للتحليل؟ (ملاحظاتك تبقى)")) return;
+    clearGames();
+    refreshGames();
+    msg.textContent = "انمسح اللعب المحفوظ.";
   });
 
   const render = () => {
