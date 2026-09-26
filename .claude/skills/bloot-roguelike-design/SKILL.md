@@ -261,7 +261,7 @@ character in Slay the Spire. Each has a perk and a quirk; the table shows their 
 | Partner | Perk | Quirk | Margin/hand (sim, no search AI) |
 |---|---|---|---|
 | الشايب 👴 | answers your تهريب before cashing his own winners | never doubles | −1.08 |
-| المتحمس 🔥 | buys (−10 bar) and doubles (−20 bar) readily | his eagerness lands خسرانة on you | −1.14 |
+| المتحمس 🔥 | a hand he buys and makes pays +50% | buys (−10 bar) and doubles (−20 bar) readily; lands خسرانة on you | +0.83 (was −1.14 with no perk) |
 | الجفرة 🍀 | always dealt an Ace in his first five (shared deck) | plays by habit (no search AI in the game) | +1.18 |
 | الغشيم 🙃 | match gold ×1.5 and one more spoil to choose from | can't read your تهريب, plays weakly (no search AI) | −0.98 |
 
