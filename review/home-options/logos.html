@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Amiri";font-weight:700;src:url(amiri.ttf)}
+@font-face{font-family:"El Messiri";font-weight:700;src:url(elmessiri.ttf)}
+@font-face{font-family:"Aref Ruqaa";font-weight:700;src:url(aref-ruqaa-700-arabic.woff2)}
+body{margin:0;background:#2b2b2b;display:flex;gap:20px;padding:20px;direction:rtl}
+.s{position:relative;width:390px;height:694px;overflow:hidden;border-radius:18px}
+.bg{position:absolute;inset:0;background-size:100% 100%}
+.title{position:absolute;left:0;right:0;text-align:center;font-family:"El Messiri",serif;font-weight:700;font-size:48px;line-height:1.1;
+ background:linear-gradient(180deg,#FFE9B0 0%,#F2C96B 45%,#B9832E 75%,#F4D48A 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+ -webkit-text-stroke:1.2px #5a3a12;}
+.titleshadow{position:absolute;left:0;right:0;text-align:center;font-family:"El Messiri",serif;font-weight:700;font-size:48px;line-height:1.1;color:#0c1f22;transform:translateY(3px);opacity:.85}
+.rib{position:absolute;left:0;right:0;text-align:center;font-family:"El Messiri",serif;font-weight:700;font-size:13px;line-height:1;color:#F2D9A0;letter-spacing:.5px}
+.btn{position:absolute;left:50%;transform:translateX(-50%);bottom:64px;width:236px;height:56px;display:flex;align-items:center;justify-content:center;gap:10px;
+ border-radius:30px 30px 30px 30px/28px;background:linear-gradient(180deg,#245a5e,#16393c);border:2px solid #D9A94E;box-shadow:inset 0 0 0 4px #16393c,inset 0 0 0 5px #D9A94E,0 5px 12px rgba(0,0,0,.4)}
+.btn span{font-family:"El Messiri",serif;font-weight:700;font-size:22px;color:#F6DFA5}
+.btn i{width:7px;height:7px;background:#D9A94E;transform:rotate(45deg)}
+.btn2{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;font-family:"El Messiri",serif;font-size:14px;color:#F2E3C2;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.n{position:absolute;top:8px;left:10px;font:13px sans-serif;color:#fff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:8px;direction:ltr}
+</style></head><body>
+<script>
+// cartouche centre y and ribbon y on the 864x1536 source -> scale 390/864
+const K=[['desert_sunset',204,318,'1 · desert sunset'],['desert_dusk',212,340,'2 · desert dusk'],['dallah_golden',190,296,'3 · dallah golden'],['dallah_ivory',184,292,'4 · dallah ivory']];
+const s=390/864;
+for (const [k,cy,ry,n] of K){
+  const t=cy*s-26, r=ry*s-8;
+  document.write(`<div class="s"><div class="bg" style="background-image:url(L_${k}.jpg)"></div>
+  <div class="titleshadow" style="top:${t}px">المعزّب</div><div class="title" style="top:${t}px">المعزّب</div>
+  <div class="rib" style="top:${r}px">ليلة الأربعين</div>
+  <div class="btn"><i></i><span>ادخل الديوانية</span><i></i></div><div class="btn2">الأبواب مفتوحة حتى الفجر</div><div class="n">${n}</div></div>`);
+}
+</script></body></html>
