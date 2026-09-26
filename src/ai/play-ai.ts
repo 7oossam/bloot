@@ -48,12 +48,25 @@ export function decideCard(
     // The defending side doesn't lead trumps (the player's rule), bar the two exceptions.
     const defending = mode === "hokum" && ctx?.declarer !== undefined && teamOf(ctx.declarer) !== teamOf(seat);
     const sideLeads = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-    const pool = defending && sideLeads.length > 0 && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs) ? sideLeads : hand;
+    const allowed = defending && sideLeads.length > 0 && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs) ? sideLeads : hand;
+    // Never a small card under your own Ace (the player's note): lead the Ace itself.
+    const noUnderlead = allowed.filter(
+      (c) => isTrumpCard(c, mode, trumpSuit) || c.rank === "A" || !hand.some((x) => x.suit === c.suit && x.rank === "A") || isBoss(c, hand, beliefs, mode, trumpSuit),
+    );
+    const pool = noUnderlead.length > 0 ? noUnderlead : allowed;
     const lead = chooseLead(pool, mode, trumpSuit, seat, partner, beliefs, ctx);
     // مقفل can rule out the trump lead the tactics wanted; pick again among what's allowed.
     return legal.some((c) => c.suit === lead.suit && c.rank === lead.rank)
       ? lead
       : chooseLead(legal, mode, trumpSuit, seat, partner, beliefs, ctx);
+  }
+
+  // In hokum the Ace plays the first time its suit comes round while it still wins — even onto
+  // the partner's trick: held back (الفرنكة) it gets ruffed later (the player's note).
+  const ledCardNow = trick.cards[trick.order[0]]!;
+  if (mode === "hokum" && !isTrumpCard(ledCardNow, mode, trumpSuit)) {
+    const ace = legal.find((c) => c.suit === ledCardNow.suit && c.rank === "A");
+    if (ace && wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) return ace;
   }
 
   const winnerSoFar = currentWinner(trick, mode, trumpSuit);
@@ -115,6 +128,10 @@ export function decideCard(
   }
 
   const winningCards = legal.filter((c) => wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
+  // Ruffing while the ولد is still out: the تسعة goes now, or the ولد catches it later.
+  const nine = winningCards.find((c) => isTrumpCard(c, mode, trumpSuit) && c.rank === "9");
+  const jackOut = !!trumpSuit && !hand.some((c) => c.suit === trumpSuit && c.rank === "J") && !beliefs.played.some((c) => c.suit === trumpSuit && c.rank === "J");
+  if (nine && jackOut && !isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit)) return nine;
   if (winningCards.length > 0) {
     // Win as cheaply as possible — save strong cards for later tricks.
     return minBy(winningCards, (c) => rankStrength(c, mode, trumpSuit) + (isTrumpCard(c, mode, trumpSuit) ? 20 : 0));
@@ -338,7 +355,10 @@ export function isBoss(card: Card, hand: Card[], beliefs: Beliefs, mode: Mode, t
 function barqiyaAce(pool: Card[], hand: Card[], mode: Mode, trumpSuit: Suit | undefined, seat: Seat, beliefs: Beliefs): Card | undefined {
   const opponents = [((seat + 1) % 4) as Seat, ((seat + 3) % 4) as Seat];
   const trumpsGone = !trumpSuit || opponents.every((o) => beliefs.voids[o][trumpSuit]) || outstanding(beliefs, hand, trumpSuit).length === 0;
+  const partner = ((seat + 2) % 4) as Seat;
   for (const ace of pool.filter((c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit))) {
+    // The partner has to be able to come back in the suit: not if he's shown he has none.
+    if (beliefs.voids[partner][ace.suit]) continue;
     const rest = hand.filter((c) => c !== ace);
     // A message needs tricks left to promise, and cards in the Ace's suit to come back to.
     if (rest.length < 2 || !rest.some((c) => c.suit === ace.suit)) continue;

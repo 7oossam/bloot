@@ -37,7 +37,7 @@ import {
   sortHandForDisplay,
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
-import { openNotesPanel } from "./notesPanel";
+import { openNotesPanel, type HandView } from "./notesPanel";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -526,14 +526,19 @@ export class TableScene extends Phaser.Scene {
   }
 
   private openNotes(): void {
-    const res = this.controller.getRound().bidding.result;
+    const round = this.controller.getRound();
+    const last = this.controller.getLastHand();
+    // This hand once play has started; the one before is there too once it's over.
+    const views: HandView[] = [];
+    if (round.phase === "playing" || round.phase === "complete") {
+      views.push({ title: "هاليد", plays: this.controller.getPlayLog(), snapshot: () => this.controller.snapshot() });
+    }
+    if (last) views.push({ title: views.length ? "اليد اللي قبل" : "آخر يد", plays: last.plays, snapshot: () => last.snapshot });
+    if (views.length === 0) views.push({ title: "هاليد", plays: [], snapshot: () => this.controller.snapshot() });
     this.scene.pause();
     openNotesPanel({
-      plays: this.controller.getPlayLog(),
+      views,
       seatName: (seat) => (seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat]),
-      mode: res?.mode,
-      trumpSuit: res?.trumpSuit,
-      snapshot: () => this.controller.snapshot(),
       onClose: () => this.scene.resume(),
     });
   }
