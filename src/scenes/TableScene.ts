@@ -37,6 +37,7 @@ import {
   sortHandForDisplay,
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
@@ -229,9 +230,10 @@ export class TableScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
-    this.generateSparkTexture();
-    this.drawTable();
+    ensureFxTextures(this);
+    paintBackdrop(this, { table: true });
+    addAmbience(this);
+    addCameraGrade(this);
     this.buildStaticUI();
     this.controller = new GameController(mulberry32(Date.now() % 2147483647), {
       matchTarget: this.nodeData.matchTarget,
@@ -244,47 +246,11 @@ export class TableScene extends Phaser.Scene {
     this.controller.startMatch();
   }
 
-  private generateSparkTexture(): void {
-    if (this.textures.exists("spark")) return;
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(4, 4, 4);
-    g.generateTexture("spark", 8, 8);
-    g.destroy();
-  }
-
+/** أكّة and بلوت: a flare on the card and a lift of motes in the call's colour. */
   private createImpactJuice(x: number, y: number, color: number): void {
-    this.cameras.main.shake(120, 0.003); // Very small screen shake
-    
-    // Create a particle burst
-    const emitter = this.add.particles(x, y, "spark", {
-      speed: { min: 100, max: 300 },
-      angle: { min: 0, max: 360 },
-      scale: { start: 1, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [color, 0xffffff],
-      lifespan: { min: 300, max: 600 },
-      gravityY: 400,
-      quantity: 25,
-      emitting: false
-    }).setDepth(100);
-    
-    emitter.explode();
-    this.time.delayedCall(700, () => emitter.destroy());
-  }
-
-  /** A square-ish felt table (not a landscape-style oval) with the 4 real seats around its edges. */
-  private drawTable(): void {
-    const { left, top, right, bottom } = TABLE_RECT;
-    const w = right - left;
-    const h = bottom - top;
-    const gfx = this.add.graphics();
-    gfx.fillStyle(0x1c102a, 1);
-    gfx.fillRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(10, 0xd4af37, 1);
-    gfx.strokeRoundedRect(left, top, w, h, 52);
-    gfx.lineStyle(4, 0xf1c40f, 0.6);
-    gfx.strokeRoundedRect(left + 20, top + 20, w - 40, h - 40, 36);
+    this.cameras.main.shake(110, 0.002);
+    flare(this, x, y, color, 1.1);
+    rise(this, x, y, [color, 0xffffff], 16);
   }
 
   // ---------------------------------------------------------------- setup
@@ -449,7 +415,7 @@ export class TableScene extends Phaser.Scene {
       if (!def) return;
       const level = state.jokerLevels[id] ?? 1;
       const bg = this.add.graphics();
-      bg.fillStyle(0x08201a, 0.95);
+      bg.fillStyle(0x14303b, 0.95);
       bg.fillRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       bg.lineStyle(3, def.rarity === "legendary" ? 0xffb33a : def.rarity === "rare" ? 0x9cc3ff : 0x8aa79a, 1);
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
@@ -494,7 +460,7 @@ export class TableScene extends Phaser.Scene {
     });
     const h = text.height + 36;
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 0.97);
+    bg.fillStyle(0x14303b, 0.97);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
     bg.lineStyle(3, 0xffd54a, 0.9);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
@@ -710,7 +676,7 @@ export class TableScene extends Phaser.Scene {
     const w = Math.max(120, label.width + 44);
     const h = 66;
     const bg = this.add.graphics();
-    bg.fillStyle(0x08201a, 0.94);
+    bg.fillStyle(0x14303b, 0.94);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
     bg.lineStyle(4, color, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
@@ -1113,6 +1079,7 @@ export class TableScene extends Phaser.Scene {
       const isLegal = legalIds.has(cardId(view.card));
       view.setDimmed(!isLegal);
       view.setHighlighted(false);
+      view.setPlayable(isLegal);
       if (isLegal) {
         setBoxHitArea(view, view.displayW, view.displayH);
         view.input!.cursor = "pointer";
@@ -1304,6 +1271,7 @@ export class TableScene extends Phaser.Scene {
       if (this.input && v.input) this.input.setDraggable(v, false);
       if (v.input) v.disableInteractive();
       v.setDimmed(false);
+      v.setPlayable(false);
     }
     
     this.controller.submitPlayerCard(view.card);
@@ -1372,7 +1340,7 @@ export class TableScene extends Phaser.Scene {
     const step = 44;
     const width = (cards.length - 1) * step + CARD_W * WIDGET_CARD_SIZE + 24;
     const bg = this.add.graphics();
-    bg.fillStyle(0x08201a, 0.9);
+    bg.fillStyle(0x14303b, 0.9);
     bg.fillRoundedRect(-width / 2, -92, width, 176, 16);
     bg.lineStyle(3, 0x5ad469, 1);
     bg.strokeRoundedRect(-width / 2, -92, width, 176, 16);
@@ -1422,13 +1390,13 @@ export class TableScene extends Phaser.Scene {
       this.playerHandViews.splice(idx, 1);
       this.relayoutHand();
       this.trickViews[e.seat] = view;
-      this.tweens.add({
-        targets: view,
-        x: dest.x,
-        y: dest.y,
+      view.setPlayable(false);
+      this.children.bringToTop(view);
+      arcTo(this, view, dest, {
+        duration: CARD_MOVE_TWEEN_MS + 70,
         scale: TRICK_CARD_SIZE / HAND_CARD_SIZE,
-        duration: CARD_MOVE_TWEEN_MS + 50,
-        ease: "Back.Out",
+        angle: this.restingAngle(),
+        land: true,
       });
     } else {
       this.setOpponentCount(e.seat, this.controller.getRound().hands[e.seat].length);
@@ -1436,8 +1404,14 @@ export class TableScene extends Phaser.Scene {
       const anchor = HAND_ANCHOR[e.seat];
       const view = new CardView(this, anchor.x, anchor.y, e.card, true, TRICK_CARD_SIZE);
       this.trickViews[e.seat] = view;
-      this.tweens.add({ targets: view, x: dest.x, y: dest.y, duration: CARD_MOVE_TWEEN_MS + 50, ease: "Back.Out" });
+      view.setAngle(e.seat === 1 ? -90 : e.seat === 3 ? 90 : 180).setScale(0.7);
+      arcTo(this, view, dest, { duration: CARD_MOVE_TWEEN_MS + 70, scale: 1, angle: this.restingAngle(), land: true });
     }
+  }
+
+  /** Cards on the table lie a little askew, as if dropped by hand. */
+  private restingAngle(): number {
+    return (Math.random() - 0.5) * 12;
   }
 
   /** Creates a card at the table center and tweens it out to its seat position, like a real deal. */
@@ -1455,8 +1429,9 @@ export class TableScene extends Phaser.Scene {
   /** A face-up card flying from `from` to `to`, hidden until its turn in the deal. */
   private flyCardTo(card: Card, from: { x: number; y: number }, to: { x: number; y: number }, delay: number): CardView {
     const view = new CardView(this, from.x, from.y, card, true, HAND_CARD_SIZE);
-    view.setScale(0.45).setAlpha(0);
-    this.tweens.add({ targets: view, x: to.x, y: to.y, scale: 1, alpha: 1, delay, duration: DEAL_FLY_MS, ease: "Cubic.Out" });
+    view.setScale(0.45).setAlpha(0).setAngle((Math.random() - 0.5) * 40);
+    this.tweens.add({ targets: view, alpha: 1, delay, duration: DEAL_FLY_MS * 0.4 });
+    arcTo(this, view, to, { delay, duration: DEAL_FLY_MS + 60, scale: 1, angle: 0, lift: 60 });
     return view;
   }
 
@@ -1554,18 +1529,25 @@ export class TableScene extends Phaser.Scene {
     const views = { ...this.trickViews };
     this.trickViews = {};
 
-    // A quick pop on the winning card sells the moment before everything collects.
+    // The winning card flares and rises a little before everything collects.
     const winningView = views[e.winner];
-    this.cameras.main.shake(150, 0.005);
-    this.floatText(dest.x, dest.y, isLast ? '+10 O U,OOO ' : 'OO_US!', '#ffd54a');
-    this.createImpactJuice(CENTER_X, CENTER_Y, 0xd4af37);
+    const ours = teamOf(e.winner) === teamOf(HUMAN_SEAT);
+    if (isLast) {
+      this.cameras.main.shake(160, 0.003);
+      this.floatText(dest.x, dest.y - 60, `الأرض +${this.lastTrickBonus()}`, "#ffd98a");
+    }
     if (winningView) {
+      this.children.bringToTop(winningView);
+      flare(this, winningView.x, winningView.y, ours ? 0xffd98a : 0x8fd6cb, 0.9);
+      rise(this, winningView.x, winningView.y, ours ? [0xffd98a, 0xfff1d6] : [0x8fd6cb, 0xe8f7f4], 10);
       this.tweens.add({
         targets: winningView,
-        scale: winningView.scale * 1.18,
-        duration: 140,
+        scale: winningView.scale * 1.14,
+        angle: 0,
+        duration: 180,
         yoyo: true,
-        ease: "Quad.Out",
+        hold: 220,
+        ease: "Back.Out",
       });
     }
 
@@ -1577,6 +1559,8 @@ export class TableScene extends Phaser.Scene {
           x: dest.x,
           y: dest.y,
           alpha: 0,
+          scale: view.scale * 0.6,
+          angle: view.angle + (Math.random() < 0.5 ? -60 : 60),
           duration: TRICK_COLLECT_TWEEN_MS,
           ease: "Cubic.In",
           onComplete: () => view.destroy(),
@@ -1599,6 +1583,7 @@ export class TableScene extends Phaser.Scene {
 
   private onHandComplete(e: HandCompleteEvent): void {
     this.chat(handLines(e.result, this.handsPlayed === 0), 200);
+    this.whenTableSettled(() => this.handMoment(e.result));
     this.handsPlayed++;
     this.showingHandSummary = true;
     // The controller deals the next hand right after this event, so read the finished
@@ -1606,6 +1591,20 @@ export class TableScene extends Phaser.Scene {
     const ashkal = !!this.controller.getRound().bidding.result?.ashkal;
     const snapshot: HandCompleteEvent = { ...e, matchScore: { ...e.matchScore }, ashkal };
     this.whenTableSettled(() => this.showHandSummary(snapshot));
+  }
+
+  /** كبوت gets fireworks; any other won hand, a quiet lift of gold. */
+  private handMoment(r: HandResult): void {
+    const us = teamOf(HUMAN_SEAT);
+    if (r.tricksWon[us] === 8) {
+      this.cameras.main.shake(300, 0.006);
+      screenFlash(this, 0xffe6b0, 0.45);
+      celebrate(this, CENTER_X, CENTER_Y + 100);
+      this.time.delayedCall(250, () => celebrate(this, CENTER_X - 220, CENTER_Y - 150, undefined, 30));
+      this.time.delayedCall(450, () => celebrate(this, CENTER_X + 220, CENTER_Y - 150, undefined, 30));
+    } else if (r.sheet?.winner === us) {
+      rise(this, CENTER_X, CENTER_Y + 80, [0xffd98a, 0xfff1d6, 0x8fd6cb], 30);
+    }
   }
 
   /**
@@ -1795,6 +1794,10 @@ export class TableScene extends Phaser.Scene {
     this.matchOver = true;
 
     const won = e.winner === teamOf(HUMAN_SEAT);
+    if (won) {
+      screenFlash(this, 0xffe6b0, 0.4, 600);
+      celebrate(this, CENTER_X, CENTER_Y - 260, undefined, 80);
+    }
     const { shieldUsed, goldEarned } = runController.resolveMatchNode(won);
     const runState = runController.getState();
 
@@ -1808,7 +1811,7 @@ export class TableScene extends Phaser.Scene {
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
     const bg = this.add.graphics();
-    bg.fillStyle(0x0a2318, 1);
+    bg.fillStyle(0x14303b, 1);
     bg.fillRoundedRect(-panelW / 2, -230, panelW, 460, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -230, panelW, 460, 28);

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-const ARABIC_FONT = "Tahoma, 'Segoe UI', Arial, sans-serif";
+const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
 
 export function arabicText(
   scene: Phaser.Scene,
@@ -10,7 +10,14 @@ export function arabicText(
   style: Phaser.Types.GameObjects.Text.TextStyle = {},
 ): Phaser.GameObjects.Text {
   return scene.add
-    .text(x, y, text, { fontFamily: ARABIC_FONT, color: "#ffffff", align: "center", ...style })
+    .text(x, y, text, {
+      fontFamily: ARABIC_FONT,
+      color: "#ffffff",
+      align: "center",
+      // A soft dark halo keeps text readable over the lit sky and the table.
+      shadow: { offsetX: 0, offsetY: 2, color: "rgba(20,10,8,0.65)", blur: 6, fill: true },
+      ...style,
+    })
     .setRTL(true)
     .setOrigin(0.5);
 }
@@ -31,20 +38,26 @@ export function makeButton(
 ): ButtonHandle {
   const width = opts.width ?? 280;
   const height = opts.height ?? 84;
-  const color = opts.color ?? 0xd4af37;
-  const textColor = opts.textColor ?? (color === 0xd4af37 ? '#1c102a' : '#ffffff');
+  const color = opts.color === undefined || opts.color === 0xd4af37 ? 0xe3a33b : opts.color;
+  const light = color === 0xe3a33b;
+  const textColor = opts.textColor ?? (light ? "#3a2620" : "#ffffff");
 
+  // A raised tile: soft shadow, the face, a lighter upper half for depth, and a warm rim.
   const bg = scene.add.graphics();
-  bg.fillStyle(0x000000, 0.25);
-  bg.fillRoundedRect(-width / 2 + 3, -height / 2 + 5, width, height, 18);
+  bg.fillStyle(0x140804, 0.35);
+  bg.fillRoundedRect(-width / 2 + 2, -height / 2 + 7, width, height, 20);
   bg.fillStyle(color, 1);
-  bg.fillRoundedRect(-width / 2, -height / 2, width, height, 18);
-  bg.lineStyle(3, 0xffffff, 0.45);
-  bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 18);
+  bg.fillRoundedRect(-width / 2, -height / 2, width, height, 20);
+  bg.fillStyle(0xffffff, 0.16);
+  bg.fillRoundedRect(-width / 2 + 4, -height / 2 + 4, width - 8, height / 2 - 4, { tl: 16, tr: 16, bl: 6, br: 6 });
+  bg.lineStyle(3, 0xfff1d6, 0.6);
+  bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 20);
 
   const text = arabicText(scene, 0, 0, label, {
     fontSize: opts.fontSize ?? "30px",
     color: textColor,
+    fontStyle: "bold",
+    ...(light ? { shadow: { offsetX: 0, offsetY: 1, color: "rgba(255,241,214,0.5)", blur: 0, fill: true } } : {}),
   });
 
   const container = scene.add.container(x, y, [bg, text]);

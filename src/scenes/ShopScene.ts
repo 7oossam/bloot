@@ -3,6 +3,7 @@ import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelik
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea } from "./ui";
+import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },
@@ -38,7 +39,9 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x2a1a3a).setOrigin(0);
+    paintBackdrop(this);
+    addAmbience(this);
+    addCameraGrade(this);
     arabicText(this, WIDTH / 2, 58, "المتجر", { fontSize: "44px" });
     this.goldText = arabicText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: "#ffd54a" });
     this.ownedText = arabicText(this, WIDTH / 2, 268, "", {

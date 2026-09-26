@@ -30,6 +30,13 @@
 - **Art:** the player makes the assets with Gemini + Higgsfield from `docs/art-direction.md` (style: fine ink line + layered painterly shading with depth — the player rejected flat colour; palette, per-place lighting, content rules, prompt kit, file specs, the asset list with prompts). Claude reviews uploaded images against its checklist and wires them into the game. The player's reference images (R1–R8) stay with the player.
 - The player's lines: a warm legend, not horror; jinn and أم الصبيان are fine; no fortune-telling (العرّاف joker → الدربيل); تحف chosen over غنايم.
 
+### The look (src/scenes/fx.ts) — until the real art lands
+- Every scene has a painted dusk backdrop (sky gradient, low sun, zellige lattice, grain), shafts of light and drifting gold dust, and (WebGL only) a camera vignette. The table: a teal zellige top under a lamp, a wooden rim and a sadu band.
+- Cards (`CardView`): cream paper face, teal zellige back with the Host's sun, a soft shadow that spreads when the card lifts, and a breathing glow on playable cards (`setPlayable`).
+- Motion: cards travel in arcs (`arcTo`) and land askew with a puff; the trick winner flares and motes rise; كبوت gets fireworks and a flash; a won match celebrates.
+- Arabic text uses Tajawal (Google Fonts; `main.ts` waits for it up to 2.5 s, then falls back) with a soft dark shadow. Buttons are raised sun-gold tiles.
+- All textures are painted into canvases at runtime, with blur done through `shadowBlur` (Safari has no canvas `filter`). When the Higgsfield art is approved, these are the places to swap in images.
+
 ### Where the truth lives
 - Theme/story: `docs/theme.md`. Art (style, prompts, asset specs): `docs/art-direction.md`.
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
@@ -46,6 +53,10 @@
 
 ## 3. Next Steps (Where to pick up)
 - **Apply the theme's names** (`docs/theme.md` §3–§8): text-only, no system changes.
+- **Higgsfield is connected as an MCP connector** (`mcp__higgsfield__*`, OAuth, ~70 credits on the basic plan at the start). The first reference shots (art-direction §8 step 1), each place with two models, waiting on the player's pick:
+  - nano_banana_pro (served as nano_banana_2, 1536×2752, 2 credits): hara `d7908342-e753-47cf-9167-336896092796`, andalus `d6875141-5f66-4d50-b466-491f90d0f409`, qasr `14d34da7-86f1-48c0-8069-9534925d4371`
+  - gpt_image_2_5 medium 1k (752×1344, 0.5 credits): hara `4e0245b9-72b7-427e-9b6c-5314a9001356`, andalus `5e27cb37-5ac9-42e3-8af2-897edde84790`, qasr `94c93f78-e483-47fc-ad17-611cbfb63fc0`
+  - Result images live on `d8j0ntlcm91z4.cloudfront.net`; a session whose network blocks that host can't download them (show them with `show_generation_by_ids`). Use an environment with full network to fetch, review and wire them in. The approved shots become the style references (`medias` role `image_references`) for every later generation.
 - **Assets:** when the player uploads a batch, check it against `docs/art-direction.md` §6.4, then crop/convert to webp at the §7 sizes and load it in the scenes (cards first: faces leave the corners empty; the code draws ranks and suits).
 - **Three maps (acts)** — the player wants it, "but not now": after the boss, a harder map; الحوت appears at the start of each map (never mid-map) with stronger blessings.
 - Playtest on a phone; tune numbers in `baseOptions` (`src/roguelike/jokers.ts`), `opponents.ts` and `blessings.ts`.
