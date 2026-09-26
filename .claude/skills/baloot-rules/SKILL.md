@@ -71,9 +71,9 @@ Ground rules when working on the game:
    **More rules from the player's table notes** (hard rules over the search, `playerRules`
    in `src/ai/mcts.ts`; each note is a test in `tests/player-notes.test.ts`):
    - In hokum the defenders cash a side-suit Ace while it still wins, before it gets ruffed.
-   - The buyer's opponents don't go back into a suit the buyer led (his حلة) with a small
-     card — a strong one may go (the top card still out, or one only a single card beats).
-     The buyer's partner goes back to him freely.
+   - The buyer's opponents don't go back into a suit the buyer led (his حلة) except with a
+     sure winner (the top card still out) — a second-best card only feeds him the card above
+     it. The buyer's partner goes back to him freely.
    - Don't discard from a suit you hold the Ace of — it tells the partner you don't want it.
      Signal with the small card of the brother suit; feed the 10 in a later trick. But when
      every other discard costs (a 10 thrown, or a 10 left bare — عشرة معلّقة), a small card of
