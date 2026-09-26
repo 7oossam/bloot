@@ -192,38 +192,41 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
   });
 
   it("the partner then leads the brother of the discarded suit — with its biggest card", () => {
-    // Earlier trick: seat 3 led A♥ and seat 0, void, threw 7♠ — not spades: it wants clubs.
-    const earlier = trickOf(3, "AH", "7S", "8H", "9H");
-    earlier.winner = 3;
+    // Earlier trick: the partner (seat 2) led A♥ and seat 0, void, threw 7♠ on it — not spades:
+    // it wants clubs. (التهريب counts only on a trick the partner is winning.)
+    const earlier = trickOf(2, "AH", "8H", "7S", "9H");
+    earlier.winner = 2;
     const chosen = decideCard(cards("8S", "KD", "QD", "9C", "10C"), trickOf(2), "sun", undefined, 2, { tricks: [earlier] });
     expect(chosen).toEqual(c("10C"));
   });
 
-  it("reads the table's discards the way the video teaches", () => {
+  it("reads the table's discards the way the video teaches (on a trick the partner is winning)", () => {
     const read = (mode: "sun" | "hokum", ...played: Trick[]) => buildBeliefs(played, undefined, mode, mode === "hokum" ? "S" : undefined);
     // Rule 1: a lone discard asks for its brother (led ♠, threw ♦ → wants ♥), and ♦ isn't wanted.
-    const one = read("sun", trickOf(1, "AS", "8S", "9S", "7D"));
+    const one = read("sun", trickOf(2, "AS", "8S", "7D", "9S"));
     expect(one.wants[0]).toEqual(["H"]);
     expect(one.rejects[0]).toEqual(["D"]);
     // Rule 3: led ♥, threw ♦ (its brother) → wants the black suits.
-    expect(read("sun", trickOf(1, "AH", "8H", "9H", "7D")).wants[0]).toEqual(["S", "C"]);
+    expect(read("sun", trickOf(2, "AH", "8H", "7D", "9H")).wants[0]).toEqual(["S", "C"]);
     // Rule 2: on ♣ leads, threw ♥ then ♦ (both red) → wants black: ♠ (it has no ♣).
-    expect(read("sun", trickOf(1, "AC", "8C", "9C", "7H"), trickOf(1, "KC", "QC", "JC", "8D")).wants[0]).toEqual(["S"]);
+    expect(read("sun", trickOf(2, "AC", "8C", "7H", "9C"), trickOf(2, "KC", "QC", "8D", "JC")).wants[0]).toEqual(["S"]);
     // Rule 4: climbing in ♦ (7 then 8 then بنت) asks for ♦ itself.
-    const up = read("sun", trickOf(1, "AS", "8S", "9S", "7D"), trickOf(1, "AC", "8C", "9C", "8D"), trickOf(1, "KS", "7S", "QS", "QD"));
+    const up = read("sun", trickOf(2, "AS", "8S", "7D", "9S"), trickOf(2, "AC", "8C", "8D", "9C"), trickOf(2, "KS", "7S", "QD", "QS"));
     expect(up.wants[0][0]).toBe("D");
     expect(up.rejects[0]).not.toContain("D");
     // …and coming down (10 then 9) doesn't: ♦ is refused, its brother ♥ is asked for.
-    const down = read("sun", trickOf(1, "AS", "8S", "9S", "10D"), trickOf(1, "AC", "8C", "9C", "9D"));
+    const down = read("sun", trickOf(2, "AS", "8S", "10D", "9S"), trickOf(2, "AC", "8C", "9D", "9C"));
     expect(down.rejects[0]).toContain("D");
     expect(down.wants[0]).toEqual(["H"]);
+    // A card thrown on the opponents' trick isn't التهريب (the player's rule): it's just gone.
+    expect(read("sun", trickOf(1, "AS", "8S", "9S", "7D")).wants[0]).toEqual([]);
     // A ruff in hokum is not a message.
-    expect(read("hokum", trickOf(1, "AH", "8H", "9H", "7S")).wants[0]).toEqual([]);
+    expect(read("hokum", trickOf(2, "AH", "8H", "7S", "9H")).wants[0]).toEqual([]);
   });
 
   it("builds a climb when its strong suit's brother is the led suit's colour", () => {
     // Earlier seat 0 threw 7♦ (led ♠). Now ♥ is led and ♦ is its strength: the next ♦ up says "♦".
-    const earlier = trickOf(1, "AS", "8S", "9S", "7D");
+    const earlier = trickOf(2, "AS", "8S", "7D", "9S");
     earlier.winner = 1;
     const chosen = decideCard(cards("AD", "8D", "KD", "8C", "9C"), trickOf(1, "AH"), "sun", undefined, 0, { tricks: [earlier] });
     expect(chosen).toEqual(c("8D"));

@@ -3,7 +3,7 @@ import { currentWinner, wouldWinAgainstCurrent } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { aceMustPlay, bareTenLead, decideCard, defenderMayLeadTrump, isBoss, mayHoldAce, overRuffRisk, type PlayContext } from "./play-ai";
-import { buildBeliefs } from "./beliefs";
+import { buildBeliefs, outstanding } from "./beliefs";
 
 /**
  * The search AI: determinized Monte Carlo over the cards this seat may play.
@@ -237,6 +237,20 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     }
     // Never a 10 whose Ace is still out (it only feeds the Ace), unless the partner asked for it.
     pool = narrow(pool, (c) => !bareTenLead(c, hand, mode, trumpSuit, ((seat + 2) % 4) as Seat, beliefs), "ما يحل بعشرة وإكتها ما طاحت");
+    if (!against) {
+      if (seat === declarer && mode === "hokum" && trumpSuit) {
+        // المحكم يسحب الحكم: the buyer with the top trump pulls trumps while an opponent may
+        // still hold some.
+        const opponentsTrumps = ([1, 3] as const).some((k) => !beliefs.voids[((seat + k) % 4) as Seat][trumpSuit]) && outstanding(beliefs, hand, trumpSuit).length > 0;
+        const topTrump = hand.some((c) => c.suit === trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit));
+        if (opponentsTrumps && topTrump) pool = narrow(pool, (c) => c.suit === trumpSuit, "المحكم يسحب الحكم");
+      }
+      // No hard rule for the buyer's partner (the player's note asked him to cash first, then go
+      // back to the buyer): every form of it measured weaker than the search's own choice —
+      // cash-first −0.6 a hand, back-to-the-buyer −0.5, only-in-the-buyer's-suit −0.1, and
+      // as a soft penalty −0.3 (paired, 1,000 hands each). The note's moment plays right
+      // without it.
+    }
     if (mode === "hokum" && against && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) {
       pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
     }

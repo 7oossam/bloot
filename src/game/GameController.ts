@@ -345,6 +345,8 @@ export class GameController extends Emitter<EventMap> {
   private sawaClaim?: boolean;
   private playLog: PlayLogEntry[] = [];
   private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
+  /** Every finished hand of this صكة, for «انسخ الصكة» and the analysis. */
+  private matchLog: HandSnapshot[] = [];
   /** The search AI's own random stream, so thinking never shifts the deal's. */
   private searchRand?: () => number;
 
@@ -376,6 +378,15 @@ export class GameController extends Emitter<EventMap> {
   /** Every card the computer played this hand, with why (for «ليش؟» and the player's notes). */
   getPlayLog(): readonly PlayLogEntry[] {
     return this.playLog;
+  }
+
+  /**
+   * The whole صكة so far: every finished hand, plus the one in play if it has started — each
+   * with every seat's cards, every trick and the computer's reasons.
+   */
+  getMatchLog(): HandSnapshot[] {
+    const now = this.round.phase === "playing" ? [this.snapshot()] : [];
+    return [...this.matchLog, ...now];
   }
 
   /** The hand before this one, as it ended — so «ليش؟» can still look back at it. */
@@ -456,6 +467,7 @@ export class GameController extends Emitter<EventMap> {
     this.matchOver = false;
     this.goldEarned = 0;
     this.dealer = 0;
+    this.matchLog = [];
     this.dealHand();
   }
 
@@ -1151,6 +1163,7 @@ export class GameController extends Emitter<EventMap> {
     if (this.round.phase === "complete") {
       // Kept for «ليش؟» after the hand is over.
       this.lastHand = { plays: [...this.playLog], snapshot: this.snapshot() };
+      this.matchLog.push(this.lastHand.snapshot);
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
       // المدبّلين: a hand your team bought and lost counts double for them.
