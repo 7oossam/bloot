@@ -312,6 +312,57 @@ describe("the player's notes", () => {
     expect((t.softRules ?? []).map((x) => x.card.suit + x.card.rank)).toContain("S7");
   });
 
+  // ---- the third batch of notes
+
+  it("11. against a sun buyer: no 10 led under an Ace still out — cash your own Ace", () => {
+    // You bought sun (أشكل). يمين leads first: he threw the 10 شرية with the إكة still out.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 0, ground: "H7",
+      hands: {
+        0: ["CA", "C8", "CJ", "SA", "H10", "C7", "D10", "S7"],
+        1: ["C10", "D9", "D8", "HA", "S10", "H8", "S8", "HJ"],
+        2: ["CQ", "D7", "DQ", "SQ", "CK", "H7", "H9", "SK"],
+        3: ["C9", "S9", "HK", "SJ", "DK", "HQ", "DJ", "DA"],
+      },
+      tricks: [], current: trick(1, []),
+    });
+    expect(think(r, 1).card).toEqual(card("HA"));
+  });
+
+  it("12. a defender plays his Ace on his partner's trick instead of holding it for the buyer", () => {
+    // You bought sun and led the شايب هاص; يمين's 10 is winning; يسار holds the إكة.
+    const r = at({
+      dealer: 2, mode: "sun", declarer: 0, ground: "SQ",
+      hands: {
+        0: ["CJ", "SA", "CA", "SQ", "D10", "S7"],
+        1: ["C9", "SJ", "C7", "S10", "DQ", "HJ"],
+        2: ["C10", "S9", "CQ", "SK", "H8", "C8"],
+        3: ["H9", "CK", "S8", "D7", "DK", "HQ", "HA"],
+      },
+      tricks: [trick(3, ["3:D8", "0:DA", "1:D9", "2:DJ"], 0)],
+      current: trick(0, ["0:HK", "1:H10", "2:H7"]),
+    });
+    expect(think(r, 3).card).toEqual(card("HA"));
+  });
+
+  it("13. on the partner's lead: eat with the Ace, then go back to his suit", () => {
+    // يمين bought sun. You led the بنت شرية; your partner holds إكة، شايب، 9 و7 شرية.
+    const hands = {
+      0: ["DK", "H7", "CJ", "S9", "DJ", "S7", "C10"],
+      1: ["SA", "DQ", "DA", "H8", "HQ", "SK", "HA"],
+      2: ["CK", "H9", "HK", "CA", "C9", "C7", "S8", "S10"],
+      3: ["HJ", "D9", "H10", "D10", "SQ", "D7", "SJ", "C8"],
+    } as Record<Seat, string[]>;
+    const first = at({ dealer: 3, mode: "sun", declarer: 1, ground: "HQ", hands, tricks: [], current: trick(0, ["0:CQ", "1:D8"]) });
+    expect(think(first, 2).card).toEqual(card("CA"));
+    const after = at({
+      dealer: 3, mode: "sun", declarer: 1, ground: "HQ",
+      hands: { ...hands, 2: ["CK", "H9", "HK", "C9", "C7", "S8", "S10"], 3: ["HJ", "D9", "H10", "D10", "SQ", "D7", "SJ"] },
+      tricks: [trick(0, ["0:CQ", "1:D8", "2:CA", "3:C8"], 2)],
+      current: trick(2, []),
+    });
+    expect(think(after, 2).card.suit).toBe("C");
+  });
 });
 
 describe("guessing the hidden hands from what the table has said", () => {

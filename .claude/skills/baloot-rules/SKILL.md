@@ -82,8 +82,13 @@ Ground rules when working on the game:
      even a 10 thrown to keep it from being bare.
    - Don't lead a small card of a suit you hold the Ace of: lead the Ace. A *soft* rule (the
      search marks the card down by 6 game points): sometimes going under it drops their 10.
-   - In hokum an Ace plays the first time its suit comes round while it still wins — even
-     onto the partner's trick. Holding it back (الفرنكة) gets it ruffed later.
+   - No فرنكة: an Ace plays the first time its suit comes round while it still wins — even
+     onto the partner's trick. Held back it's ruffed (hokum) or eaten by the buyer (sun).
+     In sun, beating an opponent's شايب with the 10 keeps the Ace on top — that's fine. Only
+     the buying side in sun, with a sure winner in another suit, may hold it (`mayHoldAce`).
+   - Never lead a 10 whose Ace is still out — unless answering the partner's ask.
+   - Against the buyer: go back to the suit the partner opened with; otherwise cash an Ace
+     while it still wins (sun too — the lead may never come back, or it's a كبوت).
    - Ruffing while the ولد is still out, ruff with the تسعة, or the ولد catches it later —
      unless an opponent still to play may ruff over it (shown out of the suit, or the suit
      too run down for everyone to follow).

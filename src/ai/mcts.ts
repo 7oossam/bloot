@@ -2,7 +2,7 @@ import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner, wouldWinAgainstCurrent } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, defenderMayLeadTrump, isBoss, overRuffRisk, type PlayContext } from "./play-ai";
+import { aceMustPlay, bareTenLead, decideCard, defenderMayLeadTrump, isBoss, mayHoldAce, overRuffRisk, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -95,7 +95,7 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + 0.25;
+  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + HABIT_TRUST;
   for (const card of candidates) {
     const score = totals.get(cardId(card))! / worlds - penalty(card);
     if (score > bestScore) {
@@ -235,22 +235,36 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
       // شايب is the top card and goes too.
       pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || isBoss(c, hand, beliefs, mode, trumpSuit), "خصم المشتري ما يرجع في حلته إلا بورقة ماكلة");
     }
-    if (mode === "hokum" && against) {
-      if (!defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
-      pool = narrow(pool, (c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit), "في الحكم تاكل إكتك قبل لا تنقطع");
+    // Never a 10 whose Ace is still out (it only feeds the Ace), unless the partner asked for it.
+    pool = narrow(pool, (c) => !bareTenLead(c, hand, mode, trumpSuit, ((seat + 2) % 4) as Seat, beliefs), "ما يحل بعشرة وإكتها ما طاحت");
+    if (mode === "hokum" && against && !defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) {
+      pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
+    }
+    if (against) {
+      // Back to the partner: the suit he opened with is where he's strong.
+      const partner = ((seat + 2) % 4) as Seat;
+      const opened = round.tricks.find((t) => t.leader === partner);
+      const partnerSuit = opened?.cards[partner]?.suit;
+      if (partnerSuit && !(mode === "hokum" && partnerSuit === trumpSuit)) {
+        pool = narrow(pool, (c) => c.suit === partnerSuit, "يرجع لخويه في الشكل اللي حله");
+      }
+      // Against the buyer, cash an Ace while it still wins: the lead may never come back, or
+      // the buyer may take the rest (كبوت).
+      pool = narrow(pool, (c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit), "ضد المشتري تاكل إكتك قبل لا تروح عليك");
     }
     return pool;
   }
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);
-  // In hokum an Ace plays the first time its suit comes round, while it still wins — held back
-  // (الفرنكة) it gets ruffed later. Even onto the partner's trick.
+  // No فرنكة: an Ace plays the first time its suit comes round, while it still wins — even onto
+  // the partner's trick. Held back, it gets ruffed (hokum) or eaten by the buyer (sun). Only the
+  // buying side in sun, with a sure winner elsewhere to come back in on, may hold it.
   const ledTrump = isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit);
-  if (mode === "hokum" && following && !ledTrump) {
+  if (following && !ledTrump) {
     const ace = legal.find((c) => c.suit === led && c.rank === "A");
-    if (ace && wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) {
-      return narrow(legal, (c) => cardId(c) === cardId(ace), "في الحكم الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
+    if (ace && aceMustPlay(ace, legal, trick, mode, trumpSuit, seat) && !mayHoldAce(hand, ace, mode, trumpSuit, seat, declarer, beliefs)) {
+      return narrow(legal, (c) => cardId(c) === cardId(ace), "الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
     }
   }
   // In the last two tricks an Ace thrown onto the partner's trick isn't wasted: the lead may
@@ -462,6 +476,15 @@ function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Ca
   // the search weaker (600 hands: 1.71 a hand at 0, 1.47 at 0.25, 1.31 at 0.5).
   return g[team] - g[other] + (raw[team] - raw[other]) * RAW_TIEBREAK;
 }
+
+/**
+ * How much better (in game points) a card must look in the playouts to override the rule-based
+ * habit. The playouts are noisy and their players imperfect, and the player's notes kept
+ * showing the search overriding a sound habit by a small margin. Measured paired over 1,000
+ * hands each: 1.5 → +0.25 (± 0.19), 3 → +0.48 (± 0.26) over the old 0.25; then against 3,
+ * 5 → +0.11 (± 0.27), 8 → -0.35. So 3.
+ */
+const HABIT_TRUST = 3;
 
 /** A raw point (أبنط) in a playout's score: 20 of them are a tenth of a game point. */
 const RAW_TIEBREAK = 0.005;
