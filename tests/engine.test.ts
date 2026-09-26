@@ -443,7 +443,7 @@ describe("النشرة — scoreHand with projects (البند 4–7)", () => {
     expect(r.gamePoints).toEqual({ 0: 0, 1: 26 + 4 });
   });
 
-  it("بلوت stays with its holder even when their side loses the buy", () => {
+  it("a side that loses the buy scores zero: its بلوت counts for no one", () => {
     const r = scoreHand(
       tricksFor([
         [1, ["JS", "9S", "AS", "10S"]], // 55
@@ -462,7 +462,7 @@ describe("النشرة — scoreHand with projects (البند 4–7)", () => {
       { baloot: 0 },
     );
     expect(r.sheet!.outcome).toBe("lost"); // 58 + بلوت 20 = 78 < 104
-    expect(r.gamePoints).toEqual({ 0: 2, 1: 16 });
+    expect(r.gamePoints).toEqual({ 0: 0, 1: 16 });
   });
 
   it("كبوت is 44 in sun and 25 in hokum (7-7)", () => {
@@ -652,7 +652,11 @@ describe("المشاريع (projects) — docs/baloot-guide.md §1", () => {
       }
       expect(round.result!.baloot).toBe(holder);
       const team = holder % 2 as 0 | 1;
-      expect(round.result!.projectPoints![team]).toBeGreaterThanOrEqual(2);
+      // A side that lost the hand scores nothing, بلوت included.
+      const sheet = round.result!.sheet!;
+      const lost = sheet.kaboot !== undefined ? sheet.kaboot !== team : sheet.winner !== undefined ? sheet.winner !== team : sheet.outcome === "lost" && sheet.judgedTeam === team;
+      if (lost) expect(round.result!.gamePoints[team]).toBe(0);
+      else expect(round.result!.projectPoints![team]).toBeGreaterThanOrEqual(2);
       found++;
     }
     expect(found).toBeGreaterThan(0);
@@ -844,7 +848,7 @@ describe("الدبل — البند 7", () => {
     expect(t.sheet!).toMatchObject({ judgedTeam: 0, outcome: "lost" });
   });
 
-  it("projects double at دبل only (5-4, 5-5), and بلوت stays 2 with its holder", () => {
+  it("projects double at دبل only (5-4, 5-5); the losing side's بلوت counts for no one", () => {
     const projects = {
       declared: [{ kind: "sira" as const, seat: 1 as Seat, cards: hand("7S", "8S", "9S") }],
       winner: 1 as const,
@@ -853,7 +857,7 @@ describe("الدبل — البند 7", () => {
     // Team 1's سرا: 103 against 79 + بلوت 20 = 99 — team 1 takes the hand and the سرا ×2.
     const d = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { projects, baloot: 0, double: { level: 2, raiserTeam: 1, closed: true } });
     expect(d.sheet!.abnat).toEqual({ 0: 99, 1: 103 });
-    expect(d.gamePoints).toEqual({ 0: 2, 1: 32 + 4 });
+    expect(d.gamePoints).toEqual({ 0: 0, 1: 32 + 4 });
     // فور: ×4 for the hand, the سرا stays 2.
     const f = scoreHand(hokumTricks(), "hokum", "S", 0, 10, { projects, double: { level: 4, raiserTeam: 1, closed: true } });
     expect(f.gamePoints).toEqual({ 0: 0, 1: 64 + 2 });
