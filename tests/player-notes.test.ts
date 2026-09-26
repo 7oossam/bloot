@@ -121,4 +121,55 @@ describe("the player's notes", () => {
     });
     expect(think(r, 2).card).toEqual(card("HA"));
   });
+
+  it("3b. the buyer's partner goes back to the buyer's suit freely", () => {
+    // Same deal as note 3, but the buyer's partner took the first trick and leads.
+    const r = at({
+      dealer: 3, mode: "sun", declarer: 0, ground: "HA",
+      hands: {
+        0: ["H8", "DJ", "H10", "D10", "HA", "D9", "C9"],
+        1: ["S9", "S7", "SQ", "C8", "CJ", "D8", "D7"],
+        2: ["C10", "CA", "S8", "S10", "CK", "H9", "DA"],
+        3: ["SJ", "SA", "H7", "SK", "HQ", "HK", "CQ"],
+      },
+      tricks: [trick(0, ["0:DK", "1:DQ", "2:HJ", "3:C7"], 2)], current: trick(2, []),
+    });
+    expect(think(r, 2).rules ?? []).not.toContain("خصم المشتري ما يرجع في حلته بورقة صغيرة");
+  });
+
+  it("3c. against the buyer, a strong card of his suit may still be led", () => {
+    // Note 3's moment, with يمين holding the شايب ديمن: only the 10 still beats it.
+    const r = at({
+      dealer: 3, mode: "sun", declarer: 0, ground: "HA",
+      hands: {
+        0: ["H8", "DJ", "H10", "D10", "HA", "D9", "C9"],
+        1: ["S9", "S7", "SQ", "C8", "CJ", "DK", "D7"],
+        2: ["C10", "CA", "S8", "S10", "CK", "H9", "HJ"],
+        3: ["SJ", "SA", "H7", "SK", "HQ", "HK", "CQ"],
+      },
+      tricks: [trick(0, ["0:D8", "1:DA", "2:C7", "3:DQ"], 1)], current: trick(1, []),
+    });
+    const t = think(r, 1);
+    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).toContain("D7");
+    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("DK");
+  });
+
+  it("4b. a guarded 10 isn't left bare just to keep off the Ace's suit", () => {
+    // Your partner, no hearts: إكة، عشرة وسبعة شرية, and عشرة سبيت guarded by the ثمانية.
+    // Everything outside clubs costs (the 10 itself, or leaving it bare), so the 7 شرية may go.
+    const r = at({
+      dealer: 3, mode: "sun", declarer: 0, ground: "HA",
+      hands: {
+        0: ["H8", "D9", "D10", "C9"],
+        1: ["SQ", "CJ", "S9", "D8"],
+        2: ["CA", "C10", "C7", "S10", "S8"],
+        3: ["SA", "HK", "HQ", "SJ", "D7"],
+      },
+      tricks: [trick(0, ["0:DK", "1:DA", "2:CK", "3:DQ"], 1), trick(1, ["1:D7", "2:HJ", "3:CQ", "0:DJ"], 0), trick(0, ["0:HA", "1:C8", "2:H9", "3:H7"], 0)],
+      current: trick(0, ["0:H10", "1:S7"]),
+    });
+    const out = (think(r, 2).ruledOut ?? []).map((c) => c.suit + c.rank);
+    expect(out).not.toContain("C7");
+    expect(out).toContain("C10");
+  });
 });

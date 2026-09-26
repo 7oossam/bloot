@@ -3,7 +3,7 @@ import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { decideCard, defenderMayLeadTrump, isBoss, type PlayContext } from "./play-ai";
-import { buildBeliefs } from "./beliefs";
+import { buildBeliefs, outstanding } from "./beliefs";
 
 /**
  * The search AI: determinized Monte Carlo over the cards this seat may play.
@@ -140,7 +140,9 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     if (against) {
       // حلة المشتري: suits the buying side's declarer opened.
       const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
-      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || isBoss(c, hand, beliefs, mode, trumpSuit), "ما يرجع في حلة المشتري إلا بورقة ماكلة");
+      // A strong card of it may go: the top card still out, or one only a single card beats.
+      const strong = (c: Card) => outstanding(beliefs, hand, c.suit).filter((o) => rankStrength(o, mode, trumpSuit) > rankStrength(c, mode, trumpSuit)).length <= 1;
+      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || strong(c), "خصم المشتري ما يرجع في حلته بورقة صغيرة");
     }
     if (mode === "hokum" && against) {
       if (!defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
@@ -158,8 +160,21 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     return !partnerWinning; // fed to the partner
   }, following ? "الإكة ما تنعطى لأكلة خويه" : "الإكة ما تنرمى");
   if (!following) {
+    // Not from the Ace's suit — unless everything else costs: a 10 thrown, or a 10 left bare
+    // (عشرة معلّقة). Then a small card of the Ace's suit may go; its 10 never does.
     const aceSuits = new Set(hand.filter((c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit)).map((c) => c.suit));
-    keep = narrow(keep, (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice), "ما يهرّب من شكل عنده إكته (يفهمها خويه إنه ما يبغاه)");
+    const aceOut = (suit: Suit) => !hand.some((x) => x.suit === suit && x.rank === "A") && !beliefs.played.some((x) => x.suit === suit && x.rank === "A");
+    const costly = (c: Card) => {
+      const rest = hand.filter((x) => x.suit === c.suit && cardId(x) !== cardId(c));
+      return c.rank === "10" || (rest.length === 1 && rest[0].rank === "10" && aceOut(c.suit));
+    };
+    const others = keep.filter((c) => !aceSuits.has(c.suit));
+    const allCostly = others.length > 0 && others.every(costly);
+    keep = narrow(
+      keep,
+      (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice) || (allCostly && c.rank !== "10"),
+      "ما يهرّب من شكل عنده إكته (يفهمها خويه إنه ما يبغاه)",
+    );
   }
   return keep;
 }
