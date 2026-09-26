@@ -210,9 +210,9 @@ describe("السوا", () => {
           expect(o.bonus).toBe(6);
         } else {
           wrong++;
-          // Nothing left for you but your own بلوت; they take the rest of the hand, and the
-          // score sheet reads it as a buy of yours that failed.
-          expect(o.ours).toBeLessThanOrEqual(2);
+          // Nothing left for you, not even your بلوت: they take the whole hand, and the score
+          // sheet reads it as a buy of yours that failed.
+          expect(o.ours).toBe(0);
           expect(o.sheet?.outcome).toBe("lost");
           expect(o.sheet?.judgedTeam).toBe(0);
           expect(o.sheet?.result[0]).toBe(o.ours);

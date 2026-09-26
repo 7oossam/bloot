@@ -1005,14 +1005,12 @@ export class GameController extends Emitter<EventMap> {
       gained[us] += o.comeback.bonus;
       bonuses.push({ label: "الرجعة", points: o.comeback.bonus });
     }
-    // سوا غلط: the hand goes to the other side — the whole of it, projects too (only your own
-    // بلوت stays yours), and none of your jokers' bonuses count.
+    // سوا غلط: the hand goes to the other side — the whole of it, projects and your بلوت too
+    // (you score zero, the player's rule), and none of your jokers' bonuses count.
     // The sheet says so too: the hand reads as a خسرانة for your side, whoever bought it.
     if (this.sawaClaim === false) {
-      const ourBaloot = result.baloot !== undefined && teamOf(result.baloot) === us ? BALOOT_VALUE : 0;
-      const total = result.gamePoints[us] + result.gamePoints[them];
-      gained[them] = total - ourBaloot;
-      gained[us] = ourBaloot;
+      gained[them] = result.gamePoints[us] + result.gamePoints[them];
+      gained[us] = 0;
       bonuses.length = 0;
       if (result.sheet) {
         result.sheet.outcome = "lost";

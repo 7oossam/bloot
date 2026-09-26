@@ -69,8 +69,9 @@ Ground rules when working on the game:
    wins every trick left whatever the opponents do — order matters (lead the 9 of trumps to
    draw their King, then the 8). The partner plays along. `src/engine/sawa.ts`; after a right
    claim the play-out follows that order. **سوا غلط** is judged like a buy that failed: the
-   whole hand to the other side (its full value, doubled if doubled, plus every project; only
-   the claimer's own بلوت stays), and the sheet reads خسرانة for the claimer's side.
+   whole hand to the other side (its full value, doubled if doubled, plus every project and
+   the بلوت too — the claimer's side scores zero, the player's rule), and the sheet reads
+   خسرانة for the claimer's side.
 13. **الدبل comes before the rest of the deal:** it's decided on the first five cards (six for
    whoever takes the ground card); the last three are dealt once the دبل round is settled. A
    joker could lift this later (the player's idea).
