@@ -2,7 +2,7 @@ import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
 import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
-import { decideCard, defenderMayLeadTrump, type PlayContext } from "./play-ai";
+import { decideCard, defenderMayLeadTrump, isBoss, type PlayContext } from "./play-ai";
 import { buildBeliefs } from "./beliefs";
 
 /**
@@ -44,6 +44,8 @@ export interface PlayTrace {
   /** What the rule-based habit would have played. */
   ruleChoice?: Card;
   ruledOut?: Card[];
+  /** Which of the player's rules removed them, in the player's words. */
+  rules?: string[];
   scores?: Array<{ card: Card; avg: number }>;
   worlds?: number;
 }
@@ -62,9 +64,10 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
   // A partner's برقية is a convention, not a calculation: answer it.
   if (!ctx.deaf && followsConvention(round, seat, ctx.answerFirst)) return { kind: "convention", card: ruleChoice, ruleChoice };
 
-  const candidates = playerRules(round, seat, legal, ruleChoice);
+  const rules: string[] = [];
+  const candidates = playerRules(round, seat, legal, ruleChoice, rules);
   const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
-  if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut };
+  if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut, rules };
 
   const constraints = inferConstraints(round, seat);
   const totals = new Map<string, number>(candidates.map((c) => [cardId(c), 0]));
@@ -77,7 +80,7 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
     for (const card of candidates) totals.set(cardId(card), totals.get(cardId(card))! + rollout(round, hands, seat, card));
     if (opts.timeBudgetMs !== undefined && Date.now() - started > opts.timeBudgetMs) break;
   }
-  if (worlds === 0) return { kind: "habit", card: ruleChoice, ruleChoice, ruledOut };
+  if (worlds === 0) return { kind: "habit", card: ruleChoice, ruleChoice, ruledOut, rules };
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
@@ -90,7 +93,7 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
     }
   }
   const scores = candidates.map((card) => ({ card, avg: totals.get(cardId(card))! / worlds })).sort((a, b) => b.avg - a.avg);
-  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds };
+  return { kind: "search", card: best, ruleChoice, ruledOut, scores, worlds, rules };
 }
 
 // ------------------------------------------------------------------ the player's rules
@@ -108,30 +111,57 @@ function followsConvention(round: Round, seat: Seat, answerFirst = false): boole
 }
 
 /**
- * Never feed an Ace to a partner who's winning, and never throw an Ace away when you can't
- * follow — unless it's the برقية the rule-based AI chose.
+ * The player's rules, kept as hard rules over the search (each came from a note the player
+ * wrote at the table):
+ * - Leading, in hokum, the side that didn't buy: no trumps (bar the exceptions in
+ *   `defenderMayLeadTrump`), and cash a side-suit Ace while it still wins — later the buyer
+ *   may be void and ruff it.
+ * - Leading against the buyer: never go back into a suit the buyer led (his حلة) unless with a
+ *   sure winner in it.
+ * - Following: never feed an Ace to a partner who's winning, and never throw an Ace away —
+ *   unless it's the برقية the rule-based AI chose.
+ * - Discarding: never from a suit where you hold its Ace — that tells the partner you don't
+ *   want the suit you're strongest in.
  */
-function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card): Card[] {
+function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, why: string[] = []): Card[] {
   const trick = round.currentTrick!;
   const { mode, trumpSuit, declarer } = round.bidding.result!;
+  const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
+  const hand = round.hands[seat];
+  const against = teamOf(declarer) !== teamOf(seat);
+  const narrow = (pool: Card[], keep: (c: Card) => boolean, reason: string) => {
+    const kept = pool.filter(keep);
+    if (kept.length === 0 || kept.length === pool.length) return pool;
+    why.push(reason);
+    return kept;
+  };
   if (trick.order.length === 0) {
-    // The side that didn't buy the hokum doesn't lead trumps, bar the exceptions.
-    if (mode !== "hokum" || teamOf(declarer) === teamOf(seat)) return legal;
-    const beliefs = buildBeliefs(round.tricks, trick, mode, trumpSuit);
-    if (defenderMayLeadTrump(round.hands[seat], mode, trumpSuit, beliefs)) return legal;
-    const side = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-    return side.length > 0 ? side : legal;
+    let pool = legal;
+    if (against) {
+      // حلة المشتري: suits the buying side's declarer opened.
+      const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
+      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || isBoss(c, hand, beliefs, mode, trumpSuit), "ما يرجع في حلة المشتري إلا بورقة ماكلة");
+    }
+    if (mode === "hokum" && against) {
+      if (!defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
+      pool = narrow(pool, (c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit), "في الحكم تاكل إكتك قبل لا تنقطع");
+    }
+    return pool;
   }
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);
-  const keep = legal.filter((c) => {
+  let keep = narrow(legal, (c) => {
     if (c.rank !== "A" || isTrumpCard(c, mode, trumpSuit)) return true;
     if (cardId(c) === cardId(ruleChoice)) return true; // a برقية
     if (!following) return false; // thrown away
     return !partnerWinning; // fed to the partner
-  });
-  return keep.length > 0 ? keep : legal;
+  }, following ? "الإكة ما تنعطى لأكلة خويه" : "الإكة ما تنرمى");
+  if (!following) {
+    const aceSuits = new Set(hand.filter((c) => c.rank === "A" && !isTrumpCard(c, mode, trumpSuit)).map((c) => c.suit));
+    keep = narrow(keep, (c) => !aceSuits.has(c.suit) || cardId(c) === cardId(ruleChoice), "ما يهرّب من شكل عنده إكته (يفهمها خويه إنه ما يبغاه)");
+  }
+  return keep;
 }
 
 // ------------------------------------------------------------------ what the table has shown

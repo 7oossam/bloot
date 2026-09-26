@@ -305,7 +305,7 @@ export interface HandSnapshot {
   matchScore: Record<Team, number>;
   partner?: string;
   rival?: string;
-  plays: Array<{ seat: Seat; trick: number; card: string; kind: string; habit?: string; scores?: string[]; ruledOut?: string[] }>;
+  plays: Array<{ seat: Seat; trick: number; card: string; kind: string; habit?: string; scores?: string[]; ruledOut?: string[]; rules?: string[] }>;
 }
 
 export class GameController extends Emitter<EventMap> {
@@ -420,6 +420,7 @@ export class GameController extends Emitter<EventMap> {
         habit: p.trace.ruleChoice ? cardId(p.trace.ruleChoice) : undefined,
         scores: p.trace.scores?.map((x) => `${cardId(x.card)}=${x.avg.toFixed(2)}`),
         ruledOut: p.trace.ruledOut?.map(cardId),
+        rules: p.trace.rules,
       })),
     };
   }

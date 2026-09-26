@@ -44,6 +44,15 @@
 - The player writes a note or question about a play; it's saved in localStorage with a full `HandSnapshot` (deal, bids, contract, tricks, every hand, the AI's scores). «انسخ» copies them all as JSON to paste to Claude.
 - **When the player pastes notes:** rebuild the moment from the snapshot, decide whether the AI was wrong (check the rules skill and `docs/baloot-guide.md`), fix the rule in `play-ai.ts` / `mcts.ts`, and add the moment as a test so it never comes back. If the AI was right, explain why. Stage 2 (later, if wanted): Claude answering in-game through a small server holding the API key.
 
+### The player's first notes (5), all fixed — `tests/player-notes.test.ts` rebuilds each moment
+- A defender led a lone trump Ace into the buyer's hokum → `defenderMayLeadTrump` tightened.
+- The partner threw a 10 into the opponents' trick to keep it from being bare → points into their trick weigh 4× in `chooseDiscard`.
+- A defender went back into the buyer's opening suit in sun → hard rule.
+- The partner discarded from his Ace's suit instead of signalling with the brother suit → hard rule + the signal now comes before feeding a 10 into our own trick.
+- A hokum defender didn't cash his side Ace → hard rule.
+- The rule AI is +0.7 a hand stronger than before (≈6,900 hands head to head, twice); the search's lead over it is now ≈2.0 a hand (400 hands), and the strength test runs 240 hands.
+- الذاكرة now shows four suit tiles between the table and your hand (left in each suit; at level 2 which Ace/10 are still out).
+
 ### Where the truth lives
 - Theme/story: `docs/theme.md`. Art (style, prompts, asset specs): `docs/art-direction.md`.
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
