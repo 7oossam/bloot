@@ -36,7 +36,7 @@ import {
   handPositions,
   sortHandForDisplay,
 } from "./layout";
-import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, playToneFor, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
@@ -233,7 +233,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   preload(): void {
-    
+    preloadUi(this);
   }
 
   create(): void {
@@ -278,15 +278,19 @@ export class TableScene extends Phaser.Scene {
     for (const seat of OPPONENT_SEATS) {
       const anchor = HAND_ANCHOR[seat];
       const back = new CardView(this, anchor.x, anchor.y, { suit: "S", rank: "7" }, false, WIDGET_CARD_SIZE);
+      // A dark chip behind the name and count keeps them readable over the table's gold border.
+      const chip = { backgroundColor: "rgba(11,19,48,0.85)", padding: { x: 12, y: 4 } };
       const count = arabicText(this, anchor.x, anchor.y + back.displayH / 2 + 26, "×8", {
         fontSize: "24px",
         color: "#dbeee1",
+        ...chip,
       }).setDepth(5);
       // Your partner goes by their name (شخصيات الخوي).
       const name = seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat];
       this.seatLabels[seat] = arabicText(this, anchor.x, anchor.y - back.displayH / 2 - 26, name, {
         fontSize: "24px",
         color: SEAT_LABEL_COLOR,
+        ...chip,
       }).setDepth(5);
       this.opponentWidget[seat] = { back, count };
     }
@@ -514,10 +518,10 @@ export class TableScene extends Phaser.Scene {
   /** The sort button beside your name, and (with الذاكرة) the cards-still-out line. */
   private buildHandTools(): void {
     const y = HAND_ANCHOR[HUMAN_SEAT].y - 128;
-    const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
+    const btn = makeButton(this, WIDTH - 110, y, "ترتيب", () => this.cycleSort(), { width: 170, height: 58, kind: "play", tone: "quiet" });
     btn.container.setDepth(6);
     // «ليش؟»: why the computer played what it did, and the player's notes for Claude.
-    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", color: 0x2d4a3e });
+    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
     why.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
       // In the strip between the table and your hand, clear of the names and the rival line.
@@ -668,7 +672,7 @@ export class TableScene extends Phaser.Scene {
     this.sawaButton?.destroy();
     this.sawaButton = undefined;
     if (!this.controller.canClaimSawa()) return;
-    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
+    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا", () => {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
       // Right or wrong, the hand plays itself out from here.
@@ -685,7 +689,7 @@ export class TableScene extends Phaser.Scene {
         v.setDimmed(false);
       }
       this.driveAI();
-    }, { width: 170, height: 58, fontSize: "25px", color: 0x8a5a12 });
+    }, { width: 170, height: 64, kind: "play", tone: "sawa" });
     this.sawaButton.container.setDepth(6);
   }
 
@@ -905,7 +909,7 @@ export class TableScene extends Phaser.Scene {
           this.clearBidButtons();
           item.onClick();
         },
-        { width: 184, height: 74, fontSize: "26px" },
+        { width: 184, height: 74, kind: "play", tone: playToneFor(item.label) },
       );
       this.bidButtons.push(btn);
     });
@@ -1211,8 +1215,8 @@ export class TableScene extends Phaser.Scene {
     this.actionSkip = makeButton(this, CENTER_X, HAND_ANCHOR[0].y - 285, "تخطّي", () => this.onActionSkip(), {
       width: 170,
       height: 60,
-      fontSize: "24px",
-      color: 0x5d5d5d,
+      kind: "play",
+      tone: "quiet",
     });
     this.actionSkip.container.setDepth(12);
 
@@ -1847,7 +1851,7 @@ export class TableScene extends Phaser.Scene {
         }
         this.driveAI();
       },
-      { width: right - left, height: 88, color: 0x5d5d5d },
+      { width: right - left, height: 88 },
     );
     panel.add(btn.container);
   }

@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { Card } from "../engine/types";
 import { SUIT_COLOR_HEX, SUIT_SYMBOL } from "./cardArt";
 import { cardBackKey, cardFaceKey, cardHaloKey, cardShadowKey } from "./fx";
+import { CARD_BACK_ART, cardArtKey } from "./ui";
 
 /** Base card size, in the 860x1800 authoring space. */
 export const CARD_W = 132;
@@ -119,7 +120,16 @@ export class CardView extends Phaser.GameObjects.Container {
     const h = this.displayH;
     const r = 16 * s;
 
-    if (this.faceUp) {
+    const art = cardArtKey(this.card.suit, this.card.rank);
+    if (this.faceUp && this.scene.textures.exists(art)) {
+      // The finished face: index, pips or crest are part of the image.
+      this.paper.setTexture(art).setDisplaySize(w, h);
+      if (highlighted) {
+        this.frame.lineStyle(6 * s, 0xe3a33b, 1);
+        this.frame.strokeRoundedRect(-w / 2, -h / 2, w, h, r);
+      }
+      this.bringToTop(this.shade);
+    } else if (this.faceUp) {
       this.paper.setTexture(cardFaceKey(this.scene, w, h, r)).setDisplaySize(w, h);
       if (highlighted) {
         this.frame.lineStyle(6 * s, 0xe3a33b, 1);
@@ -155,7 +165,8 @@ export class CardView extends Phaser.GameObjects.Container {
       this.add(this.texts);
       this.bringToTop(this.shade);
     } else {
-      this.paper.setTexture(cardBackKey(this.scene, w, h, r)).setDisplaySize(w, h);
+      const back = this.scene.textures.exists(CARD_BACK_ART) ? CARD_BACK_ART : cardBackKey(this.scene, w, h, r);
+      this.paper.setTexture(back).setDisplaySize(w, h);
       if (highlighted) {
         this.frame.lineStyle(6 * s, 0xe3a33b, 1);
         this.frame.strokeRoundedRect(-w / 2, -h / 2, w, h, r);

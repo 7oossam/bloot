@@ -5,7 +5,7 @@ import { getBlessing } from "../roguelike/blessings";
 import { getPartner, PARTNERS } from "../roguelike/partners";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 import type { TableSceneData } from "./TableScene";
 
@@ -42,6 +42,10 @@ export class MapScene extends Phaser.Scene {
 
   constructor() {
     super("map");
+  }
+
+  preload(): void {
+    preloadUi(this);
   }
 
   create(): void {
@@ -243,8 +247,8 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       const btn = makeButton(this, 0, y, option.label, () => this.showEventResult(runController.chooseEventOption(i)), {
         width: panelW - 90,
         height: 100,
-        fontSize: "23px",
-        color: reason ? 0x3a3a3a : 0x2d4a5e,
+        plate: "navy",
+        disabled: !!reason,
       });
       if (reason) {
         btn.container.disableInteractive();
@@ -391,7 +395,7 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ رن جديد", () => {
       runController.startNewRun();
       this.scene.restart();
-    }, { width: 300 });
+    }, { width: 300, plate: "teal" });
     panel.add(btn.container);
   }
 }

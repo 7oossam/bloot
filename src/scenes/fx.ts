@@ -262,6 +262,9 @@ export function cardFaceKey(scene: Phaser.Scene, w: number, h: number, r: number
  * sun low on the right, a faint zellige lattice and paper grain. With `table`, the lamp-lit
  * table: a teal zellige top, a carved wooden rim and a sadu band.
  */
+export const TABLE_ART = "bg-table";
+export const HOME_ART = "bg-home";
+
 export function paintBackdrop(scene: Phaser.Scene, opts: { table?: boolean } = {}): void {
   const key = opts.table ? "fx-backdrop-table" : "fx-backdrop";
   canvasTexture(scene, key, WIDTH, HEIGHT, (ctx) => {
@@ -351,6 +354,11 @@ export function paintBackdrop(scene: Phaser.Scene, opts: { table?: boolean } = {
     grain(ctx, WIDTH, HEIGHT, 9000);
   });
   scene.add.image(0, 0, key).setOrigin(0).setDepth(-20);
+  // The engraved navy table top (public/assets/bg/table.webp) over the drawn one, when loaded.
+  if (opts.table && scene.textures.exists(TABLE_ART)) {
+    const { left, top, right, bottom } = TABLE_RECT;
+    scene.add.image((left + right) / 2, (top + bottom) / 2, TABLE_ART).setDisplaySize(right - left, bottom - top).setDepth(-19);
+  }
 }
 
 /** Shafts of evening light from the upper right, and gold dust drifting in them. */

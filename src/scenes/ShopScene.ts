@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, setBoxHitArea } from "./ui";
+import { arabicText, makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
@@ -38,6 +38,10 @@ export class ShopScene extends Phaser.Scene {
     super("shop");
   }
 
+  preload(): void {
+    preloadUi(this);
+  }
+
   create(): void {
     paintBackdrop(this);
     addAmbience(this);
@@ -57,7 +61,7 @@ export class ShopScene extends Phaser.Scene {
     makeButton(this, WIDTH / 2, HEIGHT - 95, "متابعة الرحلة", () => {
       runController.leaveShopNode();
       this.scene.start("map");
-    });
+    }, { width: 380 });
   }
 
   private refresh(): void {
@@ -120,7 +124,7 @@ export class ShopScene extends Phaser.Scene {
         this.cameras.main.flash(180, 90, 60, 160);
         this.refresh();
       },
-      { width: 440, height: 76, fontSize: "26px", color: canReroll ? 0x5a3d99 : 0x3a3a3a },
+      { width: 440, height: 76, plate: "teal", disabled: !canReroll },
     );
   }
 
@@ -187,7 +191,7 @@ export class ShopScene extends Phaser.Scene {
         }
         this.refresh();
       },
-      { color: reason ? 0x3a3a3a : 0x1f6f43, width: buttonW, height: 74, fontSize: "27px" },
+      { plate: "sun", disabled: !!reason, width: buttonW, height: 74 },
     );
     card.add(btn.container);
     if (reason) card.add(arabicText(this, buttonX, 50, reason, { fontSize: "18px", color: "#b9a9c9" }));
@@ -225,8 +229,8 @@ export class ShopScene extends Phaser.Scene {
       close();
       this.toast(`💰 +${value}`);
       this.refresh();
-    }, { width: 220, height: 76, color: 0x8a3a3a });
-    const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76 });
+    }, { width: 220, height: 76, plate: "paper" });
+    const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
     panel.add([sell.container, keep.container]);
     // The row's order matters to النسخة (it copies the joker on its right).
     if (runController.getState().jokerIds.indexOf(id) > 0) {
@@ -234,7 +238,7 @@ export class ShopScene extends Phaser.Scene {
         runController.moveJoker(id, -1);
         close();
         this.refresh();
-      }, { width: 300, height: 66, fontSize: "24px", color: 0x5a3d99 });
+      }, { width: 300, height: 66, plate: "teal" });
       panel.add(move.container);
     }
     this.dialog = panel;

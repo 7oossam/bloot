@@ -1,0 +1,88 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css"><script src="cards.js"></script>
+<style>
+.bg { position:absolute; inset:0; background:url(table.jpg) center 44%/cover; }
+.topbar { position:absolute; top:0; left:0; right:0; height:74px; background:linear-gradient(180deg, rgba(22,13,9,.94), rgba(22,13,9,.78)); border-bottom:2px solid #D6A44A; display:flex; align-items:center; justify-content:space-between; padding:0 12px; }
+.score { text-align:center; line-height:1.15; }
+.score b { font-family:"Aref Ruqaa",serif; font-size:24px; color:#F2C96B; }
+.score small { display:block; font-size:11.5px; color:#BFAE93; font-weight:700; }
+.stat { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; color:#BFAE93; font-weight:700; }
+.stat .v { font-size:17px; color:#F3E9D6; font-weight:800; }
+.hours { display:flex; gap:3px; }
+.hours i { width:9px; height:9px; border-radius:50%; background:#F0CB7A; box-shadow:0 0 0 1.5px #281E19; }
+.hours i.off { background:#4a3a2c; }
+.rival { position:absolute; top:84px; left:50%; transform:translateX(-50%); }
+.seat { position:absolute; display:flex; flex-direction:column; align-items:center; gap:5px; }
+.backs { position:relative; height:52px; }
+.backs .card { width:36px; top:0; }
+.contract { position:absolute; top:262px; left:50%; transform:translateX(-50%); }
+.trick .card { width:78px; }
+.relics { position:absolute; top:548px; left:0; right:0; display:flex; justify-content:center; gap:10px; }
+.relic { width:44px; height:44px; border-radius:50%; border:2.5px solid #D6A44A; box-shadow:0 0 0 2px #281E19, 0 3px 6px rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; }
+.relic svg { width:26px; height:26px; }
+.tools { position:absolute; top:612px; left:12px; right:12px; display:flex; justify-content:space-between; pointer-events:none; }
+.hand { position:absolute; left:50%; top:690px; width:0; height:0; }
+.hand .card { width:80px; transform-origin:50% 190%; }
+.me { position:absolute; top:662px; left:50%; transform:translateX(-50%); }
+.cut { position:absolute; padding:2px 9px; border-radius:6px; background:#1C2B4A; border:1.5px solid #D6A44A; font-size:12px; font-weight:800; }
+</style></head><body>
+<div class="screen">
+  <div class="bg"></div>
+  <div class="topbar">
+    <div class="stat">ريال<span class="v">١٢</span></div>
+    <div class="score"><b>نحن ٧٦ · هم ٥٨</b><small>الهدف ١٥٢ · ديوانية الأندلس</small></div>
+    <div class="stat">ساعات الليل<span class="hours"><i></i><i></i><i></i><i class="off"></i></span></div>
+  </div>
+  <div class="rival chip" style="border-color:#9B1C24">المرهون: العارفين · يدبّلون اللي بتخسره</div>
+
+  <div class="seat" style="top:118px;left:50%;transform:translateX(-50%)">
+    <div class="backs" style="width:120px" id="pBacks"></div>
+    <span class="chip">الشايب · خويك</span>
+  </div>
+  <div class="seat" style="top:300px;right:6px">
+    <div class="backs" style="width:40px;height:92px" id="rBacks"></div>
+    <span class="chip">يمين</span>
+  </div>
+  <div class="seat" style="top:300px;left:6px">
+    <div class="backs" style="width:40px;height:92px" id="lBacks"></div>
+    <span class="chip">يسار</span>
+  </div>
+
+  <div class="contract chip">حكم <span style="font-family:Cinzel,serif">♠</span> · اشتراها يمينك · دبل</div>
+
+  <div class="trick">
+    <div class="card" id="tTop" style="left:156px;top:300px;transform:rotate(-4deg)"></div>
+    <div class="card" id="tLeft" style="left:92px;top:362px;transform:rotate(-12deg)"></div>
+    <div class="card" id="tRight" style="left:220px;top:356px;transform:rotate(9deg);box-shadow:0 0 0 3px #F0CB7A,0 6px 14px rgba(0,0,0,.55)"></div>
+    <div class="card" id="tMe" style="left:158px;top:420px;transform:rotate(3deg)"></div>
+    <span class="cut" style="left:246px;top:335px">قطع!</span>
+  </div>
+
+  <div class="tools">
+    <span class="tile" style="width:92px;height:44px;font-size:20px;background:#3E4A2A;color:#FAF7F0;pointer-events:auto">سوا</span>
+    <span class="tile" style="width:92px;height:44px;font-size:17px;background:rgba(250,247,240,.08);color:#F0CB7A;box-shadow:none;border-width:1.5px;backdrop-filter:blur(2px);background-color:rgba(22,13,9,.55)">ترتيب</span>
+  </div>
+  <div class="relics">
+    <div class="relic" style="background:#5E1F24"><svg viewBox="-20 -20 40 40"><circle r="9" fill="#F0CB7A" stroke="#281E19" stroke-width="2"/><g stroke="#F0CB7A" stroke-width="2.5" stroke-linecap="round"><path d="M0-17V-13M0 13V17M-17 0H-13M13 0H17M-12-12L-9-9M9 9L12 12M-12 12L-9 9M9-9L12-12"/></g></svg></div>
+    <div class="relic" style="background:#1C2B4A"><svg viewBox="-20 -20 40 40"><circle cx="-6" cy="0" r="7" fill="none" stroke="#F0CB7A" stroke-width="3.5"/><path d="M1 0H17M11 0V6M15 0V5" stroke="#F0CB7A" stroke-width="3.5" stroke-linecap="round"/></svg></div>
+    <div class="relic" style="background:#2D4A4D"><svg viewBox="-20 -20 40 40"><path d="M-10 12H10L7-2C6-8 2-11 0-11C-2-11-6-8-7-2Z" fill="#F0CB7A" stroke="#281E19" stroke-width="1.5"/><path d="M7-2C12-3 15-8 16-12" stroke="#F0CB7A" stroke-width="2.5" fill="none" stroke-linecap="round"/><circle cy="-13" r="2.5" fill="#F0CB7A"/></svg></div>
+    <div class="relic" style="background:#3E4A2A"><svg viewBox="-20 -20 40 40"><path d="M4-15A15 15 0 1 0 4 15A11 11 0 1 1 4-15Z" fill="#F0CB7A" stroke="#281E19" stroke-width="1.5"/></svg></div>
+  </div>
+
+  <div class="hand" id="hand"></div>
+</div>
+<script>
+function backs(el, n, vertical) {
+  for (let i=0;i<n;i++){ const c=document.createElement("div"); c.className="card"; card(c,"back");
+    if (vertical){ c.style.top=(i*9)+"px"; c.style.left="2px"; } else { c.style.left=(i*14)+"px"; }
+    el.appendChild(c); }
+}
+backs(pBacks,6,false); backs(rBacks,6,true); backs(lBacks,6,true);
+card(tTop,"10H"); card(tLeft,"7H"); card(tRight,"9S"); card(tMe,"KH");
+const hand=["AS","10S","8S","AD","9D","7C","10C"];
+hand.forEach((s,i)=>{ const c=document.createElement("div"); c.className="card"; card(c,s);
+  const k=i-(hand.length-1)/2; c.style.left="-40px"; c.style.top=(Math.abs(k)*6)+"px"; c.style.transform=`rotate(${k*7}deg) translateX(${k*-2}px)`;
+  if (i===0) { c.style.top=(Math.abs(k)*6-18)+"px"; c.style.boxShadow="0 0 0 3px #F0CB7A,0 6px 14px rgba(0,0,0,.55)"; }
+  hand_ = document.getElementById("hand"); hand_.appendChild(c); });
+</script></body></html>
