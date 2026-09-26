@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PART_CHARS, clearGames, exportGames, gamesCount, loadGames, recordHand, unpackHand } from "../src/game/notes";
+import { PART_CHARS, clearGames, exportFile, exportGames, gamesCount, loadGames, recordHand, unpackHand, type PackedHand } from "../src/game/notes";
 import type { HandSnapshot } from "../src/game/GameController";
 
 const snap = (n: number): HandSnapshot => ({
@@ -49,6 +49,11 @@ describe("the saved record of everything played", () => {
     const many = exportGames();
     expect(many.length).toBeGreaterThan(1);
     expect(many.every((p) => p.length < PART_CHARS + 500)).toBe(true);
+    // One file with everything, for the phone: every block reads back.
+    const { name, text: file } = exportFile([], loadGames());
+    expect(name).toMatch(/^bloot-.*\.txt$/);
+    const blocks = file.split("```json").slice(1).map((b) => JSON.parse(b.slice(0, b.indexOf("```"))));
+    expect(blocks[1].map((h: PackedHand) => unpackHand(h).match).length).toBe(gamesCount().hands);
     clearGames();
     expect(gamesCount().hands).toBe(0);
   });
