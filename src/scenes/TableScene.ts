@@ -37,6 +37,7 @@ import {
   sortHandForDisplay,
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { openNotesPanel } from "./notesPanel";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -515,10 +516,26 @@ export class TableScene extends Phaser.Scene {
     const y = HAND_ANCHOR[HUMAN_SEAT].y - 128;
     const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
     btn.container.setDepth(6);
+    // «ليش؟»: why the computer played what it did, and the player's notes for Claude.
+    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", color: 0x2d4a3e });
+    why.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
       const below = this.nodeData.modifiers.rivalLabel ? 36 : 0;
       this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38 + below, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
     }
+  }
+
+  private openNotes(): void {
+    const res = this.controller.getRound().bidding.result;
+    this.scene.pause();
+    openNotesPanel({
+      plays: this.controller.getPlayLog(),
+      seatName: (seat) => (seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat]),
+      mode: res?.mode,
+      trumpSuit: res?.trumpSuit,
+      snapshot: () => this.controller.snapshot(),
+      onClose: () => this.scene.resume(),
+    });
   }
 
   private cycleSort(): void {

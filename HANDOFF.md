@@ -39,6 +39,11 @@
 - Arabic text uses Tajawal (Google Fonts; `main.ts` waits for it up to 2.5 s, then falls back) with a soft dark shadow. Buttons are raised sun-gold tiles.
 - All textures are painted into canvases at runtime, with blur done through `shadowBlur` (Safari has no canvas `filter`). When the Higgsfield art is approved, these are the places to swap in images.
 
+### «ليش؟» and the player's notes (the AI-teaching loop)
+- The table's «ليش؟ 📝» button (top-left) pauses the game and opens an HTML panel (`src/scenes/notesPanel.ts`): every computer play this hand, newest first, each with why (`src/game/explain.ts`, from the `PlayTrace` that `searchCardTraced` in `src/ai/mcts.ts` records: forced / convention / rules / the search's average margin per candidate / habit / سوا).
+- The player writes a note or question about a play; it's saved in localStorage with a full `HandSnapshot` (deal, bids, contract, tricks, every hand, the AI's scores). «انسخ» copies them all as JSON to paste to Claude.
+- **When the player pastes notes:** rebuild the moment from the snapshot, decide whether the AI was wrong (check the rules skill and `docs/baloot-guide.md`), fix the rule in `play-ai.ts` / `mcts.ts`, and add the moment as a test so it never comes back. If the AI was right, explain why. Stage 2 (later, if wanted): Claude answering in-game through a small server holding the API key.
+
 ### Where the truth lives
 - Theme/story: `docs/theme.md`. Art (style, prompts, asset specs): `docs/art-direction.md`.
 - Rules: `.claude/skills/baloot-rules/SKILL.md` (+ `docs/baloot-regulation.md`, `docs/baloot-guide.md`).
