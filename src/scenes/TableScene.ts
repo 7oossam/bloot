@@ -154,6 +154,10 @@ export class TableScene extends Phaser.Scene {
   private oraclePanel?: Phaser.GameObjects.Container;
   /** This hand's المشاريع, said in the first trick and laid down in the second. */
   private projects?: ProjectsOutcome;
+  /** A wrong سوا this hand: the score sheet says why the hand went to them. */
+  private sawaWrong = false;
+  /** The rest of the deal, held back while the دبل round is played on the first five. */
+  private pendingRest?: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> };
   private highlightedSeat: Seat | null = null;
   /** Face-up cards drawn for the spy / partner-eyes jokers, rebuilt whenever a hand changes. */
   private revealViews: CardView[] = [];
@@ -207,6 +211,8 @@ export class TableScene extends Phaser.Scene {
     this.seatLabels = {};
     this.contractChip = undefined;
     this.projects = undefined;
+    this.pendingRest = undefined;
+    this.sawaWrong = false;
     this.oraclePanel = undefined;
     this.dealerChip = undefined;
     this.highlightedSeat = null;
@@ -644,6 +650,7 @@ export class TableScene extends Phaser.Scene {
     this.flashNote(e.ok ? "✋ سوا! الباقي كله لكم" : "✋ سوا غلط — فيه ورقة أكبر من ورقتك");
     this.pulseJokers("السوا", e.ok ? undefined : "-");
     this.log(e.ok ? "أنت: سوا ✋" : "أنت: سوا غلط");
+    this.sawaWrong = !e.ok;
   }
 
   // ------------------------------------------------------------- AI pacing
@@ -729,6 +736,7 @@ export class TableScene extends Phaser.Scene {
     this.contractChip?.destroy();
     this.contractChip = undefined;
     this.projects = undefined;
+    this.pendingRest = undefined;
 
     // The deal, as at a real table (the infographic's steps 1–3): counter-clockwise from the
     // dealer's right, three cards each, then two each, then the ground card turned face up.
@@ -781,12 +789,16 @@ export class TableScene extends Phaser.Scene {
     const bought = e.challenge ? `${SEAT_LABEL_AR[e.challenge.seat]} اشترى حكم ${SUIT_SYMBOL[e.challenge.suit]}` : "";
     const canSun = e.calls.some((c) => c.call === "sun");
     const canAshkal = e.calls.some((c) => c.call === "ashkal");
+    // No sun on offer is either the Ace rule (only the dealer's right may flip a hokum bought on
+    // an Ace) or a rule of this run that bars your side from sun altogether.
+    const aceGround = this.controller.getRound().bidding.groundCard.rank === "A";
+    const noSunWhy = aceGround ? "على إكة — ما يقلبها صن إلا اللي على يمين الموزع" : "— الصن ممنوع عليكم في هالرن";
     const prompt = !e.challenge
       ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
       : !canSun
         ? canAshkal
-          ? `${bought} على إكة — الصن لليمين الموزع بس، لكن تقدر تشكّل`
-          : `${bought} على إكة — ما يقلبها صن إلا اللي على يمين الموزع`
+          ? `${bought} ${noSunWhy}، لكن تقدر تشكّل`
+          : `${bought} ${noSunWhy}`
         : canAshkal
           ? `${bought} — تاخذها صن أو أشكل؟`
           : `${bought} — تاخذها صن؟`;
@@ -907,6 +919,16 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onDoubleCall(e: { bid: DoubleBid; level: DoubleLevel; closed: boolean }): void {
+    this.showDoubleCall(e);
+    // The دبل round is over: now the rest of the cards come.
+    if (this.pendingRest && this.controller.getRound().phase !== "doubling") {
+      const rest = this.pendingRest;
+      this.pendingRest = undefined;
+      this.dealRest(rest);
+    }
+  }
+
+  private showDoubleCall(e: { bid: DoubleBid; level: DoubleLevel; closed: boolean }): void {
     const who = SEAT_LABEL_AR[e.bid.seat];
     if (e.bid.call === "pass") {
       this.showSeatBubble(e.bid.seat, "بس", 0x8aa79a);
@@ -956,6 +978,20 @@ export class TableScene extends Phaser.Scene {
   private onBiddingResolved(e: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> }): void {
     this.chat(contractLines(e.declarer, e.mode));
     this.clearBidButtons();
+    const modeLabel =
+      e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]} ${SUIT_NAME_AR[e.trumpSuit!]}` : "صن (بدون حكم)";
+    this.hudModeText.setText(
+      `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`,
+    );
+    this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
+    this.placeContractChip(e.declarer, this.contractLabel());
+    // The دبل round is played on the first five cards: the rest is dealt once it's settled.
+    if (this.controller.getRound().phase === "doubling") this.pendingRest = e;
+    else this.dealRest(e);
+  }
+
+  /** The rest of the deal, after the buy (and the دبل round, if there is one). */
+  private dealRest(e: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> }): void {
     this.groundLabel?.destroy();
     this.groundLabel = undefined;
 
@@ -1034,14 +1070,6 @@ export class TableScene extends Phaser.Scene {
     // …and stack them so each card covers the one to its left, as the fan expects.
     for (const v of this.playerHandViews) this.children.bringToTop(v);
     this.holdForDeal(t + DEAL_FLY_MS);
-
-    const modeLabel =
-      e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]} ${SUIT_NAME_AR[e.trumpSuit!]}` : "صن (بدون حكم)";
-    this.hudModeText.setText(
-      `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`,
-    );
-    this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
-    this.placeContractChip(e.declarer, this.contractLabel());
     this.refreshMemory();
   }
 
@@ -1404,7 +1432,7 @@ export class TableScene extends Phaser.Scene {
       const anchor = HAND_ANCHOR[e.seat];
       const view = new CardView(this, anchor.x, anchor.y, e.card, true, TRICK_CARD_SIZE);
       this.trickViews[e.seat] = view;
-      view.setAngle(e.seat === 1 ? -90 : e.seat === 3 ? 90 : 180).setScale(0.7);
+      view.setAngle(e.seat === 1 ? -25 : e.seat === 3 ? 25 : 0).setScale(0.7);
       arcTo(this, view, dest, { duration: CARD_MOVE_TWEEN_MS + 70, scale: 1, angle: this.restingAngle(), land: true });
     }
   }
@@ -1708,6 +1736,11 @@ export class TableScene extends Phaser.Scene {
     put(usX, resY + resultH / 2, String(sheet.result[us]), { fontSize: "34px", fontStyle: "bold" });
     put(themX, resY + resultH / 2, String(sheet.result[them]), { fontSize: "34px", fontStyle: "bold" });
     y = resY + resultH + 44;
+    if (this.sawaWrong) {
+      this.sawaWrong = false;
+      put(CENTER_X, y, "سوا غلط — اليد كلها لهم، كأنكم شريتوا وخسرتوا", { fontSize: "25px", color: "#ff9a9a", fontStyle: "bold" });
+      y += 44;
+    }
 
     // ---- the run's jokers, counted up one at a time (the bible: never show the total first)
     const bonusTotal = e.bonuses.reduce((n, b) => n + b.points, 0);

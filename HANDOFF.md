@@ -11,6 +11,8 @@
 - **السوا is part of the game** (not a joker): whenever you lead. Either way the rest plays itself out; a wrong one hands the whole hand to the other side (full value, doubled if doubled, plus every project; only your own بلوت stays). The السوا joker just pays a bonus on a right call.
 - **اللعب طلوع** (from the player's terms video): when trumps are led in hokum you must follow with a higher trump than the best on the table if you hold one (`legalMoves` in `src/engine/trick.ts`).
 - **سوالف الطاولة** (`src/game/chatter.ts`): the computer players react in the words Baloot players use — فن / حكيم when their partner buys, تعيش سنين for a خمسين, بالزنوبة when an Ace is ruffed with a tiny trump, خسرانة, كبوت, الأولى للغشمان, قامت. Your seat never talks for you.
+- **السوا is judged by order** (`src/engine/sawa.ts`): right when some order of your cards wins every trick whatever they hold (9 of trumps first to draw the King). The play-out follows that order. A wrong one reads خسرانة on the sheet.
+- **الدبل is decided on the first five** (six for the ground card's taker); the last three are dealt after the دبل round. The AI's bars carry a margin for the unseen three (measured so it doubles as often as before).
 - **Sun doubling uses the regulation's real 100** (7-2), no longer scaled to the match target.
 
 ### The run (src/roguelike/)

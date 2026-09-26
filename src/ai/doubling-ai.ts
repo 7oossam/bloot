@@ -14,10 +14,19 @@ export const TRIPLE = 95;
 export const FOUR = 65;
 export const QAHWA = 110;
 
-/** `eager` lowers the bar to raise by that much (المتحمس, a partner). */
+/**
+ * `eager` lowers the bar to raise by that much (المتحمس, a partner). The دبل round comes before
+ * the rest of the deal, so `hand` is usually the first five (six for whoever takes the ground
+ * card). Its strength is scaled up to eight cards, less a margin for the three still unseen —
+ * measured on 20,000 deals so a seat raises about as often as it did seeing all eight
+ * (a scaled five alone doubled half as often again).
+ */
 export function decideDouble(seat: Seat, hand: Card[], state: DoublingState, trumpSuit?: Suit, eager = 0): DoubleBid {
   const options = legalDoubles(state);
-  const strength = (state.mode === "hokum" ? hokumStrength(hand, trumpSuit!) : sunStrength(hand)) + eager;
+  const raw = state.mode === "hokum" ? hokumStrength(hand, trumpSuit!) : sunStrength(hand);
+  const partial = hand.length > 0 && hand.length < 8;
+  const unseen = !partial ? 0 : state.mode === "hokum" ? (hand.length >= 6 ? 16 : 7) : hand.length >= 6 ? 6 : 1;
+  const strength = (partial ? (raw * 8) / hand.length : raw) - unseen + eager;
   const trumps = trumpSuit ? hand.filter((c) => c.suit === trumpSuit).length : 0;
   // مقفل keeps the buyer from pulling trumps — worth it when we hold trumps of our own.
   const closed = trumps >= 2;
