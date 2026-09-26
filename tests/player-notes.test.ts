@@ -185,4 +185,87 @@ describe("the player's notes", () => {
     expect(out).not.toContain("C7");
     expect(out).toContain("C10");
   });
+
+  // ---- the second batch of notes
+
+  it("6. in hokum the partner plays his Ace the first time its suit comes round", () => {
+    // You bought hokum ♦; يمين led the ولد سبيت; your partner holds إكة، شايب، عشرة and 7 سبيت.
+    const r = at({
+      dealer: 0, mode: "hokum", trumpSuit: "D", declarer: 0, ground: "S8",
+      hands: {
+        0: ["CQ", "DA", "D7", "DJ", "D8", "S8", "DK", "D9"],
+        1: ["C7", "H10", "C10", "HQ", "DQ", "CJ", "D10"],
+        2: ["S7", "CK", "C8", "HA", "HK", "S10", "SA", "SK"],
+        3: ["HJ", "H7", "C9", "CA", "H8", "S9", "H9", "SQ"],
+      },
+      tricks: [], current: trick(1, ["1:SJ"]),
+    });
+    expect(think(r, 2).card).toEqual(card("SA"));
+  });
+
+  it("7. the buyer doesn't lead a small card under his own Ace", () => {
+    // Your partner bought sun and leads, holding إكة، شايب and 7 سبيت.
+    const r = at({
+      dealer: 1, mode: "sun", declarer: 2, ground: "SA",
+      hands: {
+        0: ["DJ", "H9", "CQ", "CK", "C9", "HQ", "DK", "DQ"],
+        1: ["C10", "S10", "C7", "CJ", "H7", "C8", "S8", "H10"],
+        2: ["D10", "D7", "HJ", "HA", "SA", "CA", "SK", "S7"],
+        3: ["SJ", "S9", "HK", "D9", "D8", "DA", "H8", "SQ"],
+      },
+      tricks: [], current: trick(2, []),
+    });
+    const played = think(r, 2).card;
+    expect(["S7", "SK", "HJ"]).not.toContain(played.suit + played.rank);
+  });
+
+  it("8. no برقية when the partner has shown he has none of the suit to come back with", () => {
+    const tricks = [
+      trick(2, ["2:S7", "3:SQ", "0:H9", "1:S10"], 1), // you showed no spades here
+      trick(1, ["1:CJ", "2:CA", "3:HK", "0:CK"], 2),
+      trick(2, ["2:D10", "3:DA", "0:DJ", "1:S8"], 3),
+      trick(3, ["3:H8", "0:HQ", "1:H10", "2:HA"], 2),
+      trick(2, ["2:D7", "3:D8", "0:DK", "1:C7"], 0),
+    ];
+    const current = trick(0, ["0:DQ", "1:C8"]);
+    expect(decideCard(cards("HJ", "SK", "SA"), current, "sun", undefined, 2, { tricks, declarer: 2 })).not.toEqual(card("SA"));
+    const r = at({
+      dealer: 1, mode: "sun", declarer: 2, ground: "SA",
+      hands: { 0: ["CQ", "C9"], 1: ["C10", "H7"], 2: ["HJ", "SK", "SA"], 3: ["SJ", "S9", "D9"] },
+      tricks, current,
+    });
+    expect(think(r, 2).card).not.toEqual(card("SA"));
+  });
+
+  it("9. ruffing while the buyer's ولد is out, the partner ruffs with the تسعة", () => {
+    // يسار bought hokum ♠ and still holds the ولد; your partner has the بنت and the تسعة.
+    const r = at({
+      dealer: 2, mode: "hokum", trumpSuit: "S", declarer: 3, ground: "S10",
+      hands: { 0: ["CJ", "C8", "S8", "SK"], 1: ["DK", "CQ", "CK"], 2: ["SQ", "S9", "H9", "HQ"], 3: ["CA", "S10", "SJ", "SA"] },
+      tricks: [
+        trick(3, ["3:DJ", "0:DQ", "1:DA", "2:D9"], 1),
+        trick(1, ["1:D8", "2:D10", "3:D7", "0:C10"], 2),
+        trick(2, ["2:H7", "3:HK", "0:HA", "1:H10"], 0),
+        trick(0, ["0:HJ", "1:S7", "2:H8", "3:C9"], 1),
+      ],
+      current: trick(1, ["1:C7"]),
+    });
+    expect(think(r, 2).card).toEqual(card("S9"));
+  });
+
+  it("10. no فرنكة in hokum: the Ace goes on the partner's trick the first time round", () => {
+    // You bought hokum ♠. Your partner led هاص; يسار's 10 is winning; يمين holds the إكة هاص.
+    const r = at({
+      dealer: 3, mode: "hokum", trumpSuit: "S", declarer: 0, ground: "S9",
+      hands: {
+        0: ["CA", "S10", "S9", "C10", "D10"],
+        1: ["HQ", "S8", "HA", "H9", "D8", "H7"],
+        2: ["D9", "HK", "CK", "CQ", "D7"],
+        3: ["C7", "SQ", "C8", "CJ", "C9"],
+      },
+      tricks: [trick(0, ["0:S7", "1:SK", "2:SJ", "3:SA"], 3), trick(3, ["3:DQ", "0:DJ", "1:DK", "2:DA"], 2)],
+      current: trick(2, ["2:H8", "3:H10", "0:HJ"]),
+    });
+    expect(think(r, 1).card).toEqual(card("HA"));
+  });
 });

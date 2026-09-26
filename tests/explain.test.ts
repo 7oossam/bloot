@@ -76,4 +76,27 @@ describe("the play log and the note snapshot", () => {
     const json = text.slice(text.indexOf("```json") + 7, text.lastIndexOf("```"));
     expect(JSON.parse(json)[0].snapshot.tricks.length).toBe(snap.tricks.length);
   });
+
+  it("keeps the finished hand for «ليش؟»: every trick and every seat's full hand", () => {
+    const g = new GameController(mulberry32(5), { matchTarget: 9999 });
+    let done = false;
+    g.on("hand:complete", () => (done = true));
+    g.startMatch();
+    for (let i = 0; i < 4000 && !done; i++) {
+      const status = g.step();
+      if (status !== "waiting-human") continue;
+      const round = g.getRound();
+      if (g.getPendingAction() && round.phase === "playing") g.skipPlayerAction();
+      else if (round.phase === "bidding") g.submitPlayerBid(decideBid(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.bidding));
+      else if (round.phase === "doubling") g.submitPlayerDouble(decideDouble(HUMAN_SEAT, round.hands[HUMAN_SEAT], round.doubling!, round.bidding.result!.trumpSuit));
+      else {
+        const res = round.bidding.result!;
+        g.submitPlayerCard(decideCard(round.hands[HUMAN_SEAT], round.currentTrick!, res.mode, res.trumpSuit, HUMAN_SEAT, { tricks: round.tricks, closed: round.closed }));
+      }
+    }
+    const last = g.getLastHand()!;
+    expect(last.snapshot.tricks.length).toBe(8);
+    for (const s of [0, 1, 2, 3] as const) expect(last.snapshot.startHands[s].length).toBe(8);
+    expect(last.plays.length).toBeGreaterThan(20);
+  });
 });

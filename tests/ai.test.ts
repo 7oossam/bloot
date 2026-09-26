@@ -318,10 +318,12 @@ describe("card play — التهريب, الأبناط, السرد (§4, §5)", 
     const t = trickOf(0, "AH", "7H");
     const chosen = decideCard(cards("7S", "JS", "8D", "9C"), t, "hokum", "S", 2, { tricks: [] });
     expect(chosen.suit).not.toBe("S");
-    // Following suit with a card that would beat the partner's is avoided too.
+    // In sun, following suit with a card that would beat the partner's is avoided too…
     const t2 = trickOf(0, "KH", "7H");
-    const follow = decideCard(cards("AH", "8H", "9C"), t2, "hokum", "S", 2, { tricks: [] });
-    expect(follow).toEqual(c("8H"));
+    expect(decideCard(cards("AH", "8H", "9C"), t2, "sun", undefined, 2, { tricks: [] })).toEqual(c("8H"));
+    // …but in hokum the Ace plays the first time its suit comes round (the player's note: held
+    // back, الفرنكة, it gets ruffed later).
+    expect(decideCard(cards("AH", "8H", "9C"), t2, "hokum", "S", 2, { tricks: [] })).toEqual(c("AH"));
   });
 
   it("never throws an Ace on the partner's trick — unless it's a برقية", () => {

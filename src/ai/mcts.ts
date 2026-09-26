@@ -1,5 +1,5 @@
 import { cardId, isTrumpCard, rankStrength } from "../engine/cards";
-import { currentWinner } from "../engine/trick";
+import { currentWinner, wouldWinAgainstCurrent } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { decideCard, defenderMayLeadTrump, isBoss, type PlayContext } from "./play-ai";
@@ -137,6 +137,13 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
   };
   if (trick.order.length === 0) {
     let pool = legal;
+    // Never lead a small card of a suit whose Ace you hold: it hands the trick over for nothing.
+    const aceHeld = (suit: Suit) => hand.some((x) => x.suit === suit && x.rank === "A");
+    pool = narrow(
+      pool,
+      (c) => isTrumpCard(c, mode, trumpSuit) || !aceHeld(c.suit) || c.rank === "A" || isBoss(c, hand, beliefs, mode, trumpSuit),
+      "ما يحل ورقة صغيرة من شكل عنده إكته — يبدأ بالإكة",
+    );
     if (against) {
       // حلة المشتري: suits the buying side's declarer opened.
       const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
@@ -154,12 +161,30 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
   const led = trick.cards[trick.order[0]]!.suit;
   const partnerWinning = teamOf(currentWinner(trick, mode, trumpSuit)) === teamOf(seat);
   const following = legal.some((c) => c.suit === led);
+  // In hokum an Ace plays the first time its suit comes round, while it still wins — held back
+  // (الفرنكة) it gets ruffed later. Even onto the partner's trick.
+  const ledTrump = isTrumpCard(trick.cards[trick.order[0]]!, mode, trumpSuit);
+  if (mode === "hokum" && following && !ledTrump) {
+    const ace = legal.find((c) => c.suit === led && c.rank === "A");
+    if (ace && wouldWinAgainstCurrent(ace, trick, mode, trumpSuit)) {
+      return narrow(legal, (c) => cardId(c) === cardId(ace), "في الحكم الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
+    }
+  }
   let keep = narrow(legal, (c) => {
     if (c.rank !== "A" || isTrumpCard(c, mode, trumpSuit)) return true;
     if (cardId(c) === cardId(ruleChoice)) return true; // a برقية
     if (!following) return false; // thrown away
     return !partnerWinning; // fed to the partner
   }, following ? "الإكة ما تنعطى لأكلة خويه" : "الإكة ما تنرمى");
+  // Ruffing while the buyer's ولد is still out: ruff with the تسعة (14 points), or the ولد
+  // catches it later.
+  if (mode === "hokum" && !following && !ledTrump) {
+    const nine = keep.find((c) => isTrumpCard(c, mode, trumpSuit) && c.rank === "9");
+    const jackOut = !hand.some((c) => c.suit === trumpSuit && c.rank === "J") && !beliefs.played.some((c) => c.suit === trumpSuit && c.rank === "J");
+    if (nine && jackOut && wouldWinAgainstCurrent(nine, trick, mode, trumpSuit)) {
+      keep = narrow(keep, (c) => !isTrumpCard(c, mode, trumpSuit) || cardId(c) === cardId(nine), "إذا قطع والولد برا، يقطع بالتسعة قبل لا ينصادها");
+    }
+  }
   if (!following) {
     // Not from the Ace's suit — unless everything else costs: a 10 thrown, or a 10 left bare
     // (عشرة معلّقة). Then a small card of the Ace's suit may go; its 10 never does.

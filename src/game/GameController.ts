@@ -300,6 +300,7 @@ export interface HandSnapshot {
   contract?: { mode: Mode; trumpSuit?: Suit; declarer: Seat; ashkal: boolean };
   doubleLevel?: number;
   hands: Record<Seat, string[]>;
+  startHands: Record<Seat, string[]>;
   tricks: Array<{ leader: Seat; cards: string[]; winner?: Seat }>;
   currentTrick: string[];
   matchScore: Record<Team, number>;
@@ -343,6 +344,7 @@ export class GameController extends Emitter<EventMap> {
   /** السوا this hand: undefined = not claimed, true = claimed right (you auto-play the rest), false = wrong. */
   private sawaClaim?: boolean;
   private playLog: PlayLogEntry[] = [];
+  private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
   /** The search AI's own random stream, so thinking never shifts the deal's. */
   private searchRand?: () => number;
 
@@ -376,6 +378,11 @@ export class GameController extends Emitter<EventMap> {
     return this.playLog;
   }
 
+  /** The hand before this one, as it ended — so «ليش؟» can still look back at it. */
+  getLastHand(): { plays: readonly PlayLogEntry[]; snapshot: HandSnapshot } | undefined {
+    return this.lastHand;
+  }
+
   private logPlay(seat: Seat, trace: PlayTrace): void {
     const r = this.round;
     const { mode, trumpSuit } = r.bidding.result!;
@@ -407,6 +414,13 @@ export class GameController extends Emitter<EventMap> {
       contract: res ? { mode: res.mode, trumpSuit: res.trumpSuit, declarer: res.declarer, ashkal: !!res.ashkal } : undefined,
       doubleLevel: r.doubling?.level,
       hands: Object.fromEntries(([0, 1, 2, 3] as Seat[]).map((s) => [s, ids(r.hands[s])])) as Record<Seat, string[]>,
+      // Every seat's cards as play began: what it still holds plus what it has played.
+      startHands: Object.fromEntries(
+        ([0, 1, 2, 3] as Seat[]).map((s) => [
+          s,
+          ids([...[...r.tricks, ...(r.currentTrick ? [r.currentTrick] : [])].flatMap((t) => (t.cards[s] ? [t.cards[s]!] : [])), ...r.hands[s]]),
+        ]),
+      ) as Record<Seat, string[]>,
       tricks: r.tricks.map((t) => ({ leader: t.leader, cards: t.order.map((s) => `${s}:${cardId(t.cards[s]!)}`), winner: t.winner })),
       currentTrick: r.currentTrick ? r.currentTrick.order.map((s) => `${s}:${cardId(r.currentTrick!.cards[s]!)}`) : [],
       matchScore: { ...this.matchScore },
@@ -1135,6 +1149,8 @@ export class GameController extends Emitter<EventMap> {
     if (seat === HUMAN_SEAT) this.humanAsks = buildBeliefs(this.round.tricks, this.round.currentTrick, mode, trumpSuit).wants[HUMAN_SEAT];
 
     if (this.round.phase === "complete") {
+      // Kept for «ليش؟» after the hand is over.
+      this.lastHand = { plays: [...this.playLog], snapshot: this.snapshot() };
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
       // المدبّلين: a hand your team bought and lost counts double for them.
