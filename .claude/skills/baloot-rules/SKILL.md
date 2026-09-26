@@ -64,7 +64,19 @@ Ground rules when working on the game:
 11. **حل الحكم (the player's rule for the AI):** the side that didn't buy the hokum never leads
    trumps — it only spends its own cuts and helps the buyer — unless it's long in trumps (4+)
    or holds a strong sun-like hand (3+ sure side winners) and wants the trumps gone fast.
-   `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too.
+   `defenderMayLeadTrump` in `src/ai/play-ai.ts`; the search AI obeys it too. The player's
+   exceptions, tightened by a note: a strong hokum of your own (4+ trumps, or 3 with the ولد
+   or the تسعة) that wants the buyer's big trumps down, or a very strong sun-like hand (4+
+   sure side winners). A lone trump Ace led into the buyer is neither.
+   **More rules from the player's table notes** (hard rules over the search, `playerRules`
+   in `src/ai/mcts.ts`; each note is a test in `tests/player-notes.test.ts`):
+   - In hokum the defenders cash a side-suit Ace while it still wins, before it gets ruffed.
+   - Against the buyer, never go back into a suit the buyer led (his حلة) unless with a
+     sure winner in it.
+   - Never discard from a suit you hold the Ace of — it tells the partner you don't want it.
+     Signal with the small card of the brother suit; feed the 10 in a later trick.
+   - Nothing with points goes into the other side's trick when a small card will do — not
+     even a 10 thrown to keep it from being bare.
 12. **السوا (the player's rules):** a claim is right when some order of the claimer's cards
    wins every trick left whatever the opponents do — order matters (lead the 9 of trumps to
    draw their King, then the 8). The partner plays along. `src/engine/sawa.ts`; after a right

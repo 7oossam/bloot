@@ -18,7 +18,7 @@ import { runController } from "../roguelike/RunController";
 import { getJokerDef, jokersBehind } from "../roguelike/jokers";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
-import { RANK_NAME_AR, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
+import { RANK_NAME_AR, SUIT_COLOR_HEX, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
 import { PROJECT_NAME_AR, type ProjectsOutcome } from "../engine/projects";
 import { DOUBLE_NAME_AR, doubleLabel, type DoubleBid, type DoubleLevel, type LegalDouble } from "../engine/doubling";
 import {
@@ -178,7 +178,7 @@ export class TableScene extends Phaser.Scene {
   private handSort: HandSort = "suit";
   /** The order you dragged your cards into (card ids), while `handSort` is "manual". */
   private manualOrder: string[] = [];
-  private memoryText?: Phaser.GameObjects.Text;
+  private memoryPanel?: Phaser.GameObjects.Container;
   private sawaButton?: ButtonHandle;
 
   constructor() {
@@ -226,7 +226,7 @@ export class TableScene extends Phaser.Scene {
     this.jokerIcons = new Map();
     this.jokerTip = undefined;
     this.manualOrder = [];
-    this.memoryText = undefined;
+    this.memoryPanel = undefined;
     this.sawaButton = undefined;
     // The sort you picked sticks from match to match.
     if (this.handSort === "manual") this.handSort = "suit";
@@ -520,8 +520,8 @@ export class TableScene extends Phaser.Scene {
     const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", color: 0x2d4a3e });
     why.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
-      const below = this.nodeData.modifiers.rivalLabel ? 36 : 0;
-      this.memoryText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 38 + below, "", { fontSize: "23px", color: "#d8c4ff" }).setDepth(5);
+      // In the strip between the table and your hand, clear of the names and the rival line.
+      this.memoryPanel = this.add.container(CENTER_X, TABLE_RECT.bottom + 32).setDepth(5);
     }
   }
 
@@ -618,21 +618,43 @@ export class TableScene extends Phaser.Scene {
   }
 
   /** الذاكرة: how many cards of each suit you haven't seen yet (level 2: the Aces and 10s among them). */
+  /**
+   * الذاكرة: four tiles, one per suit — how many of its cards are still out (not in your hand,
+   * not played), and at level 2 which of its Ace and 10 are still out.
+   */
   private refreshMemory(): void {
-    if (!this.memoryText) return;
+    const panel = this.memoryPanel;
+    if (!panel) return;
+    panel.removeAll(true);
     const round = this.controller.getRound();
-    if (!round || round.phase === "bidding") {
-      this.memoryText.setText("");
-      return;
-    }
+    if (!round || round.phase === "bidding") return;
     const seen = new Set([...round.hands[HUMAN_SEAT], ...round.tricks.flatMap((t) => Object.values(t.cards) as Card[]), ...(Object.values(round.currentTrick?.cards ?? {}) as Card[])].map(cardId));
     const out = SUITS.flatMap((suit) => (["7", "8", "9", "10", "J", "Q", "K", "A"] as const).map((rank) => ({ suit, rank }))).filter((c) => !seen.has(cardId(c)));
-    let line = "🧠 باقي: " + SUITS.map((s) => `${SUIT_SYMBOL[s]}${out.filter((c) => c.suit === s).length}`).join("  ");
-    if ((this.nodeData.modifiers.memory ?? 0) >= 2) {
-      const big = out.filter((c) => c.rank === "A" || c.rank === "10").map((c) => `${RANK_NAME_AR[c.rank]}${SUIT_SYMBOL[c.suit]}`);
-      line += big.length ? `\nكبار باقية: ${big.join(" ")}` : "\nما بقى إكك ولا عشرات";
-    }
-    this.memoryText.setText(line);
+    const bigToo = (this.nodeData.modifiers.memory ?? 0) >= 2;
+    const w = 196;
+    const h = 60;
+    const gap = 10;
+    SUITS.forEach((suit, i) => {
+      const x = (i - 1.5) * (w + gap);
+      const left = out.filter((c) => c.suit === suit);
+      const color = SUIT_COLOR_HEX[suit];
+      const g = this.add.graphics();
+      g.fillStyle(0x140804, 0.3);
+      g.fillRoundedRect(x - w / 2 + 2, -h / 2 + 4, w, h, 14);
+      g.fillStyle(0xf3e9d6, left.length ? 0.96 : 0.55);
+      g.fillRoundedRect(x - w / 2, -h / 2, w, h, 14);
+      g.lineStyle(2, 0xe3a33b, 0.8);
+      g.strokeRoundedRect(x - w / 2, -h / 2, w, h, 14);
+      panel.add(g);
+      const plain = { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0 };
+      panel.add(this.add.text(x - w / 2 + 14, 0, SUIT_SYMBOL[suit], { fontFamily: "Tajawal, Arial", fontSize: "36px", color }).setOrigin(0, 0.5));
+      const top = bigToo ? -12 : 0;
+      panel.add(arabicText(this, x + 18, top, left.length ? `باقي ${left.length}` : "خلص", { fontSize: "23px", color: "#3a2620", fontStyle: "bold", shadow: plain }));
+      if (bigToo) {
+        const big = left.filter((c) => c.rank === "A" || c.rank === "10").map((c) => (c.rank === "A" ? "إكة" : "عشرة"));
+        panel.add(arabicText(this, x + 18, 15, big.length ? big.join(" · ") : "لا كبار", { fontSize: "18px", color: big.length ? color : "#8a6a54", shadow: plain }));
+      }
+    });
   }
 
   // ---------------------------------------------------------------- السوا

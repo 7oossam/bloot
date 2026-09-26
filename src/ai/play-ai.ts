@@ -97,6 +97,12 @@ export function decideCard(
       (c.rank === "A" ? 800 : isBoss(c, hand, beliefs, mode, trumpSuit) ? 500 : 0);
     // Bank points only if the trick is safe (§4ج.5 دعم الخوي الماكل); otherwise keep the 10s
     // and Aces out of it (§4أ.8 حماية الأبناط).
+    // Holding a suit to ask for, the discard is a message first (the player's rule): the low
+    // card of its brother says "come here" — a 10 thrown from the suit itself would say the
+    // opposite. The points can wait for a later trick.
+    if (safe && discarding && hasSuitToAsk(hand, ledSuit, mode, trumpSuit, beliefs)) {
+      return chooseDiscard(pool, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx);
+    }
     if (safe) {
       const under = pool.filter((c) => winnerSoFar === seat || !wouldWinAgainstCurrent(c, trick, mode, trumpSuit));
       const feed = maxBy(under.length > 0 ? under : pool, (c) => cardPoints(c, mode, trumpSuit) * 10 - rankStrength(c, mode, trumpSuit) - cost(c));
@@ -114,9 +120,10 @@ export function decideCard(
     return minBy(winningCards, (c) => rankStrength(c, mode, trumpSuit) + (isTrumpCard(c, mode, trumpSuit) ? 20 : 0));
   }
 
-  // Can't win. If we're not following suit this discard is a message to the partner (§4).
+  // Can't win. If we're not following suit this discard is a message to the partner (§4) — and
+  // whatever goes is theirs, so no points.
   const ledSuit = trick.cards[trick.order[0]]!.suit;
-  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx);
+  if (!legal.some((c) => c.suit === ledSuit)) return chooseDiscard(legal, hand, mode, trumpSuit, seat, ledSuit, beliefs, ctx, true);
   return minBy(legal, (c) => cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit));
 }
 
@@ -135,6 +142,7 @@ function chooseDiscard(
   led: Suit,
   beliefs: Beliefs,
   ctx: PlayContext | undefined,
+  feedingThem = false,
 ): Card {
   const by = suitsOf(hand);
   const nonTrump = legal.filter((c) => !isTrumpCard(c, mode, trumpSuit));
@@ -150,11 +158,15 @@ function chooseDiscard(
     by[suit].reduce((sum, c) => sum + cardPoints(c, mode, trumpSuit), 0) + (by[suit].some((c) => c.rank === "A") ? 30 : 0);
   const cost = (c: Card) => {
     const rest = by[c.suit].filter((x) => x !== c);
-    let score = weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * 10 + rankStrength(c, mode, trumpSuit);
+    // Points thrown into the other side's trick are gone for sure — worth more than any worry
+    // about what's left behind (a 10 thrown away to keep it from being bare is still a 10 lost).
+    let score = weakness(c.suit) * 2 + cardPoints(c, mode, trumpSuit) * (feedingThem ? 40 : 10) + rankStrength(c, mode, trumpSuit);
     // Sure winners stay in hand: they're the way back in later.
     score += c.rank === "A" ? 500 : boss(c) ? 400 : 0;
     // لا تعلّق عشرتك: don't throw the card guarding a 10 you hold without its Ace.
-    if (rest.length === 1 && rest[0].rank === "10" && !beliefs.played.some((x) => x.suit === c.suit && x.rank === "A")) score += 300;
+    // Onto your own side's trick the message comes first — the small card now, the 10 fed in a
+    // later trick (the player's note) — so there the worry weighs less than the 10 itself.
+    if (rest.length === 1 && rest[0].rank === "10" && !beliefs.played.some((x) => x.suit === c.suit && x.rank === "A")) score += feedingThem ? 300 : 40;
     // مقطوعك: the hokum buyer keeps a card in each side suit so he isn't forced to ruff away his trumps.
     if (mode === "hokum" && ctx?.declarer === seat && rest.length === 0 && c.suit !== trumpSuit) score += 200;
     if (want) {
@@ -169,18 +181,25 @@ function chooseDiscard(
   return minBy(pool, cost);
 }
 
+/** A side suit (not the led one) where this hand holds a sure winner: something to ask for. */
+function hasSuitToAsk(hand: Card[], led: Suit, mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): boolean {
+  return hand.some((c) => c.suit !== led && !(mode === "hokum" && c.suit === trumpSuit) && isBoss(c, hand, beliefs, mode, trumpSuit));
+}
+
 /**
- * حل الحكم من غير المشتري: the side that didn't buy the hokum shouldn't lead trumps — it only
- * pulls its own cuts and helps the buyer. The exceptions (the player's words): a hand long in
- * trumps (4+), or a strong sun-like hand (3+ sure side-suit winners) that wants the trumps gone
- * fast so its winners can't be cut.
+ * حل الحكم من غير المشتري: the side that didn't buy the hokum doesn't lead trumps — it only
+ * pulls its own cuts and helps the buyer. The exceptions (the player's words): a strong hokum
+ * of your own — 4+ trumps, or 3 with the ولد or the تسعة — that wants the buyer's big trumps
+ * down so yours rule; or a very strong sun-like hand (4+ sure side-suit winners) that would
+ * beat the buy once the trumps are gone. (A lone trump Ace led into the buyer is neither.)
  */
 export function defenderMayLeadTrump(hand: Card[], mode: Mode, trumpSuit: Suit | undefined, beliefs: Beliefs): boolean {
   if (mode !== "hokum" || !trumpSuit) return true;
   const trumps = hand.filter((c) => c.suit === trumpSuit);
   if (trumps.length >= 4) return true;
+  if (trumps.length === 3 && trumps.some((c) => c.rank === "J" || c.rank === "9")) return true;
   const sideWinners = hand.filter((c) => c.suit !== trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit)).length;
-  return trumps.length > 0 && sideWinners >= 3;
+  return trumps.length > 0 && sideWinners >= 4;
 }
 
 /** Will the side currently winning keep this trick whatever the players still to come do? */
@@ -307,7 +326,7 @@ function chooseLead(
 }
 
 /** No card still out in this suit beats it — it wins whenever it's led (bar a ruff). */
-function isBoss(card: Card, hand: Card[], beliefs: Beliefs, mode: Mode, trumpSuit: Suit | undefined): boolean {
+export function isBoss(card: Card, hand: Card[], beliefs: Beliefs, mode: Mode, trumpSuit: Suit | undefined): boolean {
   return !outstanding(beliefs, hand, card.suit).some((o) => rankStrength(o, mode, trumpSuit) > rankStrength(card, mode, trumpSuit));
 }
 

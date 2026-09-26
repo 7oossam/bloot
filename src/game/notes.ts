@@ -44,7 +44,7 @@ export function clearNotes(): void {
 /** Every note as one block of text to paste into a chat with Claude. */
 export function exportNotes(notes: PlayerNote[] = loadNotes()): string {
   return [
-    "ملاحظات بلوت للـ AI — الأوراق بصيغة الرتبة ثم الشكل (JH = ولد هاص). المقاعد: 0 أنت، 1 يمين، 2 خويك، 3 يسار.",
+    "ملاحظات بلوت للـ AI — الأوراق بصيغة الشكل ثم الرتبة (HJ = ولد هاص، S=سبيت H=هاص D=ديمن C=شرية). المقاعد: 0 أنت، 1 يمين، 2 خويك، 3 يسار.",
     "```json",
     JSON.stringify(notes, null, 1),
     "```",

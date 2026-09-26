@@ -1,5 +1,4 @@
-import { isTrumpCard } from "../engine/cards";
-import type { Card, Mode, Seat, Suit } from "../engine/types";
+import type { Card, Seat, Suit } from "../engine/types";
 import { RANK_NAME_AR, SUIT_NAME_AR } from "../scenes/cardArt";
 import type { PlayLogEntry } from "./GameController";
 
@@ -19,7 +18,7 @@ function signed(n: number): string {
   return `\u2066${r > 0 ? "+" : ""}${r}\u2069`;
 }
 
-export function explainPlay(e: PlayLogEntry, who: string, mode: Mode, trumpSuit?: Suit): string[] {
+export function explainPlay(e: PlayLogEntry, who: string): string[] {
   const t = e.trace;
   const lines: string[] = [`${who} لعب ${cardNameAr(t.card)} (الأكلة ${e.trick}${e.position === 0 ? "، وهو اللي بدأ" : ""})`];
   if (e.partnerBarqiya.length > 0) lines.push(`خويه رامي برقية في ${suitsAr(e.partnerBarqiya)}`);
@@ -57,10 +56,7 @@ export function explainPlay(e: PlayLogEntry, who: string, mode: Mode, trumpSuit?
     }
   }
   if (t.ruledOut && t.ruledOut.length > 0) {
-    const trumps = t.ruledOut.filter((c) => isTrumpCard(c, mode, trumpSuit));
-    const aces = t.ruledOut.filter((c) => !isTrumpCard(c, mode, trumpSuit));
-    if (trumps.length) lines.push(`ما فكّر في ${trumps.map(cardNameAr).join("، ")}: اللي مو مشتري ما يبدأ بالحكم.`);
-    if (aces.length) lines.push(`ما فكّر في ${aces.map(cardNameAr).join("، ")}: الإكة ما تنرمى، وما تنعطى لأكلة خويه.`);
+    lines.push(`ما فكّر في ${t.ruledOut.map(cardNameAr).join("، ")}${t.rules?.length ? ` — قوانينك: ${t.rules.join("؛ ")}` : ""}.`);
   }
   return lines;
 }

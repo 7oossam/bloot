@@ -16,7 +16,7 @@ function entry(over: Partial<PlayLogEntry>): PlayLogEntry {
 
 describe("«ليش؟»: the AI explains its plays", () => {
   it("names the card and the reason", () => {
-    const lines = explainPlay(entry({}), "يمين", "hokum", "S");
+    const lines = explainPlay(entry({}), "يمين");
     expect(lines[0]).toContain("ولد هاص");
     expect(lines.join("\n")).toContain("مجبور");
   });
@@ -35,7 +35,7 @@ describe("«ليش؟»: the AI explains its plays", () => {
       },
       partnerAsks: ["D"],
     });
-    const text = explainPlay(e, "يسار", "sun").join("\n");
+    const text = explainPlay(e, "يسار").join("\n");
     expect(text).toContain("40 احتمال");
     expect(text).toContain("ولد هاص: \u2066+3.2\u2069  ← لعبها");
     expect(text).toContain("عادته كانت بتقول إكة هاص");
@@ -43,8 +43,10 @@ describe("«ليش؟»: the AI explains its plays", () => {
   });
 
   it("explains the cards the player's rules ruled out", () => {
-    const e = entry({ position: 0, trace: { kind: "rules", card: c("7", "H"), ruledOut: [c("J", "S")] } });
-    expect(explainPlay(e, "يمين", "hokum", "S").join("\n")).toContain("ما يبدأ بالحكم");
+    const e = entry({ position: 0, trace: { kind: "rules", card: c("7", "H"), ruledOut: [c("J", "S")], rules: ["اللي مو مشتري ما يبدأ بالحكم"] } });
+    const text = explainPlay(e, "يمين").join("\n");
+    expect(text).toContain("ولد سبيت");
+    expect(text).toContain("ما يبدأ بالحكم");
   });
 });
 

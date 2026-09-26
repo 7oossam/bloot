@@ -54,7 +54,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
   const list = plays.length
     ? plays
         .map((p, i) => {
-          const why = explainPlay(p, o.seatName(p.seat), o.mode ?? "sun", o.trumpSuit);
+          const why = explainPlay(p, o.seatName(p.seat));
           return `<div class="bn-play${i === 0 ? " sel" : ""}" data-i="${i}">
             <div class="bn-title">${esc(o.seatName(p.seat))} — ${esc(cardNameAr(p.trace.card))} <span style="font-weight:400;color:#7a5a44">(الأكلة ${p.trick})</span></div>
             <div class="bn-why" ${i === 0 ? "" : 'style="display:none"'}>${esc(why.slice(1).join("\n"))}</div>
