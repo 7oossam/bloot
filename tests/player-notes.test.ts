@@ -134,11 +134,13 @@ describe("the player's notes", () => {
       },
       tricks: [trick(0, ["0:DK", "1:DQ", "2:HJ", "3:C7"], 2)], current: trick(2, []),
     });
-    expect(think(r, 2).rules ?? []).not.toContain("خصم المشتري ما يرجع في حلته بورقة صغيرة");
+    expect(think(r, 2).rules ?? []).not.toContain("خصم المشتري ما يرجع في حلته إلا بورقة ماكلة");
   });
 
-  it("3c. against the buyer, a strong card of his suit may still be led", () => {
-    // Note 3's moment, with يمين holding the شايب ديمن: only the 10 still beats it.
+  it("3c. against the buyer, only a sure winner of his suit may be led", () => {
+    // Note 3's moment, with يمين holding the شايب ديمن. Only the 10 still beats it — but the 10
+    // is most likely the buyer's, so the شايب would just feed him: ruled out like the 7. With
+    // the 10 gone, the شايب is the top card and may go.
     const r = at({
       dealer: 3, mode: "sun", declarer: 0, ground: "HA",
       hands: {
@@ -150,8 +152,19 @@ describe("the player's notes", () => {
       tricks: [trick(0, ["0:D8", "1:DA", "2:C7", "3:DQ"], 1)], current: trick(1, []),
     });
     const t = think(r, 1);
-    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).toContain("D7");
-    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("DK");
+    expect((t.ruledOut ?? []).map((c) => c.suit + c.rank)).toEqual(expect.arrayContaining(["D7", "DK"]));
+    const later = at({
+      dealer: 3, mode: "sun", declarer: 0, ground: "HA",
+      hands: {
+        0: ["H8", "DJ", "H10", "HA", "D9", "C9"],
+        1: ["S9", "S7", "SQ", "C8", "CJ", "DK"],
+        2: ["C10", "CA", "S8", "S10", "CK", "H9"],
+        3: ["SJ", "SA", "H7", "SK", "HQ", "HK"],
+      },
+      tricks: [trick(0, ["0:D8", "1:DA", "2:C7", "3:DQ"], 1), trick(1, ["1:D7", "2:HJ", "3:CQ", "0:D10"], 0)],
+      current: trick(1, []),
+    });
+    expect((think(later, 1).ruledOut ?? []).map((c) => c.suit + c.rank)).not.toContain("DK");
   });
 
   it("4b. a guarded 10 isn't left bare just to keep off the Ace's suit", () => {

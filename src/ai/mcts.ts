@@ -3,7 +3,7 @@ import { currentWinner } from "../engine/trick";
 import { Round } from "../engine/round";
 import { SUITS, RANKS, teamOf, type Card, type Seat, type Suit, type Team, type Trick } from "../engine/types";
 import { decideCard, defenderMayLeadTrump, isBoss, type PlayContext } from "./play-ai";
-import { buildBeliefs, outstanding } from "./beliefs";
+import { buildBeliefs } from "./beliefs";
 
 /**
  * The search AI: determinized Monte Carlo over the cards this seat may play.
@@ -140,9 +140,10 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     if (against) {
       // حلة المشتري: suits the buying side's declarer opened.
       const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
-      // A strong card of it may go: the top card still out, or one only a single card beats.
-      const strong = (c: Card) => outstanding(beliefs, hand, c.suit).filter((o) => rankStrength(o, mode, trumpSuit) > rankStrength(c, mode, trumpSuit)).length <= 1;
-      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || strong(c), "خصم المشتري ما يرجع في حلته بورقة صغيرة");
+      // Only a sure winner of it may go (the top card still out): anything smaller just feeds the
+      // buyer the cards he's strong in. Holding the Ace and the شايب, the Ace goes, then the
+      // شايب is the top card and goes too.
+      pool = narrow(pool, (c) => !buyerSuits.has(c.suit) || isBoss(c, hand, beliefs, mode, trumpSuit), "خصم المشتري ما يرجع في حلته إلا بورقة ماكلة");
     }
     if (mode === "hokum" && against) {
       if (!defenderMayLeadTrump(hand, mode, trumpSuit, beliefs)) pool = narrow(pool, (c) => !isTrumpCard(c, mode, trumpSuit), "اللي مو مشتري ما يبدأ بالحكم");
