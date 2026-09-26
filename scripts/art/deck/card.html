@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+<script src="suits.js"></script>
+<style>
+body{margin:0;background:transparent}
+.card{position:relative;width:528px;height:760px;border-radius:60px;background:#F5EDDC;overflow:hidden}
+.grain{position:absolute;inset:0;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .2 0 0 0 .08 0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>")}
+.frame{position:absolute;inset:16px;border:3px solid #C9973E;border-radius:46px}
+.frame::after{content:"";position:absolute;inset:7px;border:1.5px solid #C9973E;border-radius:39px;opacity:.75}
+.idx{position:absolute;width:124px;display:flex;flex-direction:column;align-items:center;font-family:Cinzel,serif;font-weight:700;font-size:138px;line-height:.9;letter-spacing:-4px}
+.idx svg{width:84px;height:84px;margin-top:4px}
+.tl{top:30px;left:16px}.br{bottom:30px;right:16px;transform:rotate(180deg)}
+.art{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:262px;max-height:540px}
+.pips{position:absolute;inset:0}
+.back{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+</style></head><body><div class="card" id="c"></div>
+<script>
+const P = { // pip centres in the 528x760 card, lower half drawn upside down
+ 7:[[196,190],[332,190],[264,280],[196,380],[332,380],[196,570],[332,570]],
+ 8:[[196,190],[332,190],[264,285],[196,380],[332,380],[264,475],[196,570],[332,570]],
+ 9:[[196,180],[332,180],[196,310],[332,310],[264,380],[196,450],[332,450],[196,580],[332,580]],
+ 10:[[196,180],[332,180],[264,245],[196,310],[332,310],[196,450],[332,450],[264,515],[196,580],[332,580]],
+};
+function render(spec){
+  const c=document.getElementById('c');
+  if(spec==='back'){ c.innerHTML='<img class="back" src="back_src.jpg">'; return; }
+  const s=spec.slice(-1), r=spec.slice(0,-1), ink=SUIT_INK[s];
+  const sym=(sz)=>`<svg viewBox="-50 -50 100 100" style="width:${sz}px;height:${sz}px">${suitShape(s,ink)}</svg>`;
+  let mid='';
+  if(P[r]) mid='<svg class="pips" viewBox="0 0 528 760">'+P[r].map(([x,y])=>`<g transform="translate(${x} ${y}) scale(.7) ${y>380?'rotate(180)':''}">${suitShape(s,ink,'#C9973E',2.2)}</g>`).join('')+'</svg>';
+  else mid=`<img class="art" src="${s}${r}.png">`;
+  const idx=(cls)=>`<div class="idx ${cls}" style="color:${ink}">${r==='10'?'<span style="letter-spacing:-18px;margin-left:-18px;font-size:118px">10</span>':r}${sym(84)}</div>`;
+  c.innerHTML=`<div class="grain"></div><div class="frame"></div>${mid}${idx('tl')}${idx('br')}`;
+}
+render(location.hash.slice(1)||'KH');
+</script></body></html>

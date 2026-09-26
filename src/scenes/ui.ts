@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { RANKS, SUITS, type Rank, type Suit } from "../engine/types";
 
 const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
 const MENU_FONT = "'Aref Ruqaa', Amiri, Tajawal, serif";
@@ -56,7 +57,19 @@ export function preloadUi(scene: Phaser.Scene): void {
   for (const tone of Object.keys(PLATES) as MenuTone[]) {
     if (!scene.textures.exists(plateKey(tone))) scene.load.image(plateKey(tone), `assets/ui/plate-${tone}.webp`);
   }
+  // The deck: 32 finished faces (index, pips and crest baked in) and the engraved back.
+  for (const suit of SUITS) {
+    for (const rank of RANKS) {
+      const key = cardArtKey(suit, rank);
+      if (!scene.textures.exists(key)) scene.load.image(key, `assets/cards/${suit}-${rank}.webp`);
+    }
+  }
+  if (!scene.textures.exists(CARD_BACK_ART)) scene.load.image(CARD_BACK_ART, "assets/cards/back.webp");
 }
+
+/** Texture key of a card's finished face (see public/assets/cards). */
+export const cardArtKey = (suit: Suit, rank: Rank) => `card-${suit}-${rank}`;
+export const CARD_BACK_ART = "card-back";
 
 const PLAY_TONES: Record<PlayTone, { fill: number; alpha: number; text: string; border: number; line: number; shadow: boolean }> = {
   sun: { fill: 0xe3a33b, alpha: 1, text: "#281e19", border: 0xd6a44a, line: 3, shadow: true },
