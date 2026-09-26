@@ -17,6 +17,7 @@ import { currentWinner, isAkka, wouldWinAgainstCurrent } from "../engine/trick";
 import { raiserTeam } from "../engine/doubling";
 import { cardId } from "../engine/cards";
 import { Emitter } from "./emitter";
+import { recordHand } from "./notes";
 import type { RivalOptions } from "../roguelike/opponents";
 import type { PartnerOptions } from "../roguelike/partners";
 
@@ -347,6 +348,8 @@ export class GameController extends Emitter<EventMap> {
   private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
   /** Every finished hand of this صكة, for «انسخ الصكة» and the analysis. */
   private matchLog: HandSnapshot[] = [];
+  /** Tags this صكة's hands in the saved record of everything played. */
+  private matchId = "";
   /** The search AI's own random stream, so thinking never shifts the deal's. */
   private searchRand?: () => number;
 
@@ -468,6 +471,7 @@ export class GameController extends Emitter<EventMap> {
     this.goldEarned = 0;
     this.dealer = 0;
     this.matchLog = [];
+    this.matchId = Date.now().toString(36);
     this.dealHand();
   }
 
@@ -1164,6 +1168,7 @@ export class GameController extends Emitter<EventMap> {
       // Kept for «ليش؟» after the hand is over.
       this.lastHand = { plays: [...this.playLog], snapshot: this.snapshot() };
       this.matchLog.push(this.lastHand.snapshot);
+      recordHand(this.lastHand.snapshot, this.matchId);
       const result = this.round.result!;
       const { gained, bonuses } = this.applyJokers(result);
       // المدبّلين: a hand your team bought and lost counts double for them.

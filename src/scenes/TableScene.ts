@@ -538,7 +538,6 @@ export class TableScene extends Phaser.Scene {
     this.scene.pause();
     openNotesPanel({
       views,
-      match: () => this.controller.getMatchLog(),
       seatName: (seat) => (seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat]),
       onClose: () => this.scene.resume(),
     });
