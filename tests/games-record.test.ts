@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearGames, exportGames, gamesCount, loadGames, recordHand } from "../src/game/notes";
+import { PART_CHARS, clearGames, exportGames, gamesCount, loadGames, recordHand, unpackHand } from "../src/game/notes";
 import type { HandSnapshot } from "../src/game/GameController";
 
 const snap = (n: number): HandSnapshot => ({
@@ -39,10 +39,16 @@ describe("the saved record of everything played", () => {
     expect(first.match).toBe("a");
     expect("hands" in first).toBe(false);
     expect(first.plays[0].scores).toHaveLength(3);
-    const text = exportGames();
-    const json = JSON.parse(text.slice(text.indexOf("```json") + 7, text.lastIndexOf("```")));
-    expect(json.kind).toBe("games");
-    expect(json.hands).toHaveLength(3);
+    const parts = exportGames();
+    expect(parts).toHaveLength(1);
+    const json = JSON.parse(parts[0].slice(parts[0].indexOf("```json") + 7, parts[0].lastIndexOf("```")));
+    expect(json).toHaveLength(3);
+    expect(unpackHand(json[2]).match).toBe("b");
+    // A long record goes in parts that each fit a chat message.
+    for (let i = 0; i < 200; i++) recordHand(snap(i), "c");
+    const many = exportGames();
+    expect(many.length).toBeGreaterThan(1);
+    expect(many.every((p) => p.length < PART_CHARS + 500)).toBe(true);
     clearGames();
     expect(gamesCount().hands).toBe(0);
   });

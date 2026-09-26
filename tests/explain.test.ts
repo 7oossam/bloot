@@ -6,7 +6,7 @@ import { mulberry32 } from "../src/engine/rng";
 import type { Card } from "../src/engine/types";
 import { GameController, HUMAN_SEAT, type PlayLogEntry } from "../src/game/GameController";
 import { explainPlay } from "../src/game/explain";
-import { exportNotes } from "../src/game/notes";
+import { exportNotes, unpackHand } from "../src/game/notes";
 
 const c = (rank: Card["rank"], suit: Card["suit"]): Card => ({ rank, suit });
 
@@ -72,9 +72,15 @@ describe("the play log and the note snapshot", () => {
     const snap = g.snapshot();
     expect(snap.plays.length).toBe(log.length);
     expect(Object.values(snap.initialHands).every((h) => h.length === 5)).toBe(true);
-    const text = exportNotes([{ at: "now", text: "ليش؟", snapshot: snap }]);
+    const [text] = exportNotes([{ at: "now", text: "ليش؟", snapshot: snap }]);
     const json = text.slice(text.indexOf("```json") + 7, text.lastIndexOf("```"));
-    expect(JSON.parse(json)[0].snapshot.tricks.length).toBe(snap.tricks.length);
+    const back = unpackHand(JSON.parse(json)[0].h);
+    expect(back.tricks.length).toBe(snap.tricks.length);
+    expect(back.startHands).toEqual(snap.startHands);
+    expect(back.contract).toEqual(snap.contract);
+    expect(back.plays.filter((p) => p.kind !== "only").map((p) => [p.seat, p.trick, p.card, p.kind])).toEqual(
+      snap.plays.filter((p) => p.kind !== "only").map((p) => [p.seat, p.trick, p.card, p.kind]),
+    );
   });
 
   it("keeps the finished hand for «ليش؟»: every trick and every seat's full hand", () => {

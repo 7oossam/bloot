@@ -105,27 +105,49 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
   const body = $<HTMLDivElement>(".bn-body");
   const msg = $<HTMLDivElement>(".bn-msg");
   const about = $<HTMLDivElement>(".bn-about");
-  const copyBtn = $<HTMLButtonElement>(".bn-copy");
-  const refreshCount = () => (copyBtn.textContent = `انسخ الملاحظات (${loadNotes().length})`);
-  refreshCount();
-  const matchBtn = $<HTMLButtonElement>(".bn-match");
-  const refreshGames = () => {
-    const { hands } = gamesCount();
-    matchBtn.textContent = `📋 انسخ كل لعبك للتحليل — ${hands} يد`;
+  /**
+   * A long copy goes in parts (a chat message has a size limit): each press copies the next
+   * part, to paste as its own message, and the label says which part is next.
+   */
+  const copier = (btn: HTMLButtonElement, parts: () => string[], label: () => string, done: string) => {
+    let next = 0;
+    const refresh = (reset = true) => {
+      if (reset) next = 0;
+      const n = parts().length;
+      btn.textContent = n > 1 ? `${label()} — الجزء ${next + 1} من ${n}` : label();
+    };
+    btn.addEventListener("click", async () => {
+      const all = parts();
+      const k = Math.min(next, all.length - 1);
+      const text = all[k];
+      next = (k + 1) % all.length;
+      const which = all.length > 1 ? ` الجزء ${k + 1} من ${all.length}` : "";
+      try {
+        await navigator.clipboard.writeText(text);
+        msg.textContent = all.length > 1
+          ? `انسخت${which} ✔️ — أرسله في رسالة لحاله، ${next ? "ثم اضغط مرة ثانية للجزء اللي بعده." : "وهذا آخر جزء."}`
+          : `انسخت ✔️ — ${done}`;
+      } catch {
+        // No clipboard (older browser, or not allowed): show the text to copy by hand.
+        const area = $<HTMLTextAreaElement>("textarea");
+        area.value = text;
+        area.select();
+        msg.textContent = `انسخ النص اللي في المربع يدوياً${which}.`;
+      }
+      refresh(false);
+    });
+    refresh();
+    return refresh;
   };
-  refreshGames();
-  matchBtn.addEventListener("click", async () => {
-    const text = exportGames();
-    try {
-      await navigator.clipboard.writeText(text);
-      msg.textContent = "انسخت كل لعبك ✔️ — الصقه لـ Claude وبيحلله. بعدها تقدر تمسحه بـ 🗑️ اللي جنبه.";
-    } catch {
-      const area = $<HTMLTextAreaElement>("textarea");
-      area.value = text;
-      area.select();
-      msg.textContent = "انسخ النص اللي في المربع يدوياً.";
-    }
-  });
+  const copyBtn = $<HTMLButtonElement>(".bn-copy");
+  const refreshCount = copier(copyBtn, () => exportNotes(), () => `انسخ الملاحظات (${loadNotes().length})`, "الصقها في المحادثة مع Claude.");
+  const matchBtn = $<HTMLButtonElement>(".bn-match");
+  const refreshGames = copier(
+    matchBtn,
+    () => exportGames(),
+    () => `📋 انسخ كل لعبك للتحليل — ${gamesCount().hands} يد`,
+    "الصقه لـ Claude وبيحلله. بعدها تقدر تمسحه بـ 🗑️ اللي جنبه.",
+  );
   $<HTMLButtonElement>(".bn-games-clear").addEventListener("click", () => {
     if (!window.confirm("تمسح كل اللعب المحفوظ للتحليل؟ (ملاحظاتك تبقى)")) return;
     clearGames();
@@ -234,19 +256,6 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
     refreshCount();
   });
 
-  copyBtn.addEventListener("click", async () => {
-    const text = exportNotes();
-    try {
-      await navigator.clipboard.writeText(text);
-      msg.textContent = "انسخت ✔️ — الصقها في المحادثة مع Claude.";
-    } catch {
-      // No clipboard (older browser, or not allowed): show the text to copy by hand.
-      const area = $<HTMLTextAreaElement>("textarea");
-      area.value = text;
-      area.select();
-      msg.textContent = "انسخ النص اللي في المربع يدوياً.";
-    }
-  });
 
   $<HTMLButtonElement>(".bn-clear").addEventListener("click", () => {
     if (!confirm("تمسح كل الملاحظات المحفوظة؟")) return;

@@ -443,6 +443,38 @@ describe("the player's notes, fifth batch (from the first full-match analysis)",
   });
 });
 
+describe("the player's notes, sixth batch", () => {
+  it("19. holding the Ace and the 10, the Ace goes first (the partner knows the trick is ours)", () => {
+    // خويك bought sun; يمين led the ولد شرية and خويك holds the إكة, the 10 and the 9.
+    const r = at({
+      dealer: 0, mode: "sun", declarer: 2, ground: "DA",
+      hands: {
+        0: ["C7", "H8", "DQ", "SA", "S10", "H10", "SQ", "SK"],
+        1: ["H7", "D8", "S7", "CQ", "HQ", "S9", "CK"],
+        2: ["C10", "HA", "DA", "D10", "CA", "HK", "D9", "C9"],
+        3: ["C8", "H9", "D7", "DJ", "S8", "HJ", "SJ", "DK"],
+      },
+      tricks: [], current: trick(1, ["1:CJ"]),
+    });
+    expect(think(r, 2).card).not.toEqual(card("C10"));
+  });
+
+  it("20. the sun buyer with Aces in hand doesn't open with a lone small card", () => {
+    // خويك bought sun with both red Aces, the إكة شرية — and a lone 8 هاص. يسار held four هاص.
+    const r = at({
+      dealer: 1, mode: "sun", declarer: 2, ground: "D10",
+      hands: {
+        0: ["D9", "S7", "C8", "SQ", "DK", "CJ", "C10", "CK"],
+        1: ["HQ", "HJ", "H7", "C7", "SA", "S10", "S9", "DJ"],
+        2: ["H8", "SJ", "D8", "CQ", "DQ", "D10", "CA", "DA"],
+        3: ["HA", "H10", "HK", "H9", "SK", "S8", "D7", "C9"],
+      },
+      tricks: [], current: trick(2, []),
+    });
+    for (const seed of [1, 2, 3]) expect(searchCardTraced(r, 2, { worlds: 40, rand: mulberry32(seed) }).card).not.toEqual(card("H8"));
+  });
+});
+
 describe("guessing the hidden hands from what the table has said", () => {
   // You defend يسار's hokum ♠ at the first trick.
   const base: Moment = {

@@ -68,7 +68,14 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   const rules: string[] = [];
   const soft = new Map<string, SoftRule>();
-  const candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  let candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  {
+    // Holding the Ace and the 10 of a suit, the Ace goes first: the partner then knows the trick is
+    // ours and can fatten it — the player's basic rule. Neutral between computers (paired, 1,200
+    // hands: −0.09 ± 0.08); it's for the human partner reading the card.
+    const kept = candidates.filter((c) => !(c.rank === "10" && candidates.some((a) => a.suit === c.suit && a.rank === "A")));
+    if (kept.length && kept.length < candidates.length) { candidates = kept; rules.push("الإكة قبل العشرة: يعرف خويه إن الأكلة له"); }
+  }
   const penalty = (c: Card) => soft.get(cardId(c))?.points ?? 0;
   const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
   if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut, rules };
@@ -227,6 +234,17 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     for (const c of pool) {
       if (!isTrumpCard(c, mode, trumpSuit) && aceHeld(c.suit) && c.rank !== "A" && !isBoss(c, hand, beliefs, mode, trumpSuit)) {
         soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "يحل من تحت إكته" });
+      }
+    }
+    // The sun buyer with winners in hand doesn't open with a lone small card: an opponent long in
+    // that suit takes the lead and runs it (the player's note — يسار ran four هاص). Soft, because
+    // shedding the loser early to keep control of the last trick is sometimes right. Paired,
+    // 1,200 hands: +0.11 ± 0.15.
+    if (seat === declarer && mode === "sun") {
+      const bossElsewhere = (c: Card) => hand.some((x) => x.suit !== c.suit && isBoss(x, hand, beliefs, mode, trumpSuit));
+      for (const c of pool) {
+        const lone = hand.filter((x) => x.suit === c.suit).length === 1;
+        if (lone && !isBoss(c, hand, beliefs, mode, trumpSuit) && bossElsewhere(c)) soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "المشتري ما يحل بورقة وحيدة ماهي ماكلة وعنده أكل" });
       }
     }
     if (against) {
