@@ -36,7 +36,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
 function fontsReady(): Promise<unknown> {
   const fonts = document.fonts;
   if (!fonts?.load) return Promise.resolve();
-  const load = Promise.all([fonts.load('400 30px "Tajawal"'), fonts.load('700 30px "Tajawal"'), fonts.load('800 30px "Tajawal"'), fonts.load('700 30px "Aref Ruqaa"', "ابدأ")]);
+  const load = Promise.all([fonts.load('400 30px "Tajawal"'), fonts.load('700 30px "Tajawal"'), fonts.load('800 30px "Tajawal"'), fonts.load('700 30px "Aref Ruqaa"', "ابدأ"), fonts.load('700 30px "El Messiri"', "ابدأ")]);
   return Promise.race([load, new Promise((r) => setTimeout(r, 2500))]).catch(() => undefined);
 }
 

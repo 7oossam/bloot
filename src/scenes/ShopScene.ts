@@ -2,13 +2,14 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, preloadUi, setBoxHitArea } from "./ui";
-import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
+import { makeButton, preloadUi, setBoxHitArea } from "./ui";
+import { addAmbience } from "./fx";
+import { CSS, PAL, inkText, paintParchment } from "./theme";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
-  common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },
-  rare: { border: 0x5b9bff, label: "نادر", text: "#9cc3ff" },
-  legendary: { border: 0xffb33a, label: "أسطوري", text: "#ffd27a" },
+  common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
+  rare: { border: PAL.teal, label: "نادر", text: "#1f4a4d" },
+  legendary: { border: PAL.gold, label: "أسطوري", text: "#8c5a1c" },
 };
 
 const MAX_CARD_H = 236;
@@ -43,14 +44,13 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
-    paintBackdrop(this);
+    paintParchment(this, { compass: false });
     addAmbience(this);
-    addCameraGrade(this);
-    arabicText(this, WIDTH / 2, 58, "المتجر", { fontSize: "44px" });
-    this.goldText = arabicText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: "#ffd54a" });
-    this.ownedText = arabicText(this, WIDTH / 2, 268, "", {
+    inkText(this, WIDTH / 2, 70, "دكّان التحف", { fontSize: "50px", fontStyle: "700", color: CSS.crimson });
+    this.goldText = inkText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: CSS.crimson });
+    this.ownedText = inkText(this, WIDTH / 2, 268, "", {
       fontSize: "21px",
-      color: "#cfc8e0",
+      color: CSS.inkSoft,
       wordWrap: { width: WIDTH - 80 },
     });
     this.itemsLayer = this.add.container(0, 0);
@@ -82,15 +82,15 @@ export class ShopScene extends Phaser.Scene {
     ids.forEach((id, i) => {
       const x = startX - i * (chipW + 10); // right to left, like the reading order
       const g = this.add.graphics();
-      g.fillStyle(0x2f2452, 1);
+      g.fillStyle(PAL.paper, 1);
       g.fillRoundedRect(-chipW / 2, -36, chipW, 72, 16);
-      g.lineStyle(3, 0x9c8ad6, 1);
+      g.lineStyle(3, PAL.gold, 1);
       g.strokeRoundedRect(-chipW / 2, -36, chipW, 72, 16);
       const chip = this.add.container(x, OWNED_Y, [g]);
       const def = getJokerDef(id)!;
       const roomy = chipW >= 100;
       chip.add(this.add.text(roomy ? -22 : 0, 0, def.icon, { fontSize: "34px" }).setOrigin(0.5));
-      if (roomy) chip.add(arabicText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: "#cfc8e0" }));
+      if (roomy) chip.add(inkText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: CSS.inkSoft }));
       setBoxHitArea(chip, chipW, 72);
       chip.on("pointerdown", () => this.confirmSell(id));
       this.ownedLayer.add(chip);
@@ -105,7 +105,7 @@ export class ShopScene extends Phaser.Scene {
 
     const offering = runController.shopOffering();
     if (offering.length === 0) {
-      this.itemsLayer.add(arabicText(this, WIDTH / 2, 600, "خلصت البضاعة! جرّب تغيّرها 🎲", { fontSize: "30px" }));
+      this.itemsLayer.add(inkText(this, WIDTH / 2, 600, "خلصت البضاعة! جرّب تغيّرها 🎲", { fontSize: "30px" }));
     }
     const slot = Math.min(MAX_CARD_H + CARD_GAP, (SHELF_BOTTOM - FIRST_CARD_Y) / Math.max(offering.length, 1));
     const cardH = slot - CARD_GAP;
@@ -117,7 +117,7 @@ export class ShopScene extends Phaser.Scene {
       this,
       WIDTH / 2,
       rerollY,
-      `🎲 غيّر البضاعة (${state.rerollCost} ذهب)`,
+      `🎲 غيّر البضاعة (${state.rerollCost} ريال)`,
       () => {
         if (!runController.canReroll()) return;
         runController.reroll();
@@ -140,7 +140,7 @@ export class ShopScene extends Phaser.Scene {
     const cardW = WIDTH - 90;
 
     const bg = this.add.graphics();
-    bg.fillStyle(def.kind === "consumable" ? 0x2a1d3a : def.kind === "upgrade" ? 0x1d2a3f : 0x241a3f, 1);
+    bg.fillStyle(PAL.paper, 1);
     bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 24);
     bg.lineStyle(def.rarity === "legendary" ? 6 : 4, style.border, reason ? 0.45 : 1);
     bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 24);
@@ -160,21 +160,21 @@ export class ShopScene extends Phaser.Scene {
 
     card.add(this.add.text(iconX, -8, def.icon, { fontSize: "64px" }).setOrigin(0.5));
     const kindLabel = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير للرن" : style.label;
-    card.add(arabicText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }));
+    card.add(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }));
 
     // Tags ride on the title, which starts with Arabic, so right-to-left layout keeps them in order.
     const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
     const title = isUpgrade ? `${def.name}${tags}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : `${def.name}${tags}`;
-    card.add(arabicText(this, textX, -80, title, { fontSize: "29px", color: isUpgrade ? "#9cc3ff" : "#ffffff" }));
+    card.add(inkText(this, textX, -80, title, { fontSize: "29px", color: isUpgrade ? "#1f4a4d" : CSS.ink }));
     card.add(
-      arabicText(this, textX, -16, (isUpgrade ? "ترقية: " : "") + description, {
+      inkText(this, textX, -16, (isUpgrade ? "ترقية: " : "") + description, {
         fontSize: "21px",
-        color: "#d8d1ea",
+        color: CSS.inkSoft,
         align: "center",
         wordWrap: { width: textW },
       }),
     );
-    card.add(arabicText(this, textX, 76, `${price} ذهب`, { fontSize: "24px", color: "#ffd54a" }));
+    card.add(inkText(this, textX, 76, `${price} ريال`, { fontSize: "24px", color: CSS.crimson }));
 
     const btn = makeButton(
       this,
@@ -194,7 +194,7 @@ export class ShopScene extends Phaser.Scene {
       { plate: "sun", disabled: !!reason, width: buttonW, height: 74 },
     );
     card.add(btn.container);
-    if (reason) card.add(arabicText(this, buttonX, 50, reason, { fontSize: "18px", color: "#b9a9c9" }));
+    if (reason) card.add(inkText(this, buttonX, 50, reason, { fontSize: "18px", color: CSS.inkSoft }));
 
     if (def.rarity === "legendary" && !reason) {
       this.tweens.add({ targets: bg, alpha: 0.75, duration: 700, yoyo: true, repeat: -1, ease: "Sine.InOut" });
@@ -212,14 +212,14 @@ export class ShopScene extends Phaser.Scene {
     // The shade swallows taps so nothing behind the dialog can be bought meanwhile.
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.55).setInteractive();
     const g = this.add.graphics();
-    g.fillStyle(0x241a3f, 1);
+    g.fillStyle(PAL.paper, 1);
     g.fillRoundedRect(-w / 2, -170, w, 420, 26);
-    g.lineStyle(4, 0xffd54a, 1);
+    g.lineStyle(4, PAL.gold, 1);
     g.strokeRoundedRect(-w / 2, -170, w, 420, 26);
     panel.add([shade, g]);
     panel.add(this.add.text(0, -100, def.icon, { fontSize: "64px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
-    panel.add(arabicText(this, 0, 20, `مستوى ${runController.levelOf(id)} — بـ ${value} ذهب`, { fontSize: "26px", color: "#ffd54a" }));
+    panel.add(inkText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
+    panel.add(inkText(this, 0, 20, `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
     const close = () => {
       panel.destroy();
       this.dialog = undefined;
@@ -246,7 +246,7 @@ export class ShopScene extends Phaser.Scene {
 
   /** A short line that floats up and fades, for things that happened. */
   private toast(text: string): void {
-    const t = arabicText(this, WIDTH / 2, HEIGHT / 2 - 200, text, { fontSize: "34px", color: "#ffd54a" }).setDepth(60);
+    const t = inkText(this, WIDTH / 2, HEIGHT / 2 - 200, text, { fontSize: "34px", color: CSS.crimson }).setDepth(60);
     this.tweens.add({ targets: t, y: t.y - 80, alpha: 0, delay: 700, duration: 700, onComplete: () => t.destroy() });
   }
 

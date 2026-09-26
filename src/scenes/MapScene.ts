@@ -6,7 +6,8 @@ import { getPartner, PARTNERS } from "../roguelike/partners";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
-import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
+import { addAmbience } from "./fx";
+import { CSS, HEAD_FONT, PAL, goldRule, paintParchment, paperPanel } from "./theme";
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
@@ -17,21 +18,71 @@ const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
   diwaniya: "الديوانية",
 };
 
-const NODE_TYPE_ICON: Record<MapNode["type"], string> = {
-  match: "♠",
-  elite: "♛",
-  shop: "🛒",
-  boss: "👑",
-  diwaniya: "🫖",
-};
+/** Each kind of stop gets an engraved ink symbol drawn in its medallion (no emoji). */
+function drawNodeIcon(g: Phaser.GameObjects.Graphics, type: MapNode["type"], ink: number): void {
+  g.fillStyle(ink, 1);
+  g.lineStyle(3, ink, 1);
+  switch (type) {
+    case "match": {
+      // A spade.
+      g.fillCircle(-9, 2, 10);
+      g.fillCircle(9, 2, 10);
+      g.fillTriangle(-18, 0, 18, 0, 0, -20);
+      g.fillTriangle(-3, 6, 3, 6, 0, 0);
+      g.fillTriangle(-9, 18, 9, 18, 0, 6);
+      break;
+    }
+    case "elite": {
+      // A crown.
+      g.fillPoints([
+        new Phaser.Geom.Point(-20, 12), new Phaser.Geom.Point(-22, -12), new Phaser.Geom.Point(-10, 0),
+        new Phaser.Geom.Point(0, -18), new Phaser.Geom.Point(10, 0), new Phaser.Geom.Point(22, -12),
+        new Phaser.Geom.Point(20, 12),
+      ], true);
+      g.fillStyle(PAL.crimson, 1);
+      g.fillCircle(0, 3, 4);
+      break;
+    }
+    case "shop": {
+      // A dallah: body, neck, lid and beak.
+      g.fillEllipse(0, 8, 26, 22);
+      g.fillRect(-5, -10, 10, 12);
+      g.fillTriangle(-8, -10, 8, -10, 0, -20);
+      g.lineStyle(4, ink, 1);
+      g.beginPath(); g.moveTo(10, 2); g.lineTo(22, -12); g.strokePath();
+      g.lineStyle(3, ink, 1);
+      g.strokeEllipse(-14, 4, 10, 16);
+      break;
+    }
+    case "diwaniya": {
+      // A horseshoe-arched door.
+      g.lineStyle(4, ink, 1);
+      g.beginPath();
+      g.moveTo(-14, 18); g.lineTo(-14, -2);
+      g.arc(0, -2, 14, Math.PI, 0, false);
+      g.lineTo(14, 18);
+      g.strokePath();
+      g.fillRect(-18, 16, 36, 4);
+      g.fillCircle(5, 6, 2.5);
+      break;
+    }
+    case "boss": {
+      // The sun.
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        g.lineBetween(Math.cos(a) * 13, Math.sin(a) * 13, Math.cos(a) * 22, Math.sin(a) * 22);
+      }
+      g.fillStyle(PAL.crimson, 1);
+      g.fillCircle(0, 0, 11);
+      break;
+    }
+  }
+}
 
-const RADIUS = 44;
+const RADIUS = 46;
 /** How far apart the map's lanes are. */
 const LANE_GAP = 250;
-const THEME_BG = 0x2a1a3a;
-const THEME_NODE = 0x1c102a;
-const THEME_GOLD = 0xd4af37;
-const TOP_MARGIN = 320;
+const TOP_MARGIN = 360;
 const BOTTOM_MARGIN = 130;
 
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
@@ -49,14 +100,19 @@ export class MapScene extends Phaser.Scene {
   }
 
   create(): void {
-    paintBackdrop(this);
+    paintParchment(this);
     addAmbience(this);
-    addCameraGrade(this);
-    arabicText(this, WIDTH / 2, 74, "بلوت روغلايك", { fontSize: "44px" });
-    this.hudText = arabicText(this, WIDTH / 2, 150, "", {
-      fontSize: "23px",
-      color: "#ffd54a",
-      wordWrap: { width: WIDTH - 60 },
+    // Header: a crimson title on the parchment, a gold rule, and the run's state in chips.
+    arabicText(this, WIDTH / 2, 70, "خريطة الليلة", { fontFamily: HEAD_FONT, fontSize: "50px", fontStyle: "700", color: CSS.crimson, shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false } });
+    this.add.existing(goldRule(this, WIDTH / 2, 118, 320));
+    this.hudText = arabicText(this, WIDTH / 2, 200, "", {
+      fontFamily: HEAD_FONT,
+      fontSize: "24px",
+      color: CSS.ink,
+      align: "center",
+      lineSpacing: 10,
+      wordWrap: { width: WIDTH - 90 },
+      shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false },
     });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
@@ -86,7 +142,7 @@ export class MapScene extends Phaser.Scene {
     const SUP = ["", "¹", "²", "³"];
     const jokerNames =
       state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? id}${SUP[state.jokerLevels[id] ?? 1] ?? ""}`).join("  ") ||
-      "لا يوجد";
+      "ما عندك";
     const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier)
@@ -95,7 +151,7 @@ export class MapScene extends Phaser.Scene {
     const blessings = state.blessings.map((id) => getBlessing(id)?.icon ?? "").join(" ");
     const partner = getPartner(state.partner);
     this.hudText.setText(
-      `${partner ? `${partner.icon}   ` : ""}❤️ ${state.lives}   💰 ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   🐋 ${blessings}` : ""}\nالجوكرز: ${jokerNames}` +
+      `${partner ? `${partner.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ريال ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   ${blessings}` : ""}\nالتحف: ${jokerNames}` +
         (synergies ? `\nتآزر: ${synergies}` : ""),
     );
   }
@@ -117,8 +173,20 @@ export class MapScene extends Phaser.Scene {
         const { node: up, i: j } = byId.get(id)!;
         const walked = state.cleared[i] && state.cleared[j];
         const open = current?.id === node.id && available.has(id);
-        lineGfx.lineStyle(walked || open ? 7 : 4, walked ? THEME_GOLD : open ? 0xffd54a : 0x4a3a5a, walked || open ? 1 : 0.6);
-        lineGfx.lineBetween(xFor(node), yFor(node), xFor(up), yFor(up));
+        const x1 = xFor(node), y1 = yFor(node), x2 = xFor(up), y2 = yFor(up);
+        if (walked) {
+          lineGfx.lineStyle(7, PAL.crimson, 0.95);
+          lineGfx.lineBetween(x1, y1, x2, y2);
+          continue;
+        }
+        // An inked dotted trail; the ones you can take now are bolder, in crimson.
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const steps = Math.floor(len / 22);
+        lineGfx.fillStyle(open ? PAL.crimson : PAL.inkSoft, open ? 0.95 : 0.55);
+        for (let k = 1; k < steps; k++) {
+          const t = k / steps;
+          lineGfx.fillCircle(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, open ? 5 : 3.5);
+        }
       }
     }
     this.nodeLayer.add(lineGfx);
@@ -141,21 +209,45 @@ export class MapScene extends Phaser.Scene {
     state: { isCurrent: boolean; isCleared: boolean; isAvailable: boolean },
   ): Phaser.GameObjects.Container {
     const radius = RADIUS;
-const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_NODE;
-    const strokeColor = state.isAvailable ? THEME_GOLD : state.isCleared ? 0xf1c40f : 0x3a2a4a;
-
-    const circle = this.add.circle(0, 0, radius, color).setStrokeStyle(state.isAvailable ? 8 : 4, strokeColor);
-    const icon = this.add.text(0, -4, NODE_TYPE_ICON[node.type], { fontSize: "32px" }).setOrigin(0.5);
+    const big = node.type === "boss" ? 1.3 : 1;
+    const r = radius * big;
+    // A medallion: gold rim, cream face, the stop's ink symbol.
+    const disc = this.add.graphics();
+    disc.fillStyle(0x3a2412, 0.35);
+    disc.fillCircle(3, 6, r + 6);
+    disc.fillStyle(state.isCleared ? PAL.gold : PAL.goldLo, 1);
+    disc.fillCircle(0, 0, r + 6);
+    disc.fillStyle(state.isCleared ? PAL.goldHi : PAL.paper, 1);
+    disc.fillCircle(0, 0, r - 2);
+    disc.lineStyle(2, PAL.gold, 1);
+    disc.strokeCircle(0, 0, r - 8);
+    const icon = this.add.graphics();
+    drawNodeIcon(icon, node.type, state.isCleared ? PAL.goldLo : PAL.ink);
+    icon.setScale(big);
+    const ring = this.add.graphics();
+    if (state.isAvailable) {
+      ring.lineStyle(6, PAL.crimson, 1);
+      ring.strokeCircle(0, 0, r + 14);
+    }
     const target = runController.matchTargetFor(node);
-    const label = arabicText(this, 0, radius + 20, NODE_TYPE_LABEL_AR[node.type] + (target !== undefined ? ` ${target}` : ""), {
-      fontSize: "20px",
-      color: state.isAvailable ? "#ffd54a" : "#bcd",
+    const label = arabicText(this, 0, r + 30, NODE_TYPE_LABEL_AR[node.type] + (target !== undefined ? ` ${target}` : ""), {
+      fontFamily: HEAD_FONT,
+      fontSize: "22px",
+      fontStyle: "700",
+      color: state.isAvailable ? CSS.crimson : CSS.inkSoft,
+      shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false },
     });
+    const circle = disc;
 
     // Who you'll play stays a surprise until you walk in.
-    const parts: Phaser.GameObjects.GameObject[] = [circle, icon, label];
+    const parts: Phaser.GameObjects.GameObject[] = [ring, disc, icon, label];
     if (state.isCleared) {
-      parts.push(this.add.text(radius - 18, -radius + 4, "✓", { fontSize: "32px", color: "#5ad469" }));
+      const tick = this.add.graphics();
+      tick.fillStyle(PAL.crimson, 1);
+      tick.fillCircle(r - 6, -r + 6, 14);
+      tick.lineStyle(4, PAL.paper, 1);
+      tick.beginPath(); tick.moveTo(r - 13, -r + 6); tick.lineTo(r - 8, -r + 11); tick.lineTo(r + 1, -r + 1); tick.strokePath();
+      parts.push(tick);
     }
 
     const container = this.add.container(x, y, parts);
@@ -163,13 +255,13 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     if (state.isAvailable) {
       setBoxHitArea(container, radius * 2, radius * 2);
       container.input!.cursor = "pointer";
-      container.on('pointerover', () => this.tweens.add({ targets: circle, scale: 1.15, duration: 150, ease: 'Back.Out' }));
-      container.on('pointerout', () => this.tweens.add({ targets: circle, scale: 1, duration: 150, ease: 'Cubic.Out' }));
+      container.on("pointerover", () => this.tweens.add({ targets: [circle, icon], scale: 1.1, duration: 150, ease: "Back.Out" }));
+      container.on("pointerout", () => this.tweens.add({ targets: [circle, icon], scale: 1, duration: 150, ease: "Cubic.Out" }));
       container.on("pointerdown", () => this.enterNode(node));
 
       this.tweens.add({
-        targets: circle,
-        alpha: 0.6,
+        targets: ring,
+        alpha: 0.25,
         duration: 650,
         yoyo: true,
         repeat: -1,
@@ -194,18 +286,33 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     this.showRivalPanel(node);
   }
 
+  /** Ink text on the paper panels (headings and body in El Messiri, no glow). */
+  private pt(x: number, y: number, text: string, style: Phaser.Types.GameObjects.Text.TextStyle = {}): Phaser.GameObjects.Text {
+    return arabicText(this, x, y, text, {
+      fontFamily: HEAD_FONT,
+      color: CSS.ink,
+      shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false },
+      ...style,
+    });
+  }
+
+  /** Dims the map under a panel so the panel reads as the thing to answer. */
+  private dimMap(panel: Phaser.GameObjects.Container): void {
+    const dim = this.add.graphics();
+    dim.fillStyle(0x1a0e08, 0.55);
+    dim.fillRect(-WIDTH / 2, -HEIGHT / 2, WIDTH, HEIGHT);
+    dim.setInteractive(new Phaser.Geom.Rectangle(-WIDTH / 2, -HEIGHT / 2, WIDTH, HEIGHT), Phaser.Geom.Rectangle.Contains);
+    panel.add(dim);
+  }
+
   /** A panel in the middle of the map; returns it with its width. */
   private openPanel(height: number, border: number): { panel: Phaser.GameObjects.Container; panelW: number } {
     this.overlay?.destroy();
     const panelW = WIDTH - 80;
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
-    const bg = this.add.graphics();
-    bg.fillStyle(THEME_NODE, 0.97);
-    bg.fillRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
-    bg.lineStyle(6, border, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -height / 2, panelW, height, 28);
-    panel.add(bg);
+    this.dimMap(panel);
+    panel.add(paperPanel(this, panelW, height, { accent: border === PAL.crimson ? PAL.crimson : PAL.gold }));
     return { panel, panelW };
   }
 
@@ -213,16 +320,16 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
   private showRivalPanel(node: MapNode): void {
     const def = runController.opponentFor(node);
     if (!def) return this.startMatch(node);
-    const { panel, panelW } = this.openPanel(640, 0xd45a5a);
+    const { panel, panelW } = this.openPanel(660, PAL.crimson);
     const wrap = { wordWrap: { width: panelW - 70 } };
-    panel.add(arabicText(this, 0, -265, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${runController.matchTargetFor(node)}`, { fontSize: "26px", color: "#bcd" }));
-    panel.add(this.add.text(0, -190, def.icon, { fontSize: "64px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, -115, def.name, { fontSize: "40px", color: "#ffd54a" }));
-    panel.add(arabicText(this, 0, -30, def.rule, { fontSize: "28px", ...wrap }));
-    panel.add(arabicText(this, 0, 60, `💡 ${def.hits}`, { fontSize: "23px", color: "#9cc3ff", ...wrap }));
+    panel.add(this.pt(0, -265, `${NODE_TYPE_LABEL_AR[node.type]} — الهدف ${runController.matchTargetFor(node)}`, { fontSize: "26px", color: CSS.inkSoft }));
+    panel.add(goldRule(this, 0, -175, 360));
+    panel.add(this.pt(0, -115, def.name, { fontSize: "40px", color: CSS.crimson }));
+    panel.add(this.pt(0, -30, def.rule, { fontSize: "31px", ...wrap }));
+    panel.add(this.pt(0, 70, def.hits, { fontSize: "27px", color: "#1f4a4d", ...wrap }));
     const off = def.rules.disableJoker ? runController.strongestJoker() : undefined;
     const offDef = off ? getJokerDef(off) : undefined;
-    if (offDef) panel.add(arabicText(this, 0, 125, `🔒 يتعطّل: ${offDef.icon} ${offDef.name}`, { fontSize: "24px", color: "#ffb3b3", ...wrap }));
+    if (offDef) panel.add(this.pt(0, 125, `يتعطّل: ${offDef.name}`, { fontSize: "24px", color: CSS.crimson, ...wrap }));
     panel.add(makeButton(this, 0, 235, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
   }
 
@@ -235,12 +342,12 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     }
     const n = event.options.length;
     const height = 380 + n * 130;
-    const { panel, panelW } = this.openPanel(height, 0x4fb3d9);
+    const { panel, panelW } = this.openPanel(height, PAL.gold);
     const top = -height / 2;
     const wrap = { wordWrap: { width: panelW - 90 } };
-    panel.add(this.add.text(0, top + 80, event.icon, { fontSize: "64px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, top + 160, `الديوانية — ${event.name}`, { fontSize: "34px", color: "#ffd54a" }));
-    panel.add(arabicText(this, 0, top + 240, event.text, { fontSize: "26px", ...wrap }));
+    panel.add(goldRule(this, 0, top + 95, 360));
+    panel.add(this.pt(0, top + 160, `الديوانية — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, top + 240, event.text, { fontSize: "26px", ...wrap }));
     event.options.forEach((option, i) => {
       const reason = runController.whyNotEventOption(i);
       const y = top + 360 + i * 130;
@@ -253,15 +360,15 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
       if (reason) {
         btn.container.disableInteractive();
         btn.container.setAlpha(0.55);
-        panel.add(arabicText(this, 0, y + 58, reason, { fontSize: "19px", color: "#ff9a9a" }));
+        panel.add(this.pt(0, y + 58, reason, { fontSize: "19px", color: CSS.crimson }));
       }
       panel.add(btn.container);
     });
   }
 
   private showEventResult(text: string): void {
-    const { panel } = this.openPanel(420, 0x4fb3d9);
-    panel.add(arabicText(this, 0, -80, text, { fontSize: "30px", wordWrap: { width: WIDTH - 170 } }));
+    const { panel } = this.openPanel(440, PAL.gold);
+    panel.add(this.pt(0, -80, text, { fontSize: "30px", wordWrap: { width: WIDTH - 170 } }));
     panel.add(makeButton(this, 0, 110, "كمّل", () => this.refresh(), { width: 260 }).container);
   }
 
@@ -295,26 +402,22 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panelW = WIDTH - 60;
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x1c102a, 0.98);
-    bg.fillRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
-    bg.lineStyle(6, 0xd4af37, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -700, panelW, 1400, 28);
-    panel.add(bg);
-    panel.add(arabicText(this, 0, -630, "مين خويك هالرن؟", { fontSize: "38px", color: "#ffd54a" }));
+    this.dimMap(panel);
+    panel.add(paperPanel(this, panelW, 1400));
+    panel.add(this.pt(0, -630, "مين خويك هالرن؟", { fontSize: "38px", color: CSS.crimson }));
     const cardW = panelW - 80;
     PARTNERS.forEach((def, i) => {
       const y = -470 + i * 300;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
-      cbg.fillStyle(0x2a1a3a, 1);
-      cbg.fillRoundedRect(-cardW / 2, -130, cardW, 260, 22);
-      cbg.lineStyle(3, 0xd4af37, 0.8);
-      cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 22);
+      cbg.fillStyle(PAL.paperDeep, 1);
+      cbg.fillRoundedRect(-cardW / 2, -130, cardW, 260, 18);
+      cbg.lineStyle(2.5, PAL.gold, 1);
+      cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 18);
       card.add(cbg);
-      card.add(arabicText(this, 0, -80, `${def.icon} ${def.name}`, { fontSize: "32px", color: "#ffd54a" }));
-      card.add(arabicText(this, 0, -10, `✨ ${def.perk}`, { fontSize: "23px", wordWrap: { width: cardW - 60 } }));
-      card.add(arabicText(this, 0, 70, `⚖️ ${def.quirk}`, { fontSize: "22px", color: "#ffc27a", wordWrap: { width: cardW - 60 } }));
+      card.add(this.pt(0, -80, `${def.icon} ${def.name}`, { fontSize: "36px", color: CSS.crimson }));
+      card.add(this.pt(0, -10, `✨ ${def.perk}`, { fontSize: "27px", wordWrap: { width: cardW - 60 } }));
+      card.add(this.pt(0, 70, `⚖️ ${def.quirk}`, { fontSize: "25px", color: "#8c5a1c", wordWrap: { width: cardW - 60 } }));
       setBoxHitArea(card, cardW, 260);
       card.input!.cursor = "pointer";
       card.on("pointerdown", () => {
@@ -331,32 +434,28 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panelW = WIDTH - 60;
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0d2a3a, 0.98);
-    bg.fillRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
-    bg.lineStyle(6, 0x4fb3d9, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -560, panelW, 1120, 28);
-    panel.add(bg);
-    panel.add(this.add.text(0, -470, "🐋", { fontSize: "80px" }).setOrigin(0.5));
-    panel.add(arabicText(this, 0, -380, "الحوت يعطيك بركة للرن كله", { fontSize: "34px", color: "#ffd54a" }));
-    panel.add(arabicText(this, 0, -330, "اختر وحدة", { fontSize: "25px", color: "#bcd" }));
+    this.dimMap(panel);
+    panel.add(paperPanel(this, panelW, 1120));
+    panel.add(goldRule(this, 0, -455, 360));
+    panel.add(this.pt(0, -380, "الحوت يعطيك بركة للرن كله", { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, -330, "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft }));
     const cardW = panelW - 80;
     offers.forEach((id, i) => {
       const def = getBlessing(id)!;
       const y = -170 + i * 250;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
-      cbg.fillStyle(0x163d52, 1);
-      cbg.fillRoundedRect(-cardW / 2, -105, cardW, 210, 22);
-      cbg.lineStyle(3, def.price ? 0xe0a040 : 0x4fb3d9, 1);
-      cbg.strokeRoundedRect(-cardW / 2, -105, cardW, 210, 22);
+      cbg.fillStyle(PAL.paperDeep, 1);
+      cbg.fillRoundedRect(-cardW / 2, -105, cardW, 210, 18);
+      cbg.lineStyle(2.5, def.price ? PAL.crimson : PAL.gold, 1);
+      cbg.strokeRoundedRect(-cardW / 2, -105, cardW, 210, 18);
       card.add(cbg);
-      card.add(arabicText(this, 0, -60, `${def.icon} ${def.name}`, { fontSize: "30px", color: "#ffd54a" }));
-      card.add(arabicText(this, 0, 0, `✨ ${def.gift}`, { fontSize: "25px", wordWrap: { width: cardW - 60 } }));
+      card.add(this.pt(0, -60, `${def.icon} ${def.name}`, { fontSize: "30px", color: CSS.crimson }));
+      card.add(this.pt(0, 0, `✨ ${def.gift}`, { fontSize: "28px", wordWrap: { width: cardW - 60 } }));
       card.add(
-        arabicText(this, 0, 55, def.price ? `⚖️ ${def.price}` : "بدون ثمن", {
-          fontSize: "22px",
-          color: def.price ? "#ffc27a" : "#9be6a8",
+        this.pt(0, 55, def.price ? `⚖️ ${def.price}` : "بدون ثمن", {
+          fontSize: "25px",
+          color: def.price ? "#8c5a1c" : "#3e4a2a",
           wordWrap: { width: cardW - 60 },
         }),
       );
@@ -376,21 +475,17 @@ const color = state.isCleared ? THEME_BG : state.isAvailable ? THEME_BG : THEME_
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
 
-    const bg = this.add.graphics();
-    bg.fillStyle(THEME_NODE, 1);
-    bg.fillRoundedRect(-panelW / 2, -220, panelW, 440, 28);
-    bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
-    bg.strokeRoundedRect(-panelW / 2, -220, panelW, 440, 28);
-    panel.add(bg);
+    this.dimMap(panel);
+    panel.add(paperPanel(this, panelW, 440, { accent: won ? PAL.gold : PAL.crimson }));
 
-    panel.add(arabicText(this, 0, -120, won ? "أكملتم الرن! 🏆" : "انتهى الرن 💀", { fontSize: "42px" }));
+    panel.add(this.pt(0, -120, won ? "طلع الفجر وأنتم غالبين" : "طلع الفجر عليكم", { fontSize: "42px", color: won ? CSS.crimson : CSS.ink }));
     panel.add(
-      arabicText(this, 0, -50, `جمعت ${state.gold} ذهب وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
+      this.pt(0, -50, `جمعت ${state.gold} ريال وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
         fontSize: "27px",
       }),
     );
     const jokers = state.jokerIds.map((id) => getJokerDef(id)?.icon ?? "").join(" ");
-    if (jokers) panel.add(arabicText(this, 0, 5, `جوكرزك: ${jokers}`, { fontSize: "30px" }));
+    if (jokers) panel.add(this.pt(0, 5, `تحفك: ${jokers}`, { fontSize: "30px" }));
 
     const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ رن جديد", () => {
       runController.startNewRun();

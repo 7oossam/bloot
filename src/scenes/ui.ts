@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { RANKS, SUITS, type Rank, type Suit } from "../engine/types";
+import { HEAD_FONT, PAL, diamond } from "./theme";
 
 const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
 export const MENU_FONT = "'Aref Ruqaa', Amiri, Tajawal, serif";
@@ -31,32 +32,26 @@ export interface ButtonHandle {
 
 /**
  * Two kinds of button (docs/art-direction.md, review/ui-buttons.html):
- * - "menu": an illustrated plate (generated art, ornaments at both ends, a plain middle that
- *   stretches), labelled in Aref Ruqaa like the card index: gold with an ink edge on dark plates,
- *   a deep colour with a gold edge on light ones. For continue/start/shop/event choices.
+ * - "menu": a pill in the menu's colour with a double gold rim and gold diamonds, labelled in
+ *   El Messiri (the title screen's button). For continue/start/shop/event choices.
  * - "play": a plain colour tile with one gold line and a big Tajawal label, coloured by meaning
  *   so it reads at a glance during a hand. For buying, doubling, سوا, تخطّي, ترتيب.
  */
 export type MenuTone = "burgundy" | "sun" | "navy" | "teal" | "paper" | "olive";
 export type PlayTone = "sun" | "hokum" | "ashkal" | "pass" | "sawa" | "double" | "quiet";
 
-/** Source plate sizes in public/assets/ui: `slice` = width of each ornamented end. */
-const PLATES: Record<MenuTone, { w: number; h: number; slice: number }> = {
-  burgundy: { w: 643, h: 128, slice: 142 },
-  sun: { w: 629, h: 128, slice: 150 },
-  navy: { w: 603, h: 128, slice: 149 },
-  teal: { w: 622, h: 128, slice: 147 },
-  paper: { w: 581, h: 128, slice: 96 },
-  olive: { w: 609, h: 128, slice: 132 },
+/** Menu button colours: a lit upper face over a deeper base, and the label colour. */
+const MENU_TONES: Record<MenuTone, { fill: number; deep: number; text: string }> = {
+  burgundy: { fill: 0x9a4226, deep: 0x5e2014, text: "#fbe3a8" },
+  teal: { fill: 0x2a5e62, deep: 0x16393c, text: "#f6dfa5" },
+  navy: { fill: 0x2b3c5e, deep: 0x16213a, text: "#f6dfa5" },
+  olive: { fill: 0x55633a, deep: 0x2e3820, text: "#f6dfa5" },
+  sun: { fill: 0xf0c36a, deep: 0xb07d2a, text: "#3a1a10" },
+  paper: { fill: 0xfaf3e3, deep: 0xe0cfa8, text: "#9e1b26" },
 };
-const LIGHT_PLATES: ReadonlySet<MenuTone> = new Set(["sun", "paper"]);
-const plateKey = (tone: MenuTone) => `ui-plate-${tone}`;
 
-/** Queue the menu plates; call from every scene's preload(). Textures are global, so this loads once. */
+/** Queue the shared art (deck, backgrounds); call from every scene's preload(). Textures are global, so this loads once. */
 export function preloadUi(scene: Phaser.Scene): void {
-  for (const tone of Object.keys(PLATES) as MenuTone[]) {
-    if (!scene.textures.exists(plateKey(tone))) scene.load.image(plateKey(tone), `assets/ui/plate-${tone}.webp`);
-  }
   // The deck: 32 finished faces (index, pips and crest baked in) and the engraved back.
   for (const suit of SUITS) {
     for (const rank of RANKS) {
@@ -87,7 +82,7 @@ export interface ButtonOptions {
   width?: number;
   height?: number;
   fontSize?: string;
-  /** "menu" (default) draws an illustrated plate; "play" draws a plain tile. */
+  /** "menu" (default) draws the gold-rimmed pill; "play" draws a plain tile. */
   kind?: "menu" | "play";
   /** Menu plate colour (default burgundy). */
   plate?: MenuTone;
@@ -118,19 +113,26 @@ export function makeButton(
   const width = opts.width ?? 280;
   const height = opts.height ?? 84;
   const plate = opts.plate ?? "burgundy";
-  const menu = (opts.kind ?? "menu") === "menu" && scene.textures.exists(plateKey(plate));
+  const menu = (opts.kind ?? "menu") === "menu";
   const parts: Phaser.GameObjects.GameObject[] = [];
-  let face: Phaser.GameObjects.GameObject;
 
   if (menu) {
-    // 3-slice at the plate's own height, then scaled, so the ornamented ends keep their shape.
-    const src = PLATES[plate];
-    const k = height / src.h;
-    const w = Math.max(width / k, src.slice * 2 + 8);
-    const ns = scene.add.nineslice(0, 0, plateKey(plate), undefined, w, src.h, src.slice, src.slice, 0, 0);
-    ns.setScale(k);
-    face = ns;
-    parts.push(ns);
+    // A pill of the menu's colour with a double gold rim, like the title screen's button.
+    const m = MENU_TONES[plate];
+    const r = height / 2;
+    const g = scene.add.graphics();
+    g.fillStyle(0x140804, 0.45);
+    g.fillRoundedRect(-width / 2 + 2, -height / 2 + 7, width, height, r);
+    g.fillStyle(m.deep, 1);
+    g.fillRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.fillStyle(m.fill, 1);
+    g.fillRoundedRect(-width / 2 + 3, -height / 2 + 3, width - 6, height * 0.62, { tl: r - 3, tr: r - 3, bl: r * 0.4, br: r * 0.4 });
+    g.lineStyle(3, PAL.gold, 1);
+    g.strokeRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.lineStyle(1.5, PAL.gold, 0.85);
+    g.strokeRoundedRect(-width / 2 + 7, -height / 2 + 7, width - 14, height - 14, r - 7);
+    for (const sx of [-1, 1]) diamond(g, sx * (width / 2 - r * 0.62), 0, Math.max(5, height * 0.08), PAL.gold);
+    parts.push(g);
   } else {
     const t = PLAY_TONES[opts.tone ?? "hokum"];
     const r = Math.min(16, height * 0.19);
@@ -143,25 +145,20 @@ export function makeButton(
     g.fillRoundedRect(-width / 2, -height / 2, width, height, r);
     g.lineStyle(t.line, t.border, 1);
     g.strokeRoundedRect(-width / 2 + t.line / 2, -height / 2 + t.line / 2, width - t.line, height - t.line, r);
-    face = g;
     parts.push(g);
   }
 
   let text: Phaser.GameObjects.Text;
   if (menu) {
-    const light = LIGHT_PLATES.has(plate);
-    text = arabicText(scene, 0, -height * 0.02, label, {
-      fontFamily: MENU_FONT,
-      fontSize: opts.fontSize ?? `${Math.round(height * 0.4)}px`,
-      color: light ? (plate === "sun" ? "#5e1f24" : "#281e19") : "#f2c96b",
-      stroke: light ? "#d6a44a" : "#281e19",
-      strokeThickness: Math.max(3, Math.round(height * 0.06)),
-      shadow: light
-        ? { offsetX: 0, offsetY: 2, color: "rgba(255,244,220,0.75)", blur: 0, fill: true, stroke: true }
-        : { offsetX: 0, offsetY: 2, color: "rgba(0,0,0,0.55)", blur: 0, fill: true, stroke: true },
+    const m = MENU_TONES[plate];
+    text = arabicText(scene, 0, -height * 0.03, label, {
+      fontFamily: HEAD_FONT,
+      fontSize: opts.fontSize ?? `${Math.round(height * 0.38)}px`,
+      fontStyle: "700",
+      color: m.text,
+      shadow: { offsetX: 0, offsetY: 2, color: "rgba(20,8,4,0.55)", blur: 0, fill: true },
     });
-    // Keep a long label inside the plain middle of the plate.
-    const room = width - 2 * PLATES[plate].slice * (height / PLATES[plate].h) * 0.55;
+    const room = width - height * 1.3;
     if (text.width > room) text.setScale(Math.max(0.6, room / text.width));
   } else {
     const t = PLAY_TONES[opts.tone ?? "hokum"];
@@ -180,7 +177,6 @@ export function makeButton(
   const pressY = menu ? 3 : 5;
   if (opts.disabled) {
     container.setAlpha(0.5);
-    if (face instanceof Phaser.GameObjects.NineSlice) face.setTint(0x8a8a8a);
     return { container, destroy: () => container.destroy() };
   }
 
