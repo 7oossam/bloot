@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { cardId, rankStrength } from "../engine/cards";
+import { cardId, cardPoints, rankStrength } from "../engine/cards";
 import type { LegalCall } from "../engine/bidding";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
 import { SUITS, teamOf } from "../engine/types";
@@ -19,7 +19,7 @@ import { getJokerDef, jokersBehind } from "../roguelike/jokers";
 import type { NodeType } from "../roguelike/types";
 import { CardView, CARD_W } from "./CardView";
 import { RANK_NAME_AR, SUIT_COLOR_HEX, SUIT_NAME_AR, SUIT_SYMBOL } from "./cardArt";
-import { PROJECT_NAME_AR, type ProjectsOutcome } from "../engine/projects";
+import { BALOOT_VALUE, PROJECT_NAME_AR, PROJECT_VALUE, type ProjectsOutcome } from "../engine/projects";
 import { DOUBLE_NAME_AR, doubleLabel, type DoubleBid, type DoubleLevel, type LegalDouble } from "../engine/doubling";
 import {
   BID_BUTTON_ROW_GAP,
@@ -38,6 +38,7 @@ import {
 } from "./layout";
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
+import { HandMeter, type Side } from "./HandMeter";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -126,6 +127,8 @@ export class TableScene extends Phaser.Scene {
 
   private hudScoreText!: Phaser.GameObjects.Text;
   private hudModeText!: Phaser.GameObjects.Text;
+  /** عدّاد اليد: the hand's score, live, under the joker row. */
+  private meter!: HandMeter;
   private logText!: Phaser.GameObjects.Text;
   private logLines: string[] = [];
 
@@ -283,11 +286,15 @@ export class TableScene extends Phaser.Scene {
 
   private buildStaticUI(): void {
     this.hudScoreText = arabicText(this, CENTER_X, 46, "", { fontSize: "30px" }).setDepth(5);
-    this.hudModeText = arabicText(this, CENTER_X, 92, "", { fontSize: "23px", color: "#ffd54a" }).setDepth(5);
+    // The line under the score says where you are; with an opponent, it's their rule. What was
+    // bought lives in the hand meter now.
+    this.hudModeText = arabicText(this, CENTER_X, 92, NODE_TYPE_LABEL_AR[this.nodeData.nodeType], { fontSize: "23px", color: "#ffd54a" }).setDepth(5);
     if (this.nodeData.modifiers.rivalLabel) {
-      this.rivalText = arabicText(this, CENTER_X, JOKER_ROW_Y + JOKER_ICON / 2 + 34, "", { fontSize: "21px", color: "#ffb3b3", wordWrap: { width: WIDTH - 80 } }).setDepth(5);
+      this.hudModeText.setText("");
+      this.rivalText = arabicText(this, CENTER_X + 40, 92, "", { fontSize: "21px", color: "#ffb3b3", wordWrap: { width: WIDTH - 200, useAdvancedWrap: true } }).setDepth(5);
       this.refreshRival();
     }
+    this.meter = new HandMeter(this, CENTER_X, 240);
 
     this.seatLabels[0] = arabicText(this, HAND_ANCHOR[0].x, HAND_ANCHOR[0].y - 128, SEAT_LABEL_AR[0], {
       fontSize: "26px",
@@ -342,12 +349,7 @@ export class TableScene extends Phaser.Scene {
 
   // -------------------------------------------------------------- logging
 
-  private floatText(x: number, y: number, text: string, color: string): void {
-      const t = arabicText(this, x, y, text, { fontSize: '28px', color });
-      this.tweens.add({ targets: t, y: y - 60, alpha: 0, duration: 1200, ease: 'Quad.Out', onComplete: () => t.destroy() });
-    }
-
-    private log(line: string): void {
+  private log(line: string): void {
     this.logLines.push(line);
     if (this.logLines.length > LOG_LINES) this.logLines.shift();
     this.logText.setText(this.logLines.join("\n"));
@@ -524,8 +526,21 @@ export class TableScene extends Phaser.Scene {
 
   private onJokerFired(e: JokerFired): void {
     const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} 💰` : undefined;
-    this.pulseJokers(e.label, amount);
+    if (e.points) {
+      // Points go to the hand meter: a chip drops from the joker into our medallion.
+      const id = jokersBehind(e.label, runController.getState().jokerIds)[0];
+      const box = id ? this.jokerIcons.get(id) : undefined;
+      this.pulseJokers(e.label);
+      this.meter.addJoker(getJokerDef(id ?? "")?.icon ?? "✨", e.points, box ? { x: box.x, y: box.y } : { x: CENTER_X, y: JOKER_ROW_Y });
+    } else {
+      this.pulseJokers(e.label, amount);
+    }
     if (amount) this.log(`🃏 ${e.label}: ${amount}`);
+  }
+
+  /** Which side of the hand meter a seat plays for. */
+  private sideOf(seat: Seat): Side {
+    return teamOf(seat) === teamOf(HUMAN_SEAT) ? "us" : "them";
   }
 
   // ------------------------------------------------------- your hand's tools
@@ -834,9 +849,7 @@ export class TableScene extends Phaser.Scene {
     }).setAlpha(0);
     this.tweens.add({ targets: this.groundLabel, alpha: 1, delay: t, duration: DEAL_FLY_MS });
 
-    this.hudModeText.setText(
-      `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — مزايدة — ورقة الأرض: ${SUIT_NAME_AR[e.groundCard.suit]} ${SUIT_SYMBOL[e.groundCard.suit]}`,
-    );
+    this.meter.idle(`مزايدة — ورقة الأرض ${SUIT_SYMBOL[e.groundCard.suit]} ${SUIT_NAME_AR[e.groundCard.suit]}`);
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.placeDealerChip(e.dealer);
     this.spied = {};
@@ -1004,7 +1017,8 @@ export class TableScene extends Phaser.Scene {
     this.flashNote(`${word}!${e.bid.call === "qahwa" ? " ☕" : ""}`);
     const res = this.controller.getRound().bidding.result!;
     this.placeContractChip(res.declarer, this.contractLabel());
-    this.hudModeText.setText(`${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${this.contractLabel()} — المعلن: ${SEAT_LABEL_AR[res.declarer]}`);
+    const d = this.controller.getRound().doubling;
+    if (d && d.level > 1) this.meter.setDouble(d.level, word);
   }
 
   private clearBidButtons(): void {
@@ -1043,9 +1057,12 @@ export class TableScene extends Phaser.Scene {
     this.clearBidButtons();
     const modeLabel =
       e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]} ${SUIT_NAME_AR[e.trumpSuit!]}` : "صن (بدون حكم)";
-    this.hudModeText.setText(
-      `${NODE_TYPE_LABEL_AR[this.nodeData.nodeType]} — ${modeLabel} — المعلن: ${SEAT_LABEL_AR[e.declarer]}`,
-    );
+    this.meter.start({
+      mode: e.mode,
+      label: e.mode === "hokum" ? `حكم ${SUIT_SYMBOL[e.trumpSuit!]}` : "صن",
+      buyer: this.sideOf(e.declarer),
+      ground: this.lastTrickBonus(),
+    });
     this.log(`${modeLabel} — المعلن ${SEAT_LABEL_AR[e.declarer]}`);
     this.placeContractChip(e.declarer, this.contractLabel());
     // The دبل round is played on the first five cards: the rest is dealt once it's settled.
@@ -1414,18 +1431,25 @@ export class TableScene extends Phaser.Scene {
       const cards = mine.flatMap((p) => p.cards);
       this.log(`${SEAT_LABEL_AR[seat]} فرش: ${names} — ${cards.map((c) => `${RANK_NAME_AR[c.rank]} ${SUIT_SYMBOL[c.suit]}`).join("، ")}`);
       this.layDownProjects(seat, names, mine.map((p) => p.cards));
+      const mode = this.controller.getRound().bidding.result?.mode;
+      if (mode) this.meter.addProject(this.sideOf(seat), mine.reduce((n, p) => n + PROJECT_VALUE[mode][p.kind], 0), names, this.projectPoint(seat));
     }
   }
 
-  /** Shows a seat's projects face up for a few seconds, like cards laid on the table. */
-  private layDownProjects(seat: Seat, label: string, groups: Card[][]): void {
+  /** Where a seat's laid-down projects show on the table. */
+  private projectPoint(seat: Seat): { x: number; y: number } {
     const at: Record<Seat, { x: number; y: number }> = {
       0: { x: CENTER_X, y: 1300 },
       1: { x: TABLE_RECT.right - 170, y: CENTER_Y + 225 },
       2: { x: CENTER_X, y: TABLE_RECT.top + 250 },
       3: { x: TABLE_RECT.left + 170, y: CENTER_Y + 225 },
     };
-    const pos = at[seat];
+    return at[seat];
+  }
+
+  /** Shows a seat's projects face up for a few seconds, like cards laid on the table. */
+  private layDownProjects(seat: Seat, label: string, groups: Card[][]): void {
+    const pos = this.projectPoint(seat);
     const panel = this.add.container(pos.x, pos.y).setDepth(14);
     const cards = groups.flat();
     const step = 44;
@@ -1467,6 +1491,7 @@ export class TableScene extends Phaser.Scene {
     if (e.baloot) {
       this.showSeatBubble(e.seat, "بلوت", 0xffd54a);
       this.log(`${SEAT_LABEL_AR[e.seat]}: بلوت (+2)`);
+      this.meter.addProject(this.sideOf(e.seat), BALOOT_VALUE, "بلوت", TRICK_ANCHOR[e.seat]);
       juiceColor = 0xffd54a;
       shouldJuice = true;
     }
@@ -1623,9 +1648,12 @@ export class TableScene extends Phaser.Scene {
     // The winning card flares and rises a little before everything collects.
     const winningView = views[e.winner];
     const ours = teamOf(e.winner) === teamOf(HUMAN_SEAT);
-    if (isLast) {
-      this.cameras.main.shake(160, 0.003);
-      this.floatText(dest.x, dest.y - 60, `الأرض +${this.lastTrickBonus()}`, "#ffd98a");
+    if (isLast) this.cameras.main.shake(160, 0.003);
+    // The hand meter: the trick's points fly to the side that took it (الأرض on its own).
+    if (contract) {
+      const raw = e.trick.order.reduce<number>((n, s) => n + cardPoints(e.trick.cards[s]!, contract.mode, contract.trumpSuit), 0);
+      const groundSide: Side = this.nodeData.modifiers.rival?.groundTheirs ? "them" : this.sideOf(e.winner);
+      this.meter.addTrick(this.sideOf(e.winner), raw, { x: CENTER_X, y: CENTER_Y }, isLast ? { side: groundSide, raw: this.lastTrickBonus() } : undefined);
     }
     if (winningView) {
       this.children.bringToTop(winningView);
@@ -1674,6 +1702,18 @@ export class TableScene extends Phaser.Scene {
 
   private onHandComplete(e: HandCompleteEvent): void {
     this.chat(handLines(e.result, this.handsPlayed === 0), 200);
+    // The meter settles on the score sheet: what each side banked, and what the jokers added.
+    const us = teamOf(HUMAN_SEAT);
+    const them: Team = us === 0 ? 1 : 0;
+    const sheet = e.result.sheet;
+    const banked = sheet?.result ?? e.result.gamePoints;
+    const lost = sheet?.outcome === "lost";
+    this.meter.finish({
+      us: banked[us],
+      them: e.gained[them],
+      bonus: e.gained[us] - banked[us],
+      word: e.kaboot ? "🔥 كبوت!" : lost ? (e.result.declarerTeam === us ? "💔 خسرانة" : "🔥 خسرانة عليهم") : sheet?.winner === us ? "✓ لنا" : undefined,
+    });
     this.whenTableSettled(() => this.handMoment(e.result));
     this.handsPlayed++;
     this.showingHandSummary = true;
