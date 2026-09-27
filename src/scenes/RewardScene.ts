@@ -3,7 +3,7 @@ import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelik
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, setBoxHitArea } from "./ui";
-import { addAmbience, addCameraGrade, paintBackdrop } from "./fx";
+import { addAmbience, addCameraGrade } from "./fx";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },
@@ -43,7 +43,11 @@ export class RewardScene extends Phaser.Scene {
       this.scene.start("map");
       return;
     }
-    paintBackdrop(this);
+    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, 'start_bg').setScrollFactor(0);
+      bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
+      const dim = this.add.graphics();
+      dim.fillStyle(0x000000, 0.4);
+      dim.fillRect(0, 0, WIDTH, HEIGHT);
     addAmbience(this);
     addCameraGrade(this);
     arabicText(this, WIDTH / 2, 86, pending.elite ? "غنائم النخبة 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });

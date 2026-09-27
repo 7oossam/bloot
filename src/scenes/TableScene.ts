@@ -39,7 +39,7 @@ import {
 import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
-import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
+import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
@@ -236,12 +236,31 @@ export class TableScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.image('card_back', 'assets/cards/back.jpg');
+    this.load.image('table_top', 'assets/ui/table_top.jpg');
+    const suits = ['H', 'D', 'C', 'S'];
+    const ranks = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    for (const s of suits) {
+      for (const r of ranks) {
+        this.load.image(s + '_' + r, 'assets/cards/faces/' + s + '_' + r + '.jpg');
+      }
+    }
     
   }
 
   create(): void {
     ensureFxTextures(this);
-    paintBackdrop(this, { table: true });
+    
+    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, 'table_top').setScrollFactor(0);
+    bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
+    const bgDim = this.add.graphics();
+    bgDim.fillStyle(0x000000, 0.4);
+    bgDim.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // The Sleek Glass Table
+    
+// Table surface is now handled purely by the background image!
+
     addAmbience(this);
     addCameraGrade(this);
     this.buildStaticUI();
@@ -424,7 +443,7 @@ export class TableScene extends Phaser.Scene {
       if (!def) return;
       const level = state.jokerLevels[id] ?? 1;
       const bg = this.add.graphics();
-      bg.fillStyle(0x14303b, 0.95);
+      bg.fillStyle(0x000000, 0.75);
       bg.fillRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       bg.lineStyle(3, def.rarity === "legendary" ? 0xffb33a : def.rarity === "rare" ? 0x9cc3ff : 0x8aa79a, 1);
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
@@ -469,7 +488,7 @@ export class TableScene extends Phaser.Scene {
     });
     const h = text.height + 36;
     const bg = this.add.graphics();
-    bg.fillStyle(0x14303b, 0.97);
+    bg.fillStyle(0x000000, 0.75);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
     bg.lineStyle(3, 0xffd54a, 0.9);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
@@ -553,7 +572,6 @@ export class TableScene extends Phaser.Scene {
     this.scene.pause();
     openNotesPanel({
       views,
-      match: () => this.controller.getMatchLog(),
       seatName: (seat) => (seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat]),
       onClose: () => this.scene.resume(),
     });
@@ -743,7 +761,7 @@ export class TableScene extends Phaser.Scene {
     const w = Math.max(120, label.width + 44);
     const h = 66;
     const bg = this.add.graphics();
-    bg.fillStyle(0x14303b, 0.94);
+    bg.fillStyle(0x000000, 0.75);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
     bg.lineStyle(4, color, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
@@ -883,7 +901,7 @@ export class TableScene extends Phaser.Scene {
     const panel = this.add.container(CENTER_X, BID_BUTTON_ROW_Y - 250).setDepth(7);
     const w = 330;
     const bg = this.add.graphics();
-    bg.fillStyle(0x1d1433, 0.92);
+    bg.fillStyle(0x000000, 0.75);
     bg.fillRoundedRect(-w / 2, -95, w, 190, 18);
     bg.lineStyle(3, 0xb58cff, 1);
     bg.strokeRoundedRect(-w / 2, -95, w, 190, 18);
@@ -1437,7 +1455,7 @@ export class TableScene extends Phaser.Scene {
     const step = 44;
     const width = (cards.length - 1) * step + CARD_W * WIDGET_CARD_SIZE + 24;
     const bg = this.add.graphics();
-    bg.fillStyle(0x14303b, 0.9);
+    bg.fillStyle(0x000000, 0.75);
     bg.fillRoundedRect(-width / 2, -92, width, 176, 16);
     bg.lineStyle(3, 0x5ad469, 1);
     bg.strokeRoundedRect(-width / 2, -92, width, 176, 16);
@@ -1929,7 +1947,7 @@ export class TableScene extends Phaser.Scene {
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
     const bg = this.add.graphics();
-    bg.fillStyle(0x14303b, 1);
+    bg.fillStyle(0x000000, 0.85);
     bg.fillRoundedRect(-panelW / 2, -230, panelW, 460, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -230, panelW, 460, 28);

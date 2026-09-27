@@ -68,7 +68,14 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   const rules: string[] = [];
   const soft = new Map<string, SoftRule>();
-  const candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  let candidates = playerRules(round, seat, legal, ruleChoice, rules, soft);
+  {
+    // Holding the Ace and the 10 of a suit, the Ace goes first: the partner then knows the trick is
+    // ours and can fatten it — the player's basic rule. Neutral between computers (paired, 1,200
+    // hands: −0.09 ± 0.08); it's for the human partner reading the card.
+    const kept = candidates.filter((c) => !(c.rank === "10" && candidates.some((a) => a.suit === c.suit && a.rank === "A")));
+    if (kept.length && kept.length < candidates.length) { candidates = kept; rules.push("الإكة قبل العشرة: يعرف خويه إن الأكلة له"); }
+  }
   const penalty = (c: Card) => soft.get(cardId(c))?.points ?? 0;
   const ruledOut = legal.filter((c) => !candidates.some((k) => cardId(k) === cardId(c)));
   if (candidates.length === 1) return { kind: "rules", card: candidates[0], ruleChoice, ruledOut, rules };
@@ -95,7 +102,9 @@ export function searchCardTraced(round: Round, seat: Seat, opts: SearchOptions =
 
   // Best average margin; a near-tie goes to the rule-based choice.
   let best = ruleChoice;
-  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + HABIT_TRUST;
+  // The habit (play-ai) doesn't know a rival's weak Jack; the playouts do, so there the search decides.
+  const trust = weakJackFor(round.currentTrick!, seat) ? 0 : HABIT_TRUST;
+  let bestScore = (totals.get(cardId(ruleChoice)) ?? -Infinity) / worlds - penalty(ruleChoice) + trust;
   for (const card of candidates) {
     const score = totals.get(cardId(card))! / worlds - penalty(card);
     if (score > bestScore) {
@@ -227,6 +236,17 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
         soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "يحل من تحت إكته" });
       }
     }
+    // The sun buyer with winners in hand doesn't open with a lone small card: an opponent long in
+    // that suit takes the lead and runs it (the player's note — يسار ran four هاص). Soft, because
+    // shedding the loser early to keep control of the last trick is sometimes right. Paired,
+    // 1,200 hands: +0.11 ± 0.15.
+    if (seat === declarer && mode === "sun") {
+      const bossElsewhere = (c: Card) => hand.some((x) => x.suit !== c.suit && isBoss(x, hand, beliefs, mode, trumpSuit));
+      for (const c of pool) {
+        const lone = hand.filter((x) => x.suit === c.suit).length === 1;
+        if (lone && !isBoss(c, hand, beliefs, mode, trumpSuit) && bossElsewhere(c)) soft.set(cardId(c), { points: UNDERLEAD_PENALTY, reason: "المشتري ما يحل بورقة وحيدة ماهي ماكلة وعنده أكل" });
+      }
+    }
     if (against) {
       // حلة المشتري: suits the buying side's declarer opened.
       const buyerSuits = new Set(round.tricks.filter((t) => t.leader === declarer).map((t) => t.cards[t.leader]!.suit));
@@ -242,7 +262,9 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
         // المحكم يسحب الحكم: the buyer with the top trump pulls trumps while an opponent may
         // still hold some.
         const opponentsTrumps = ([1, 3] as const).some((k) => !beliefs.voids[((seat + k) % 4) as Seat][trumpSuit]) && outstanding(beliefs, hand, trumpSuit).length > 0;
-        const topTrump = hand.some((c) => c.suit === trumpSuit && isBoss(c, hand, beliefs, mode, trumpSuit));
+        // Under خاطفين الولد our ولد is the weakest trump, never the top one.
+        const weak = weakJackFor(trick, seat);
+        const topTrump = hand.some((c) => c.suit === trumpSuit && !(weak && c.rank === "J") && isBoss(c, hand, beliefs, mode, trumpSuit));
         if (opponentsTrumps && topTrump) pool = narrow(pool, (c) => c.suit === trumpSuit, "المحكم يسحب الحكم");
       }
       // No hard rule for the buyer's partner (the player's note asked him to cash first, then go
@@ -280,6 +302,13 @@ function playerRules(round: Round, seat: Seat, legal: Card[], ruleChoice: Card, 
     if (ace && aceMustPlay(ace, legal, trick, mode, trumpSuit, seat) && !mayHoldAce(hand, ace, mode, trumpSuit, seat, declarer, beliefs)) {
       return narrow(legal, (c) => cardId(c) === cardId(ace), "الإكة تنلعب أول ما يجي شكلها — لا تتفرنك");
     }
+  }
+  // The partner led the suit: he's strong in it and wants its Ace down so his cards are the top
+  // ones, so the Ace goes on his card. The ban on giving the Ace to the partner's trick is about
+  // discarding it (التهريب), not this — the player's note. Measured neutral (paired, 1,000 hands).
+  if (following && !ledTrump && trick.order[0] === ((seat + 2) % 4)) {
+    const ace = legal.find((c) => c.suit === led && c.rank === "A");
+    if (ace) return narrow(legal, (c) => cardId(c) === cardId(ace), "خويه حل بالشكل: الإكة تطيح عليه");
   }
   // In the last two tricks an Ace thrown onto the partner's trick isn't wasted: the lead may
   // never come back to it, so it's تكبير — fattening the partner's trick. (With three left it
@@ -380,8 +409,8 @@ export function inferConstraints(round: Round, me: Seat): Constraints {
 }
 
 /**
- * One guess at every other seat's hand that fits the constraints, or undefined if the table
- * no longer adds up (a joker duplicated a card) or no fitting deal turned up.
+ * One guess at every other seat's hand that fits the constraints, or undefined if no fitting
+ * deal turned up.
  */
 export function sampleWorld(round: Round, me: Seat, c: Constraints, rand: () => number): Record<Seat, Card[]> | undefined {
   const { mode, trumpSuit } = round.bidding.result!;
@@ -391,9 +420,25 @@ export function sampleWorld(round: Round, me: Seat, c: Constraints, rand: () => 
     for (const s of t.order) seen.add(cardId(t.cards[s]!));
   }
   for (const s of others) for (const k of c.known[s]) seen.add(cardId(k));
-  const pool = SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank }))).filter((x) => !seen.has(cardId(x)));
+  const deck = SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank })));
+  let pool = deck.filter((x) => !seen.has(cardId(x)));
   const need = Object.fromEntries(others.map((s) => [s, round.hands[s].length - c.known[s].length])) as Record<Seat, number>;
-  if (others.some((s) => need[s] < 0) || pool.length !== others.reduce<number>((n, s) => n + need[s], 0)) return undefined;
+  if (others.some((s) => need[s] < 0)) return undefined;
+  // Every seat holds one card per trick left (less one if it has played to this trick); a table
+  // where that doesn't hold (a hand-built test position) can't be played out.
+  const left = 8 - round.tricks.length;
+  const inTrick = new Set(round.currentTrick?.order ?? []);
+  if (([0, 1, 2, 3] as Seat[]).some((s) => round.hands[s].length !== left - (inTrick.has(s) ? 1 : 0))) return undefined;
+  // A joker that turns one card into another (المنزّل، الصبّاغ، the forged ولد) leaves the table
+  // with a card twice and another gone, so the unseen cards stop adding up. Guess anyway: drop
+  // cards that may no longer exist, or add copies of cards that may now be doubled. Without this
+  // the search gave up for the whole hand and played by habit.
+  const total = others.reduce<number>((n, s) => n + need[s], 0);
+  if (pool.length > total) pool = shuffle(pool, rand).slice(0, total);
+  else if (pool.length < total) {
+    const mine = new Set(round.hands[me].map(cardId));
+    pool = [...pool, ...shuffle(deck.filter((x) => !mine.has(cardId(x))), rand).slice(0, total - pool.length)];
+  }
 
   const allowed = (card: Card, s: Seat) =>
     !c.voids[s].has(card.suit) && !(isTrumpCard(card, mode, trumpSuit) && rankStrength(card, mode, trumpSuit) > c.maxTrump[s]);
@@ -499,6 +544,11 @@ function rollout(round: Round, hands: Record<Seat, Card[]>, seat: Seat, card: Ca
  * 5 → +0.11 (± 0.27), 8 → -0.35. So 3.
  */
 const HABIT_TRUST = 3;
+
+/** خاطفين الولد: is this seat's side playing with its trump Jack knocked down? */
+function weakJackFor(trick: Trick, seat: Seat): boolean {
+  return trick.rules?.rival?.weakJack !== undefined && trick.rules.rival.weakJack === teamOf(seat);
+}
 
 /** A raw point (أبنط) in a playout's score: 20 of them are a tenth of a game point. */
 const RAW_TIEBREAK = 0.005;
