@@ -36,10 +36,10 @@ import {
   handPositions,
   sortHandForDisplay,
 } from "./layout";
-import { arabicText, makeButton, setBoxHitArea, type ButtonHandle } from "./ui";
+import { arabicText, makeButton, playToneFor, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
-import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, rise, screenFlash } from "./fx";
+import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
 // Bidding gets a slower beat than card play: each call is a single word that has to be read
@@ -83,11 +83,11 @@ const SEAT_LABEL_COLOR = "#cfe0d6";
 const TURN_LABEL_COLOR = "#ffd54a";
 
 const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
-  match: "مباراة",
-  elite: "نخبة",
-  shop: "متجر",
-  boss: "الزعيم",
-  diwaniya: "الديوانية",
+  match: "ديوانية",
+  elite: "مجلس كبير",
+  shop: "دكّان التحف",
+  boss: "ديوانية الزعيم",
+  diwaniya: "طرقة",
 };
 
 export interface TableSceneData {
@@ -236,31 +236,12 @@ export class TableScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('card_back', 'assets/cards/back.jpg');
-    this.load.image('table_top', 'assets/ui/table_top.jpg');
-    const suits = ['H', 'D', 'C', 'S'];
-    const ranks = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-    for (const s of suits) {
-      for (const r of ranks) {
-        this.load.image(s + '_' + r, 'assets/cards/faces/' + s + '_' + r + '.jpg');
-      }
-    }
-    
+    preloadUi(this);
   }
 
   create(): void {
     ensureFxTextures(this);
-    
-    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, 'table_top').setScrollFactor(0);
-    bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
-    const bgDim = this.add.graphics();
-    bgDim.fillStyle(0x000000, 0.4);
-    bgDim.fillRect(0, 0, WIDTH, HEIGHT);
-
-    // The Sleek Glass Table
-    
-// Table surface is now handled purely by the background image!
-
+    paintBackdrop(this, { table: true });
     addAmbience(this);
     addCameraGrade(this);
     this.buildStaticUI();
@@ -304,15 +285,19 @@ export class TableScene extends Phaser.Scene {
     for (const seat of OPPONENT_SEATS) {
       const anchor = HAND_ANCHOR[seat];
       const back = new CardView(this, anchor.x, anchor.y, { suit: "S", rank: "7" }, false, WIDGET_CARD_SIZE);
+      // A dark chip behind the name and count keeps them readable over the table's gold border.
+      const chip = { backgroundColor: "rgba(11,19,48,0.85)", padding: { x: 12, y: 4 } };
       const count = arabicText(this, anchor.x, anchor.y + back.displayH / 2 + 26, "×8", {
         fontSize: "24px",
         color: "#dbeee1",
+        ...chip,
       }).setDepth(5);
       // Your partner goes by their name (شخصيات الخوي).
       const name = seat === 2 && this.nodeData.modifiers.partnerLabel ? this.nodeData.modifiers.partnerLabel : SEAT_LABEL_AR[seat];
       this.seatLabels[seat] = arabicText(this, anchor.x, anchor.y - back.displayH / 2 - 26, name, {
         fontSize: "24px",
         color: SEAT_LABEL_COLOR,
+        ...chip,
       }).setDepth(5);
       this.opponentWidget[seat] = { back, count };
     }
@@ -413,7 +398,7 @@ export class TableScene extends Phaser.Scene {
     if (amount === 0) return;
     runController.addGold(amount);
     this.pulseJokers(e.reason);
-    const text = amount > 0 ? `+${amount} ذهب 💰 ${e.reason}` : `${amount} ذهب 🎰 ${e.reason}`;
+    const text = amount > 0 ? `+${amount} ريال ${e.reason}` : `${amount} ريال 🎰 ${e.reason}`;
     const pop = arabicText(this, CENTER_X, CENTER_Y - 120, text, {
       fontSize: "30px",
       color: amount > 0 ? "#ffd54a" : "#ff7a7a",
@@ -443,7 +428,7 @@ export class TableScene extends Phaser.Scene {
       if (!def) return;
       const level = state.jokerLevels[id] ?? 1;
       const bg = this.add.graphics();
-      bg.fillStyle(0x000000, 0.75);
+      bg.fillStyle(0x14303b, 0.95);
       bg.fillRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       bg.lineStyle(3, def.rarity === "legendary" ? 0xffb33a : def.rarity === "rare" ? 0x9cc3ff : 0x8aa79a, 1);
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
@@ -479,7 +464,7 @@ export class TableScene extends Phaser.Scene {
     const level = runController.getState().jokerLevels[id] ?? 1;
     const lines = [`${def.icon} ${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
     if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
-    if (def.tags.length) lines.push(`العائلة: ${def.tags.join("، ")}`);
+    if (def.tags.length) lines.push(`المجموعة: ${def.tags.join("، ")}`);
     const w = WIDTH - 80;
     const text = arabicText(this, 0, 0, lines.join("\n"), {
       fontSize: "24px",
@@ -488,7 +473,7 @@ export class TableScene extends Phaser.Scene {
     });
     const h = text.height + 36;
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.75);
+    bg.fillStyle(0x14303b, 0.97);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
     bg.lineStyle(3, 0xffd54a, 0.9);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
@@ -525,7 +510,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onJokerFired(e: JokerFired): void {
-    const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} 💰` : undefined;
+    const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} ريال` : undefined;
     if (e.points) {
       // Points go to the hand meter: a chip drops from the joker into our medallion.
       const id = jokersBehind(e.label, runController.getState().jokerIds)[0];
@@ -548,10 +533,10 @@ export class TableScene extends Phaser.Scene {
   /** The sort button beside your name, and (with الذاكرة) the cards-still-out line. */
   private buildHandTools(): void {
     const y = HAND_ANCHOR[HUMAN_SEAT].y - 128;
-    const btn = makeButton(this, WIDTH - 110, y, "🔀 ترتيب", () => this.cycleSort(), { width: 170, height: 58, fontSize: "24px", color: 0x2d4a3e });
+    const btn = makeButton(this, WIDTH - 110, y, "ترتيب", () => this.cycleSort(), { width: 170, height: 58, kind: "play", tone: "quiet" });
     btn.container.setDepth(6);
     // «ليش؟»: why the computer played what it did, and the player's notes for Claude.
-    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", color: 0x2d4a3e });
+    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
     why.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
       // In the strip between the table and your hand, clear of the names and the rival line.
@@ -702,7 +687,7 @@ export class TableScene extends Phaser.Scene {
     this.sawaButton?.destroy();
     this.sawaButton = undefined;
     if (!this.controller.canClaimSawa()) return;
-    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا ✋", () => {
+    this.sawaButton = makeButton(this, 110, HAND_ANCHOR[HUMAN_SEAT].y - 128, "سوا", () => {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
       // Right or wrong, the hand plays itself out from here.
@@ -719,7 +704,7 @@ export class TableScene extends Phaser.Scene {
         v.setDimmed(false);
       }
       this.driveAI();
-    }, { width: 170, height: 58, fontSize: "25px", color: 0x8a5a12 });
+    }, { width: 170, height: 64, kind: "play", tone: "sawa" });
     this.sawaButton.container.setDepth(6);
   }
 
@@ -761,7 +746,7 @@ export class TableScene extends Phaser.Scene {
     const w = Math.max(120, label.width + 44);
     const h = 66;
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.75);
+    bg.fillStyle(0x14303b, 0.94);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
     bg.lineStyle(4, color, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
@@ -868,7 +853,7 @@ export class TableScene extends Phaser.Scene {
     // No sun on offer is either the Ace rule (only the dealer's right may flip a hokum bought on
     // an Ace) or a rule of this run that bars your side from sun altogether.
     const aceGround = this.controller.getRound().bidding.groundCard.rank === "A";
-    const noSunWhy = aceGround ? "على إكة — ما يقلبها صن إلا اللي على يمين الموزع" : "— الصن ممنوع عليكم في هالرن";
+    const noSunWhy = aceGround ? "على إكة — ما يقلبها صن إلا اللي على يمين الموزع" : "— الصن ممنوع عليكم الليلة";
     const prompt = !e.challenge
       ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
       : !canSun
@@ -901,12 +886,12 @@ export class TableScene extends Phaser.Scene {
     const panel = this.add.container(CENTER_X, BID_BUTTON_ROW_Y - 250).setDepth(7);
     const w = 330;
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.75);
+    bg.fillStyle(0x1d1433, 0.92);
     bg.fillRoundedRect(-w / 2, -95, w, 190, 18);
     bg.lineStyle(3, 0xb58cff, 1);
     bg.strokeRoundedRect(-w / 2, -95, w, 190, 18);
     panel.add(bg);
-    panel.add(arabicText(this, 0, -72, "🔮 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
+    panel.add(arabicText(this, 0, -72, "🔭 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
     cards.forEach((c, i) => panel.add(new CardView(this, (i - (cards.length - 1) / 2) * 96, 18, c, true, WIDGET_CARD_SIZE)));
     this.oraclePanel = panel;
   }
@@ -937,7 +922,7 @@ export class TableScene extends Phaser.Scene {
           this.clearBidButtons();
           item.onClick();
         },
-        { width: 184, height: 74, fontSize: "26px" },
+        { width: 184, height: 74, kind: "play", tone: playToneFor(item.label) },
       );
       this.bidButtons.push(btn);
     });
@@ -1230,7 +1215,7 @@ export class TableScene extends Phaser.Scene {
           : a.kind === "dye"
             ? "🖌️ الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
             : a.kind === "partner"
-              ? "✉️ المرسال: اختر ورقة لشريكك — ويعطيك أكبر ورقة عنده من شكلها"
+              ? "✉️ المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
               : a.suit
                 ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
                 : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
@@ -1247,8 +1232,8 @@ export class TableScene extends Phaser.Scene {
     this.actionSkip = makeButton(this, CENTER_X, HAND_ANCHOR[0].y - 285, "تخطّي", () => this.onActionSkip(), {
       width: 170,
       height: 60,
-      fontSize: "24px",
-      color: 0x5d5d5d,
+      kind: "play",
+      tone: "quiet",
     });
     this.actionSkip.container.setDepth(12);
 
@@ -1455,7 +1440,7 @@ export class TableScene extends Phaser.Scene {
     const step = 44;
     const width = (cards.length - 1) * step + CARD_W * WIDGET_CARD_SIZE + 24;
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.75);
+    bg.fillStyle(0x14303b, 0.9);
     bg.fillRoundedRect(-width / 2, -92, width, 176, 16);
     bg.lineStyle(3, 0x5ad469, 1);
     bg.strokeRoundedRect(-width / 2, -92, width, 176, 16);
@@ -1906,7 +1891,7 @@ export class TableScene extends Phaser.Scene {
         }
         this.driveAI();
       },
-      { width: right - left, height: 88, color: 0x5d5d5d },
+      { width: right - left, height: 88 },
     );
     panel.add(btn.container);
   }
@@ -1939,15 +1924,15 @@ export class TableScene extends Phaser.Scene {
 
     const title = (won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة") + (e.qahwa ? " — قهوة ☕" : "");
     const rewardLine = won
-      ? `+${goldEarned} ذهب${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
+      ? `+${goldEarned} ريال${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
       : shieldUsed
-        ? `🛡️ الدرع حماك — ما نقصت حياة`
-        : `-1 حياة (متبقي ${runState.lives})`;
+        ? `🛡️ الدرع حماك — ما مرّت ساعة`
+        : `مرّت ساعة 🕯️ (${runState.lives === 1 ? "آخر ساعة — قرب الفجر" : `باقي ${runState.lives}`})`;
 
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.85);
+    bg.fillStyle(0x14303b, 1);
     bg.fillRoundedRect(-panelW / 2, -230, panelW, 460, 28);
     bg.lineStyle(6, won ? 0x5ad469 : 0xd45a5a, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -230, panelW, 460, 28);
@@ -1957,7 +1942,7 @@ export class TableScene extends Phaser.Scene {
     panel.add(arabicText(this, 0, -10, rewardLine, { fontSize: "25px", color: "#ffd54a" }));
 
     if (runState.over) {
-      const runTitle = runState.won ? "أكملتم الرن! 🏆" : "انتهى الرن";
+      const runTitle = runState.won ? "طلع الفجر وأنتم غالبين! 🏆" : "طلع الفجر عليكم";
       panel.add(arabicText(this, 0, 48, runTitle, { fontSize: "29px", color: runState.won ? "#5ad469" : "#d45a5a" }));
     }
 

@@ -1,9 +1,9 @@
 import Phaser from "phaser";
 import { MapScene } from "./scenes/MapScene";
-import { StartScene } from "./scenes/StartScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { RewardScene } from "./scenes/RewardScene";
 import { TableScene } from "./scenes/TableScene";
+import { TitleScene } from "./scenes/TitleScene";
 import { HEIGHT, WIDTH } from "./scenes/layout";
 import { runController } from "./roguelike/RunController";
 
@@ -26,7 +26,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
       touch: true,
       mouse: true,
     },
-    scene: [StartScene, MapScene, TableScene, ShopScene, RewardScene],
+    scene: [TitleScene, MapScene, TableScene, ShopScene, RewardScene],
   };
 }
 
@@ -36,7 +36,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
 function fontsReady(): Promise<unknown> {
   const fonts = document.fonts;
   if (!fonts?.load) return Promise.resolve();
-  const load = Promise.all([fonts.load('400 30px "Tajawal"'), fonts.load('700 30px "Tajawal"')]);
+  const load = Promise.all([fonts.load('400 30px "Tajawal"'), fonts.load('700 30px "Tajawal"'), fonts.load('800 30px "Tajawal"'), fonts.load('700 30px "Aref Ruqaa"', "ابدأ"), fonts.load('700 30px "El Messiri"', "ابدأ")]);
   return Promise.race([load, new Promise((r) => setTimeout(r, 2500))]).catch(() => undefined);
 }
 

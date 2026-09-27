@@ -277,7 +277,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
 
   it("الديوانية: a choice you can't afford is blocked", () => {
     atDiwaniya("stall");
-    expect(runController.whyNotEventOption(1)).toBe("ما عندك جوكر");
+    expect(runController.whyNotEventOption(1)).toBe("ما عندك تحفة");
     expect(() => runController.chooseEventOption(1)).toThrow();
   });
 

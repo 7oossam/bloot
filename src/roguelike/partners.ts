@@ -64,7 +64,7 @@ export const PARTNERS: PartnerDef[] = [
     id: "rookie",
     name: "الغشيم",
     icon: "🙃",
-    perk: "ذهب المباريات ×1.5، وخيار زيادة في الجوايز",
+    perk: "ريالات الصكّات ×1.5، وخيار زيادة في الجوايز",
     quirk: "ما يفهم تهريبك، ولعبه ضعيف",
     options: { noSearch: true, deaf: true },
     goldMultiplier: 1.5,

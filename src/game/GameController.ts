@@ -978,11 +978,11 @@ export class GameController extends Emitter<EventMap> {
     }
     if (madeHokum && o.hokumSynergyBonus) {
       gained[us] += o.hokumSynergyBonus;
-      bonuses.push({ label: "تآزر الحكم", points: o.hokumSynergyBonus });
+      bonuses.push({ label: "مجموعة الحكم", points: o.hokumSynergyBonus });
     }
     if (o.sunBuyBonus && result.mode === "sun" && weBought && gained[us] > 0) {
       gained[us] += o.sunBuyBonus;
-      bonuses.push({ label: "تآزر الصن", points: o.sunBuyBonus });
+      bonuses.push({ label: "مجموعة الصن", points: o.sunBuyBonus });
     }
     if (o.sunAceBonus && this.sunAceTricks > 0) {
       const pts = o.sunAceBonus * this.sunAceTricks;
@@ -1002,7 +1002,7 @@ export class GameController extends Emitter<EventMap> {
     }
     if (o.projectSynergyBonus && ourProjects > 0) {
       gained[us] += o.projectSynergyBonus;
-      bonuses.push({ label: "تآزر المشاريع", points: o.projectSynergyBonus });
+      bonuses.push({ label: "مجموعة المشاريع", points: o.projectSynergyBonus });
     }
     if (o.balootBonus && result.baloot !== undefined && teamOf(result.baloot) === us) {
       gained[us] += o.balootBonus.points;
@@ -1060,7 +1060,7 @@ export class GameController extends Emitter<EventMap> {
       const ours = proj.declared.filter((p) => teamOf(p.seat) === us).reduce((n, p) => n + PROJECT_VALUE[result.mode][p.kind], 0);
       if (ours > 0) {
         gained[us] += ours;
-        bonuses.push({ label: "تآزر المشاريع", points: ours });
+        bonuses.push({ label: "مجموعة المشاريع", points: ours });
       }
     }
     if (o.projectGold && ourProjects > 0) this.emit("gold:earned", { amount: ourProjects * o.projectGold, reason: "دفتر المشاريع" });
@@ -1070,7 +1070,7 @@ export class GameController extends Emitter<EventMap> {
         gained[us] += b.points;
         bonuses.push(b);
       }
-      if (o.winGold) this.emit("gold:earned", { amount: o.winGold, reason: "تآزر الذهب" });
+      if (o.winGold) this.emit("gold:earned", { amount: o.winGold, reason: "مجموعة الريال" });
     }
     if (o.goldToPoints) {
       const held = o.goldToPoints.startingGold + this.goldEarned;
@@ -1093,7 +1093,7 @@ export class GameController extends Emitter<EventMap> {
     }
     if (o.signalTrickBonus && this.signalHits > 0) {
       gained[us] += o.signalTrickBonus * this.signalHits;
-      bonuses.push({ label: "تآزر التهريب", points: o.signalTrickBonus * this.signalHits });
+      bonuses.push({ label: "مجموعة التهريب", points: o.signalTrickBonus * this.signalHits });
     }
     if (o.akkaGamble && this.akkaCuts > 0) {
       const lost = Math.min(gained[us], o.akkaGamble.penalty * this.akkaCuts);
@@ -1107,7 +1107,7 @@ export class GameController extends Emitter<EventMap> {
     const wonDouble = !!sheet?.double && sheet.winner === us;
     if (o.doubleWinPoints && wonDouble) {
       gained[us] += o.doubleWinPoints;
-      bonuses.push({ label: "تآزر الدبل", points: o.doubleWinPoints });
+      bonuses.push({ label: "مجموعة الدبل", points: o.doubleWinPoints });
     }
     if (o.doubleGold && wonDouble) this.emit("gold:earned", { amount: o.doubleGold * sheet!.double!.level, reason: "رأس المال" });
     if (o.defenseGold && result.declarerTeam === them && gained[us] > gained[them]) {
@@ -1158,7 +1158,7 @@ export class GameController extends Emitter<EventMap> {
     const baloot = !balootBefore && this.round.balootDeclared;
     this.emit("play:card", { seat, card, akka: akka || undefined, baloot: baloot || undefined });
     if (akka && this.options.akkaGold && teamOf(seat) === teamOf(HUMAN_SEAT)) {
-      this.emit("gold:earned", { amount: this.options.akkaGold, reason: "ذهب الآكه" });
+      this.emit("gold:earned", { amount: this.options.akkaGold, reason: "ريال الآكه" });
     }
 
     if (this.round.tricks.length > tricksBefore) {

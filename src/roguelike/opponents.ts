@@ -60,7 +60,7 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "project-erasers",
-    name: "ماسحين المشاريع",
+    name: "أهل النسيان",
     icon: "🧽",
     tier: "match",
     rule: "مشاريعكم ما تنحسب (البلوت ينحسب)",
@@ -78,7 +78,7 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "jack-snatchers",
-    name: "خاطفين الولد",
+    name: "أم الصبيان",
     icon: "🪝",
     tier: "match",
     rule: "ولد الحكم حقكم صار أضعف ورقة حكم (أبناطه تنحسب)",
@@ -87,7 +87,7 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "knowers",
-    name: "العارفين",
+    name: "أهل الفراسة",
     icon: "🧿",
     tier: "match",
     rule: "يعرفون متى بتخسر: يدبلون على كل يد تشترونها وأنتم خسرانين (حتى الصن)",
@@ -106,7 +106,7 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "doublers",
-    name: "المدبّلين",
+    name: "أهل الدَّين",
     icon: "✖️",
     tier: "elite",
     rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل",
@@ -125,7 +125,7 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "front-runners",
-    name: "السبّاقين",
+    name: "اللي سبقوك",
     icon: "🏃",
     tier: "boss",
     rule: "يبدؤون المباراة قدامكم بـ 40",
@@ -134,11 +134,11 @@ export const OPPONENTS: OpponentDef[] = [
   },
   {
     id: "disabler",
-    name: "المعطّل",
+    name: "الحاسد",
     icon: "🔒",
     tier: "boss",
-    rule: "يعطّل أقوى جوكر عندك طول المباراة، وعشرة الأرض لهم دائماً",
-    hits: "لا تعتمد على جوكر واحد",
+    rule: "عينه تجمّد أقوى تحفة عندك طول الصكّة، وعشرة الأرض لهم دائماً",
+    hits: "لا تعتمد على تحفة وحدة",
     rules: { disableJoker: true, groundTheirs: true },
   },
 ];

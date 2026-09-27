@@ -2,13 +2,14 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
-import { arabicText, makeButton, setBoxHitArea } from "./ui";
-import { addAmbience, addCameraGrade } from "./fx";
+import { makeButton, preloadUi, setBoxHitArea } from "./ui";
+import { addAmbience } from "./fx";
+import { CSS, PAL, inkText, paintParchment } from "./theme";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
-  common: { border: 0x6fae8c, label: "عادي", text: "#9fd3b4" },
-  rare: { border: 0x5b9bff, label: "نادر", text: "#9cc3ff" },
-  legendary: { border: 0xffb33a, label: "أسطوري", text: "#ffd27a" },
+  common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
+  rare: { border: PAL.teal, label: "نادر", text: "#1f4a4d" },
+  legendary: { border: PAL.gold, label: "أسطوري", text: "#8c5a1c" },
 };
 
 export interface RewardSceneData {
@@ -36,6 +37,10 @@ export class RewardScene extends Phaser.Scene {
     this.goldEarned = data?.goldEarned ?? 0;
   }
 
+  preload(): void {
+    preloadUi(this);
+  }
+
   create(): void {
     const state = runController.getState();
     const pending = state.pendingRewards;
@@ -43,25 +48,20 @@ export class RewardScene extends Phaser.Scene {
       this.scene.start("map");
       return;
     }
-    const bgImg = this.add.image(WIDTH / 2, HEIGHT / 2, 'start_bg').setScrollFactor(0);
-      bgImg.setScale(Math.max(WIDTH / bgImg.width, HEIGHT / bgImg.height));
-      const dim = this.add.graphics();
-      dim.fillStyle(0x000000, 0.4);
-      dim.fillRect(0, 0, WIDTH, HEIGHT);
+    paintParchment(this, { compass: false });
     addAmbience(this);
-    addCameraGrade(this);
-    arabicText(this, WIDTH / 2, 86, pending.elite ? "غنائم النخبة 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
-    arabicText(this, WIDTH / 2, 156, `+${this.goldEarned} ذهب  —  معك ${state.gold} 💰`, { fontSize: "27px", color: "#ffd54a" });
+    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
+    inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson });
 
     // Your row as it stands, so the choice is made against it.
     const row = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""}${levelSup(runController.levelOf(id))}`).join("  ");
-    arabicText(this, WIDTH / 2, 236, row ? `صفّك: ${row}` : "صفّك فاضي — اختر أول قطعة في بناءك", { fontSize: "28px" });
+    inkText(this, WIDTH / 2, 236, row ? `صفّك: ${row}` : "صفّك فاضي — اختر أول قطعة في بناءك", { fontSize: "28px" });
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier || x.next)
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
-    if (synergies) arabicText(this, WIDTH / 2, 296, `تآزر: ${synergies}`, { fontSize: "22px", color: "#cfc8e0" });
-    arabicText(this, WIDTH / 2, 356, "اختر وحدة ببلاش:", { fontSize: "26px", color: "#d8d1ea" });
+    if (synergies) inkText(this, WIDTH / 2, 296, `المجموعات: ${synergies}`, { fontSize: "22px", color: CSS.inkSoft });
+    inkText(this, WIDTH / 2, 356, "اختر وحدة ببلاش:", { fontSize: "26px", color: CSS.inkSoft });
 
     pending.items.forEach((id, i) => this.drawOffer(id, CARD_TOP + i * (CARD_H + CARD_GAP) + CARD_H / 2));
 
@@ -69,12 +69,12 @@ export class RewardScene extends Phaser.Scene {
       this,
       WIDTH / 2,
       HEIGHT - 150,
-      `تخطي (+${pending.skipGold} ذهب)`,
+      `تخطي (+${pending.skipGold} ريال)`,
       () => {
         runController.skipReward();
         this.scene.start("map");
       },
-      { width: 420, height: 84, color: 0x5d5d5d },
+      { width: 420, height: 84, plate: "paper" },
     );
   }
 
@@ -88,7 +88,7 @@ export class RewardScene extends Phaser.Scene {
     const cardW = WIDTH - 80;
 
     const bg = this.add.graphics();
-    bg.fillStyle(def.kind === "joker" ? 0x2a1f4a : def.kind === "upgrade" ? 0x1d2a3f : 0x2a1d3a, 1);
+    bg.fillStyle(PAL.paper, 1);
     bg.fillRoundedRect(-cardW / 2, -CARD_H / 2, cardW, CARD_H, 26);
     bg.lineStyle(def.rarity === "legendary" ? 6 : 4, style.border, 1);
     bg.strokeRoundedRect(-cardW / 2, -CARD_H / 2, cardW, CARD_H, 26);
@@ -100,21 +100,21 @@ export class RewardScene extends Phaser.Scene {
     const iconX = cardW / 2 - 80;
     card.add(this.add.text(iconX, -40, def.icon, { fontSize: "78px" }).setOrigin(0.5));
     const kind = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير للرن" : style.label;
-    card.add(arabicText(this, iconX, 50, kind, { fontSize: "20px", color: style.text }));
+    card.add(inkText(this, iconX, 50, kind, { fontSize: "20px", color: style.text }));
 
     const textX = -50;
     const textW = cardW - 260;
     const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
     const title = levelUp ? `${def.name}  Lv${owned} ← Lv${owned + 1}` : `${def.name}${tags}`;
-    card.add(arabicText(this, textX, -120, title, { fontSize: "31px", color: levelUp ? "#9cc3ff" : "#ffffff" }));
+    card.add(inkText(this, textX, -120, title, { fontSize: "31px", color: levelUp ? "#1f4a4d" : CSS.ink }));
     card.add(
-      arabicText(this, textX, -50, (levelUp ? "ترقية: " : "") + def.levels[Math.min(owned, maxLevel(def) - 1)], {
+      inkText(this, textX, -50, (levelUp ? "ترقية: " : "") + def.levels[Math.min(owned, maxLevel(def) - 1)], {
         fontSize: "22px",
-        color: "#d8d1ea",
+        color: CSS.inkSoft,
         wordWrap: { width: textW },
       }),
     );
-    if (hint) card.add(arabicText(this, textX, 34, `✦ ${hint}`, { fontSize: "22px", color: "#5ad469" }));
+    if (hint) card.add(inkText(this, textX, 34, `✦ ${hint}`, { fontSize: "22px", color: "#3e4a2a" }));
 
     const btn = makeButton(
       this,
@@ -127,7 +127,7 @@ export class RewardScene extends Phaser.Scene {
         this.celebrate(def.icon);
         this.time.delayedCall(650, () => this.scene.start("map"));
       },
-      { width: reason ? 420 : 240, height: 74, fontSize: reason ? "21px" : "28px", color: reason ? 0x3a3a3a : 0x1f6f43 },
+      { width: reason ? 420 : 240, height: 74, plate: "sun", disabled: !!reason },
     );
     card.add(btn.container);
     if (def.rarity === "legendary") this.tweens.add({ targets: bg, alpha: 0.78, duration: 700, yoyo: true, repeat: -1 });

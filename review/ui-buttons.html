@@ -1,0 +1,250 @@
+<title>أزرار المعزّب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Amiri:wght@700&family=Reem+Kufi:wght@600;700&family=Tajawal:wght@400;500;700;800&family=Cinzel:wght@700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --paper: #FAF7F0;
+    --ink: #281E19;
+    --gold: #D6A44A;
+    --gold-hi: #F0CB7A;
+    --gold-lo: #9C6B22;
+    --burgundy: #5E1F24;
+    --navy: #1C2B4A;
+    --teal: #2D4A4D;
+    --olive: #3E4A2A;
+    --sun: #E3A33B;
+    --table: #22160f;
+    --table-2: #3a261b;
+    --text: #F3E9D6;
+    --muted: #BFAE93;
+    --line: rgba(214, 164, 74, 0.28);
+    --scale: 0.8;
+    --menu-font: "Aref Ruqaa", "Amiri", serif;
+  }
+  body {
+    margin: 0;
+    background: var(--table);
+    color: var(--text);
+    font-family: Tajawal, Tahoma, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; }
+  header { display: grid; gap: 6px; margin-block-end: 14px; }
+  h1 { font-family: "Aref Ruqaa", "Amiri", serif; font-weight: 700; font-size: 34px; margin: 0; color: var(--gold-hi); line-height: 1.3; }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .controls {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding-block: 10px;
+    background: color-mix(in srgb, var(--table) 92%, transparent);
+    backdrop-filter: blur(6px);
+    border-block-end: 1px solid var(--line);
+    margin-block-end: 18px;
+  }
+  .ctl { display: inline-flex; align-items: center; gap: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 14px; color: var(--muted); background: transparent; border: 0; padding: 6px 12px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--gold); color: var(--ink); font-weight: 700; }
+  .seg button:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: -2px; }
+  .lbl { color: var(--muted); font-size: 13px; }
+
+  section { display: grid; gap: 12px; margin-block-end: 30px; }
+  section h2 { font-family: "Reem Kufi", Tajawal, sans-serif; font-weight: 600; font-size: 20px; margin: 0; }
+  p.note { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 62ch; }
+
+  .stage {
+    border-radius: 14px; padding: 22px 16px;
+    display: flex; flex-wrap: wrap; gap: 16px 14px; justify-content: center; align-items: center;
+    background: radial-gradient(120% 90% at 50% 0%, #4a3122 0%, transparent 60%), linear-gradient(180deg, var(--table-2), var(--table));
+    border: 1px solid var(--line);
+  }
+  body.on-paper .stage { background: var(--paper); border-color: #e4dccb; }
+  .pair { display: grid; gap: 6px; justify-items: center; }
+  .cap { font-size: 12px; color: var(--muted); }
+  body.on-paper .cap { color: #6f5f4d; }
+
+  /* ---------- menu buttons: illustrated plates, 3-slice ---------- */
+  .pbtn {
+    --w: 280; --h: 84; --r: 1.1;
+    box-sizing: border-box;
+    width: calc(var(--w) * var(--scale) * 1px);
+    height: calc(var(--h) * var(--scale) * 1px);
+    padding: 0; background: none;
+    border-style: solid;
+    border-width: 0 calc(var(--h) * var(--scale) * var(--r) * 1px);
+    border-image-repeat: stretch;
+    cursor: pointer;
+    filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5));
+    transition: transform .08s ease-out, filter .08s ease-out;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pbtn:hover { filter: drop-shadow(0 calc(5px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(1.07); }
+  .pbtn:active, .pbtn.is-pressed { transform: translateY(calc(4px * var(--scale))); filter: drop-shadow(0 calc(1px * var(--scale)) 0 rgba(12, 6, 3, .5)) brightness(.92); }
+  .pbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
+
+  /* The label is set like the card's index: gold leaf with an ink edge on dark plates,
+     a deep colour with a gold edge on light plates, and a hairline shadow as if pressed in. */
+  .pbtn .lab {
+    display: flex; align-items: center; justify-content: center; gap: .35em;
+    height: 100%;
+    padding-block-end: .08em;
+    white-space: nowrap;
+    font-family: var(--menu-font);
+    font-weight: 700;
+    font-size: calc(var(--fs, 34) * var(--scale) * 1px);
+    line-height: 1;
+  }
+  .gold-leaf {
+    color: #F2C96B;
+    -webkit-text-stroke: calc(2.4px * var(--scale) + .8px) var(--ink);
+    paint-order: stroke fill;
+    text-shadow: 0 calc(-1px * var(--scale)) 0 rgba(255, 236, 180, .35), 0 calc(2px * var(--scale)) 0 rgba(0, 0, 0, .55);
+  }
+  .deep-ink {
+    color: var(--c, var(--burgundy));
+    -webkit-text-stroke: calc(2.2px * var(--scale) + .8px) var(--gold);
+    paint-order: stroke fill;
+    text-shadow: 0 calc(1.5px * var(--scale)) 0 rgba(255, 244, 220, .75);
+  }
+  .lab small { font-size: .62em; }
+
+  /* ---------- gameplay buttons: simple and clear ---------- */
+  .gbtn {
+    --w: 184; --h: 74; --fill: var(--navy); --fg: var(--paper);
+    box-sizing: border-box;
+    width: calc(var(--w) * var(--scale) * 1px);
+    height: calc(var(--h) * var(--scale) * 1px);
+    border-radius: calc(14px * var(--scale));
+    border: calc(3px * var(--scale)) solid var(--gold);
+    background: var(--fill);
+    box-shadow: 0 calc(6px * var(--scale)) 0 rgba(10, 5, 2, .55), inset 0 0 0 calc(2px * var(--scale)) rgba(0,0,0,.18);
+    color: var(--fg);
+    font-family: Tajawal, "Segoe UI", sans-serif;
+    font-weight: 800;
+    font-size: calc(var(--fs, 32) * var(--scale) * 1px);
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: .3em;
+    transition: transform .07s ease-out, box-shadow .07s ease-out, filter .07s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gbtn .suit { font-family: "Cinzel", serif; font-size: .95em; }
+  .gbtn .dot { width: .7em; height: .7em; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff4cf, #e8b24a 60%, #a86f1b); box-shadow: 0 0 0 1.5px var(--ink); }
+  .gbtn:hover { filter: brightness(1.08); }
+  .gbtn:active, .gbtn.is-pressed { transform: translateY(calc(5px * var(--scale))); box-shadow: 0 calc(1px * var(--scale)) 0 rgba(10, 5, 2, .55), inset 0 0 0 calc(2px * var(--scale)) rgba(0,0,0,.18); }
+  .gbtn:focus-visible { outline: 2px dashed var(--gold-hi); outline-offset: 4px; }
+  .gbtn[disabled] { filter: grayscale(.8) brightness(.75); opacity: .5; cursor: not-allowed; transform: none; }
+  .g-sun   { --fill: var(--sun);      --fg: var(--ink); }
+  .g-hokum { --fill: var(--navy); }
+  .g-ashk  { --fill: var(--teal); }
+  .g-pass  { --fill: var(--paper);    --fg: var(--ink); border-color: #bda57a; }
+  .g-sawa  { --fill: var(--olive); }
+  .g-quiet { --fill: rgba(250,247,240,.06); --fg: var(--gold-hi); border-width: calc(2px * var(--scale)); box-shadow: none; }
+  body.on-paper .g-quiet { --fill: rgba(40,30,25,.04); --fg: var(--burgundy); }
+
+  .spec { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .spec code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gold-hi); }
+  footer { color: var(--muted); font-size: 13px; border-block-start: 1px solid var(--line); padding-block-start: 14px; }
+  @media (prefers-reduced-motion: reduce) { .pbtn, .gbtn { transition: none; } }
+</style>
+
+<div class="wrap" dir="rtl">
+  <header>
+    <h1>أزرار المعزّب</h1>
+    <p>نوعين من الأزرار: أزرار القوائم مرسومة ومزخرفة، وأزرار اللعب بسيطة وواضحة عشان تنقرأ بلمحة وقت اللعب.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="طريقة العرض">
+    <span class="ctl"><span class="lbl">الخلفية</span>
+      <span class="seg" id="bgSeg"><button type="button" data-bg="table" aria-pressed="true">طاولة</button><button type="button" data-bg="paper" aria-pressed="false">ورق</button></span></span>
+    <span class="ctl"><span class="lbl">المقاس</span>
+      <span class="seg" id="scaleSeg"><button type="button" data-scale="0.42" aria-pressed="false">مثل الجوال</button><button type="button" data-scale="0.8" aria-pressed="true">مكبّر</button></span></span>
+  </div>
+
+  <section>
+    <h2>أزرار القوائم</h2>
+    <p class="note">اللوحات المرسومة (نسخة ١). الكتابة صارت مثل الـK في الورقة: ورق ذهب بحد حبر على اللوحات الغامقة، ولون غامق بحد ذهبي على اللوحة الفاتحة، فتبان مطبوعة على اللوحة. جرّب الخطوط:</p>
+    <span class="ctl"><span class="lbl">خط القوائم</span>
+      <span class="seg" id="fontSeg">
+        <button type="button" data-font="ruqaa" aria-pressed="true">رقعة</button>
+        <button type="button" data-font="naskh" aria-pressed="false">نسخ</button>
+        <button type="button" data-font="kufi" aria-pressed="false">كوفي</button>
+      </span></span>
+    <div class="stage">
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:300;--h:84"><span class="lab gold-leaf">كمّل</span></button>
+      <button type="button" class="pbtn" data-plate="burgundy" style="--w:380;--h:84"><span class="lab gold-leaf">متابعة الرحلة</span></button>
+      <button type="button" class="pbtn" data-plate="teal" style="--w:300;--h:84"><span class="lab gold-leaf">ابدأ ليلة جديدة</span></button>
+    </div>
+    <div class="stage">
+      <button type="button" class="pbtn" data-plate="sun" style="--w:300;--h:80;--fs:32"><span class="lab deep-ink" style="--c:var(--burgundy)">اشترِ <small>٦ ريال</small></span></button>
+      <button type="button" class="pbtn" data-plate="paper" style="--w:240;--h:80;--fs:32"><span class="lab deep-ink" style="--c:var(--ink)">بيع</span></button>
+      <button type="button" class="pbtn" data-plate="navy" style="--w:260;--h:80;--fs:32"><span class="lab gold-leaf">لا، خلّه</span></button>
+    </div>
+    <div class="stage">
+      <div class="pair"><button type="button" class="pbtn" data-plate="burgundy" style="--w:300;--h:84"><span class="lab gold-leaf">كمّل</span></button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="pbtn is-pressed" data-plate="burgundy" style="--w:300;--h:84" tabindex="-1"><span class="lab gold-leaf">كمّل</span></button><span class="cap">مضغوط</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>أزرار اللعب</h2>
+    <p class="note">الشراء وسوا وتخطّي: لون صافي، وخط ذهبي واحد، وكتابة كبيرة بخط واضح (تجوّل ثقيل)، بدون زخرفة. كل خيار بلونه عشان تعرفه قبل ما تقراه.</p>
+    <div class="stage">
+      <button type="button" class="gbtn g-sun"><span class="dot" aria-hidden="true"></span>صن</button>
+      <button type="button" class="gbtn g-hokum">حكم</button>
+      <button type="button" class="gbtn g-ashk">أشكل</button>
+      <button type="button" class="gbtn g-pass">بس</button>
+    </div>
+    <div class="stage">
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74"><span class="suit">♠</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74;--fg:#ff8a8a"><span class="suit">♥</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74"><span class="suit">♣</span></button>
+      <button type="button" class="gbtn g-hokum" style="--w:150;--h:74;--fg:#ff8a8a"><span class="suit">♦</span></button>
+    </div>
+    <div class="stage">
+      <button type="button" class="gbtn g-sawa" style="--w:170;--h:68;--fs:30">سوا</button>
+      <button type="button" class="gbtn g-quiet" style="--w:170;--h:64;--fs:26">تخطّي</button>
+      <button type="button" class="gbtn g-quiet" style="--w:170;--h:58;--fs:24">ترتيب</button>
+    </div>
+    <div class="stage">
+      <div class="pair"><button type="button" class="gbtn g-sun"><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">عادي</span></div>
+      <div class="pair"><button type="button" class="gbtn g-sun is-pressed" tabindex="-1"><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">مضغوط</span></div>
+      <div class="pair"><button type="button" class="gbtn g-sun" disabled><span class="dot" aria-hidden="true"></span>صن</button><span class="cap">معطّل</span></div>
+    </div>
+    <div class="spec">
+      <span>صن <code>#E3A33B</code></span><span>حكم <code>#1C2B4A</code></span><span>أشكل <code>#2D4A4D</code></span><span>بس/ولا <code>#FAF7F0</code></span><span>سوا <code>#3E4A2A</code></span>
+      <span>الإطار <code>3px #D6A44A</code></span><span>الخط <code>Tajawal 800 · 32px</code></span><span>المقاس <code>184×74</code></span>
+    </div>
+  </section>
+
+  <footer>أزرار اللعب مرسومة بالكود بالكامل، فتنقل للعبة في <code>src/scenes/ui.ts</code> مباشرة. أزرار القوائم صورة مقسومة ثلاث قطع: الطرفين بزخرفتهم ثابتين والوسط يتمدد، والاسم يكتبه الكود.</footer>
+</div>
+
+<script>
+  const PLATES = {"burgundy":{"h":180,"slice":200},"navy":{"h":192,"slice":223},"olive":{"h":190,"slice":196},"paper":{"h":199,"slice":150},"sun":{"h":184,"slice":215},"teal":{"h":186,"slice":214}};
+  document.querySelectorAll(".pbtn").forEach(b => {
+    const p = PLATES[b.dataset.plate];
+    b.style.borderImageSource = `url("ui-plates/0_${b.dataset.plate}.webp")`;
+    b.style.borderImageSlice = `0 ${p.slice} fill`;
+    b.style.setProperty("--r", (p.slice / p.h).toFixed(3));
+  });
+  const FONTS = { ruqaa: '"Aref Ruqaa", "Amiri", serif', naskh: '"Amiri", serif', kufi: '"Reem Kufi", Tajawal, sans-serif' };
+  function bindSeg(id, attr, apply) {
+    const seg = document.getElementById(id);
+    seg.addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      apply(b.dataset[attr]);
+      try { localStorage.setItem("ui-buttons-" + id, b.dataset[attr]); } catch (_) {}
+    });
+    let saved = null; try { saved = localStorage.getItem("ui-buttons-" + id); } catch (_) {}
+    if (saved) { const b = seg.querySelector(`[data-${attr}="${saved}"]`); if (b) b.click(); }
+  }
+  bindSeg("bgSeg", "bg", v => document.body.classList.toggle("on-paper", v === "paper"));
+  bindSeg("scaleSeg", "scale", v => document.documentElement.style.setProperty("--scale", v));
+  bindSeg("fontSeg", "font", v => document.documentElement.style.setProperty("--menu-font", FONTS[v]));
+</script>

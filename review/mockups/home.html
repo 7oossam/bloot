@@ -1,0 +1,43 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css"><script src="cards.js"></script>
+<style>
+.bg { position:absolute; inset:0; background:url(hara.jpg) center 30%/cover; }
+.shade { position:absolute; inset:0; background:
+  linear-gradient(180deg, rgba(20,10,6,.55) 0%, rgba(20,10,6,0) 22%, rgba(20,10,6,0) 42%, rgba(24,12,8,.78) 62%, rgba(18,9,6,.94) 100%); }
+.title { position:absolute; top:52px; left:0; right:0; text-align:center; }
+.title .over { font-family:"Aref Ruqaa",serif; font-weight:700; font-size:20px; color:#F3E9D6; text-shadow:0 2px 6px rgba(0,0,0,.8); letter-spacing:.5px; }
+.title h1 { margin:0; font-size:84px; line-height:1.05; }
+.title .under { margin:22px auto 0; width:max-content; padding:3px 14px; border-radius:999px; background:rgba(28,14,9,.62); font-size:14px; color:#F0CB7A; font-weight:700; }
+.fan { position:absolute; left:50%; top:318px; width:0; height:0; }
+.fan .card { width:104px; left:-52px; top:0; transform-origin:50% 115%; box-shadow:0 8px 18px rgba(0,0,0,.6); }
+.menu { position:absolute; left:0; right:0; top:520px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.menu .plate span { font-size:28px; }
+.foot { position:absolute; bottom:22px; left:0; right:0; display:flex; justify-content:center; gap:10px; }
+.hud { position:absolute; top:14px; right:14px; left:14px; display:flex; justify-content:space-between; }
+</style></head><body>
+<div class="screen">
+  <div class="bg"></div><div class="shade"></div>
+  <div class="hud"><span class="chip">الديوانية ٣ من ٩</span><span class="chip">ساعات الليل ٩</span></div>
+  <div class="title">
+    <div class="over">ليلة الأربعين</div>
+    <h1 class="ruqaa goldtxt">المعزّب</h1>
+    <div class="under">الديوانيات مفتوحة حتى الفجر</div>
+  </div>
+  <div class="fan">
+    <div class="card" id="f1" style="transform:rotate(-16deg) translateX(-8px)"></div>
+    <div class="card" id="f3" style="transform:rotate(16deg) translateX(8px)"></div>
+    <div class="card" id="f2" style="transform:translateY(-14px)"></div>
+  </div>
+  <div class="menu">
+    <div class="plate" id="b1" style="width:300px"><span>ابدأ ليلة جديدة</span></div>
+    <div class="plate" id="b2" style="width:300px"><span>كمّل الرحلة</span></div>
+    <div class="plate" id="b3" style="width:260px"><span>وصايا الراوي</span></div>
+  </div>
+  <div class="foot"><span class="chip">الإعدادات</span><span class="chip">دفتر المرهونين</span></div>
+</div>
+<script>
+card(f1,"back"); card(f2,"KH"); card(f3,"back");
+plate(b1,"burgundy",70); plate(b2,"teal",66); plate(b3,"navy",60);
+b3.querySelector("span").style.fontSize="24px";
+</script></body></html>
