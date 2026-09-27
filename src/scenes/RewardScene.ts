@@ -4,7 +4,7 @@ import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
 import { makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience } from "./fx";
-import { CSS, PAL, inkText, paintParchment } from "./theme";
+import { CSS, PAL, inkText, paintParchment, fitWidth } from "./theme";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
@@ -60,7 +60,7 @@ export class RewardScene extends Phaser.Scene {
       .filter((x) => x.tier || x.next)
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
-    if (synergies) inkText(this, WIDTH / 2, 296, `المجموعات: ${synergies}`, { fontSize: "22px", color: CSS.inkSoft });
+    if (synergies) inkText(this, WIDTH / 2, 296, `المجموعات: ${synergies}`, { fontSize: "22px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 100 } });
     inkText(this, WIDTH / 2, 356, "اختر وحدة ببلاش:", { fontSize: "26px", color: CSS.inkSoft });
 
     pending.items.forEach((id, i) => this.drawOffer(id, CARD_TOP + i * (CARD_H + CARD_GAP) + CARD_H / 2));
@@ -99,13 +99,13 @@ export class RewardScene extends Phaser.Scene {
 
     const iconX = cardW / 2 - 80;
     card.add(this.add.text(iconX, -40, def.icon, { fontSize: "78px" }).setOrigin(0.5));
-    const kind = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير للرن" : style.label;
-    card.add(inkText(this, iconX, 50, kind, { fontSize: "20px", color: style.text }));
+    const kind = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير لليلة" : style.label;
+    card.add(fitWidth(inkText(this, iconX, 50, kind, { fontSize: "20px", color: style.text }), 130));
 
     const textX = -50;
     const textW = cardW - 260;
     const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
-    const title = levelUp ? `${def.name}  Lv${owned} ← Lv${owned + 1}` : `${def.name}${tags}`;
+    const title = levelUp ? `${def.name}  ${"★".repeat(owned)} ← ${"★".repeat(owned + 1)}` : `${def.name}${tags}`;
     card.add(inkText(this, textX, -120, title, { fontSize: "31px", color: levelUp ? "#1f4a4d" : CSS.ink }));
     card.add(
       inkText(this, textX, -50, (levelUp ? "ترقية: " : "") + def.levels[Math.min(owned, maxLevel(def) - 1)], {

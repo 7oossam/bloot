@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { readableSize, rtlLines } from "./rtl";
 
 /**
  * The look shared by the menus and the map, taken from the deck: cream card stock, ink,
@@ -122,13 +123,22 @@ export function paintParchment(scene: Phaser.Scene, opts: { compass?: boolean } 
 
 /** Ink text for paper surfaces: El Messiri, ink colour, no glow. */
 export function inkText(scene: Phaser.Scene, x: number, y: number, text: string, style: Phaser.Types.GameObjects.Text.TextStyle = {}): Phaser.GameObjects.Text {
-  return scene.add
-    .text(x, y, text, {
-      fontFamily: HEAD_FONT,
-      color: CSS.ink,
-      align: "center",
-      ...style,
-    })
-    .setRTL(true)
-    .setOrigin(0.5);
+  return rtlLines(
+    scene.add
+      .text(x, y, text, {
+        fontFamily: HEAD_FONT,
+        color: CSS.ink,
+        align: "center",
+        ...style,
+        fontSize: readableSize(style.fontSize),
+      })
+      .setRTL(true)
+      .setOrigin(0.5),
+  );
+}
+
+/** Shrinks a label to fit a column, so a long one never runs past its card. */
+export function fitWidth<T extends Phaser.GameObjects.Text>(t: T, width: number): T {
+  if (t.width > width) t.setScale(width / t.width);
+  return t;
 }

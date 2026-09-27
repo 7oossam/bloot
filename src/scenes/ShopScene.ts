@@ -4,7 +4,7 @@ import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
 import { makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience } from "./fx";
-import { CSS, PAL, inkText, paintParchment } from "./theme";
+import { CSS, PAL, fitWidth, inkText, paintParchment } from "./theme";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
@@ -14,7 +14,7 @@ const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string
 
 const MAX_CARD_H = 236;
 const CARD_GAP = 18;
-const FIRST_CARD_Y = 330;
+const FIRST_CARD_Y = 380;
 /** Your jokers, as tappable chips (tap to sell). */
 const OWNED_Y = 200;
 const OWNED_CHIP_W = 118;
@@ -48,11 +48,12 @@ export class ShopScene extends Phaser.Scene {
     addAmbience(this);
     inkText(this, WIDTH / 2, 70, "دكّان التحف", { fontSize: "50px", fontStyle: "700", color: CSS.crimson });
     this.goldText = inkText(this, WIDTH / 2, 118, "", { fontSize: "26px", color: CSS.crimson });
-    this.ownedText = inkText(this, WIDTH / 2, 268, "", {
+    this.ownedText = inkText(this, WIDTH / 2, 246, "", {
       fontSize: "21px",
       color: CSS.inkSoft,
-      wordWrap: { width: WIDTH - 80 },
-    });
+      lineSpacing: 4,
+      wordWrap: { width: WIDTH - 100 },
+    }).setOrigin(0.5, 0);
     this.itemsLayer = this.add.container(0, 0);
     this.ownedLayer = this.add.container(0, 0);
 
@@ -72,7 +73,7 @@ export class ShopScene extends Phaser.Scene {
     const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
     const interest = state.lastInterest ? `   (🏦 +${state.lastInterest} فايدة)` : "";
     const salary = state.salary ? `   💼 +${state.salary}` : "";
-    this.goldText.setText(`ريال ${state.gold}${interest}   🕯️ ${state.lives}${shields}${salary}`);
+    this.goldText.setText(`${state.gold} ريال${interest}   🕯️ ${state.lives}${shields}${salary}`);
 
     // Your jokers as chips (no cap — like STS relics); tap one to sell it. They shrink to fit.
     this.ownedLayer.removeAll(true);
@@ -90,7 +91,7 @@ export class ShopScene extends Phaser.Scene {
       const def = getJokerDef(id)!;
       const roomy = chipW >= 100;
       chip.add(this.add.text(roomy ? -22 : 0, 0, def.icon, { fontSize: "34px" }).setOrigin(0.5));
-      if (roomy) chip.add(inkText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: CSS.inkSoft }));
+      if (roomy) chip.add(inkText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: CSS.gold }));
       setBoxHitArea(chip, chipW, 72);
       chip.on("pointerdown", () => this.confirmSell(id));
       this.ownedLayer.add(chip);
@@ -100,7 +101,7 @@ export class ShopScene extends Phaser.Scene {
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
     this.ownedText.setText(
-      (state.jokerIds.length ? "اضغط تحفة: بيع أو ترتيب" : "ما عندك تحف للحين") + (synergies ? `  —  المجموعات: ${synergies}` : ""),
+      (state.jokerIds.length ? "اضغط تحفة: بيع أو ترتيب" : "ما عندك تحف للحين") + (synergies ? `\nالمجموعات: ${synergies}` : ""),
     );
 
     const offering = runController.shopOffering();
@@ -159,8 +160,8 @@ export class ShopScene extends Phaser.Scene {
     const textW = columnRight - columnLeft;
 
     card.add(this.add.text(iconX, -8, def.icon, { fontSize: "64px" }).setOrigin(0.5));
-    const kindLabel = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير للرن" : style.label;
-    card.add(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }));
+    const kindLabel = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير لليلة" : style.label;
+    card.add(fitWidth(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }), 120));
 
     // Tags ride on the title, which starts with Arabic, so right-to-left layout keeps them in order.
     const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
@@ -266,5 +267,5 @@ export class ShopScene extends Phaser.Scene {
 }
 
 function levelBadge(level: number): string {
-  return level > 0 ? `Lv${level}` : "";
+  return level > 0 ? "★".repeat(level) : "";
 }
