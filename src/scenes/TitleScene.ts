@@ -42,5 +42,7 @@ export class TitleScene extends Phaser.Scene {
 
     makeButton(this, CENTER_X, HEIGHT - 250, "ادخل الديوانية", () => this.scene.start("map"), { width: 500, height: 116, plate: "burgundy" });
     arabicText(this, CENTER_X, HEIGHT - 140, "الأبواب مفتوحة حتى الفجر", { fontFamily: HEAD_FONT, fontSize: "30px", color: "#f2e3c2" });
+    // game-icons.net asks for credit (CC BY 3.0).
+    this.add.text(CENTER_X, HEIGHT - 44, "Icons: game-icons.net (CC BY 3.0)", { fontFamily: "Tajawal, Arial", fontSize: "22px", color: "#c9b48c" }).setOrigin(0.5).setAlpha(0.8);
   }
 }

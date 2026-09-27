@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GOLD, addIcon } from "./icons";
 import { cardId, cardPoints, rankStrength } from "../engine/cards";
 import type { LegalCall } from "../engine/bidding";
 import type { Bid, Card, HandResult, Mode, Seat, Suit, Team, Trick } from "../engine/types";
@@ -398,7 +399,7 @@ export class TableScene extends Phaser.Scene {
     if (amount === 0) return;
     runController.addGold(amount);
     this.pulseJokers(e.reason);
-    const text = amount > 0 ? `+${amount} ريال ${e.reason}` : `${amount} ريال 🎰 ${e.reason}`;
+    const text = amount > 0 ? `+${amount} ريال ${e.reason}` : `${amount} ريال ${e.reason}`;
     const pop = arabicText(this, CENTER_X, CENTER_Y - 120, text, {
       fontSize: "30px",
       color: amount > 0 ? "#ffd54a" : "#ff7a7a",
@@ -432,13 +433,13 @@ export class TableScene extends Phaser.Scene {
       bg.fillRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
       bg.lineStyle(3, def.rarity === "legendary" ? 0xffb33a : def.rarity === "rare" ? 0x9cc3ff : 0x8aa79a, 1);
       bg.strokeRoundedRect(-JOKER_ICON / 2, -JOKER_ICON / 2, JOKER_ICON, JOKER_ICON, 14);
-      const icon = this.add.text(0, -2, def.icon, { fontSize: "36px" }).setOrigin(0.5);
+      const icon = addIcon(this, 0, 0, def.icon, 50, GOLD);
       const parts: Phaser.GameObjects.GameObject[] = [bg, icon];
       // المعطّل: this joker sits the match out.
       const off = this.nodeData.modifiers.disabledJoker === id;
       if (off) {
         icon.setAlpha(0.3);
-        parts.push(this.add.text(0, 0, "🔒", { fontSize: "30px" }).setOrigin(0.5));
+        parts.push(addIcon(this, 0, 0, "padlock", 40, 0xf3e9d6));
       }
       if (def.levels.length > 1) {
         parts.push(arabicText(this, JOKER_ICON / 2 - 12, JOKER_ICON / 2 - 12, String(level), { fontSize: "18px", color: "#ffd54a", fontStyle: "bold" }));
@@ -462,7 +463,7 @@ export class TableScene extends Phaser.Scene {
     const box = this.jokerIcons.get(id);
     if (!def || !box) return;
     const level = runController.getState().jokerLevels[id] ?? 1;
-    const lines = [`${def.icon} ${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
+    const lines = [`${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
     if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
     if (def.tags.length) lines.push(`المجموعة: ${def.tags.join("، ")}`);
     const w = WIDTH - 80;
@@ -516,11 +517,11 @@ export class TableScene extends Phaser.Scene {
       const id = jokersBehind(e.label, runController.getState().jokerIds)[0];
       const box = id ? this.jokerIcons.get(id) : undefined;
       this.pulseJokers(e.label);
-      this.meter.addJoker(getJokerDef(id ?? "")?.icon ?? "✨", e.points, box ? { x: box.x, y: box.y } : { x: CENTER_X, y: JOKER_ROW_Y });
+      this.meter.addJoker(getJokerDef(id ?? "")?.icon ?? "", e.points, box ? { x: box.x, y: box.y } : { x: CENTER_X, y: JOKER_ROW_Y });
     } else {
       this.pulseJokers(e.label, amount);
     }
-    if (amount) this.log(`🃏 ${e.label}: ${amount}`);
+    if (amount) this.log(`${e.label}: ${amount}`);
   }
 
   /** Which side of the hand meter a seat plays for. */
@@ -536,7 +537,7 @@ export class TableScene extends Phaser.Scene {
     const btn = makeButton(this, WIDTH - 110, y, "ترتيب", () => this.cycleSort(), { width: 170, height: 58, kind: "play", tone: "quiet" });
     btn.container.setDepth(6);
     // «ليش؟»: why the computer played what it did, and the player's notes for Claude.
-    const why = makeButton(this, 78, 46, "ليش؟ 📝", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
+    const why = makeButton(this, 78, 46, "ليش؟", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
     why.container.setDepth(6);
     if (this.nodeData.modifiers.memory) {
       // In the strip between the table and your hand, clear of the names and the rival line.
@@ -639,7 +640,7 @@ export class TableScene extends Phaser.Scene {
       if (wants.length) parts.push("يبي " + wants.map((x) => SUIT_SYMBOL[x]).join(""));
       const label = this.seatLabels[seat];
       if (!parts.length || !label) continue;
-      const text = arabicText(this, label.x, label.y - 34, "🗣️ " + parts.join(" · "), { fontSize: "22px", color: "#ffd54a" }).setDepth(5);
+      const text = arabicText(this, label.x, label.y - 34, parts.join(" · "), { fontSize: "22px", color: "#ffd54a" }).setDepth(5);
       this.signalTexts.push(text);
     }
   }
@@ -712,10 +713,10 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onSawa(e: { ok: boolean }): void {
-    this.showSeatBubble(HUMAN_SEAT, e.ok ? "سوا ✋" : "سوا غلط", e.ok ? 0xffd54a : 0xd45a5a);
-    this.flashNote(e.ok ? "✋ سوا! الباقي كله لكم" : "✋ سوا غلط — فيه ورقة أكبر من ورقتك");
+    this.showSeatBubble(HUMAN_SEAT, e.ok ? "سوا" : "سوا غلط", e.ok ? 0xffd54a : 0xd45a5a);
+    this.flashNote(e.ok ? "سوا! الباقي كله لكم" : "سوا غلط — فيه ورقة أكبر من ورقتك");
     this.pulseJokers("السوا", e.ok ? undefined : "-");
-    this.log(e.ok ? "أنت: سوا ✋" : "أنت: سوا غلط");
+    this.log(e.ok ? "أنت: سوا" : "أنت: سوا غلط");
     this.sawaWrong = !e.ok;
   }
 
@@ -894,7 +895,7 @@ export class TableScene extends Phaser.Scene {
     bg.lineStyle(3, 0xb58cff, 1);
     bg.strokeRoundedRect(-w / 2, -95, w, 190, 18);
     panel.add(bg);
-    panel.add(arabicText(this, 0, -72, "🔭 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
+    panel.add(arabicText(this, 0, -72, "الدربيل — لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
     cards.forEach((c, i) => panel.add(new CardView(this, (i - (cards.length - 1) / 2) * 96, 18, c, true, WIDGET_CARD_SIZE)));
     this.oraclePanel = panel;
   }
@@ -1001,8 +1002,8 @@ export class TableScene extends Phaser.Scene {
     }
     const word = `${DOUBLE_NAME_AR[e.bid.call]}${e.bid.closed ? " مقفل" : ""}`;
     this.showSeatBubble(e.bid.seat, word, 0xff6b4a);
-    this.log(`${who}: ${word}${e.bid.call === "qahwa" ? " ☕ — الجولة تحسم المباراة" : ""}`);
-    this.flashNote(`${word}!${e.bid.call === "qahwa" ? " ☕" : ""}`);
+    this.log(`${who}: ${word}${e.bid.call === "qahwa" ? " — الجولة تحسم الصكّة" : ""}`);
+    this.flashNote(`${word}!`);
     const res = this.controller.getRound().bidding.result!;
     this.placeContractChip(res.declarer, this.contractLabel());
     const d = this.controller.getRound().doubling;
@@ -1212,16 +1213,16 @@ export class TableScene extends Phaser.Scene {
     const a = e.action;
     const text =
       a.kind === "transform"
-        ? `🎭 اختر ورقة تتحول إلى ${RANK_NAME_AR[a.to.rank]} ${SUIT_SYMBOL[a.to.suit]}`
+        ? `اختر ورقة تتحول إلى ${RANK_NAME_AR[a.to.rank]} ${SUIT_SYMBOL[a.to.suit]}`
         : a.kind === "lower"
-          ? "⬇️ المنزّل: اختر ورقة تصير الثمانية من شكلها"
+          ? "المنزّل: اختر ورقة تصير الثمانية من شكلها"
           : a.kind === "dye"
-            ? "🖌️ الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
+            ? "الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
             : a.kind === "partner"
-              ? "✉️ المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
+              ? "المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
               : a.suit
-                ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
-                : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
+                ? `اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
+                : `اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
     this.actionPrompt?.destroy();
     this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 190, text, {
       fontSize: "27px",
@@ -1290,11 +1291,11 @@ export class TableScene extends Phaser.Scene {
     const label = (c: Card) => `${RANK_NAME_AR[c.rank]} ${SUIT_SYMBOL[c.suit]}`;
     let note: string;
     if (e.kind === "transform") {
-      note = `🎭 ${label(e.from)} صارت ${label(e.to)}`;
+      note = `${label(e.from)} صارت ${label(e.to)}`;
     } else if (e.kind === "swap") {
-      note = `🪝 أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
+      note = `أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
     } else {
-      note = `🧨 احترقت ${label(e.from)} عند ${SEAT_LABEL_AR[e.seat]}`;
+      note = `احترقت ${label(e.from)} عند ${SEAT_LABEL_AR[e.seat]}`;
     }
     this.log(note);
     this.flashNote(note);
@@ -1700,7 +1701,7 @@ export class TableScene extends Phaser.Scene {
       us: banked[us],
       them: e.gained[them],
       bonus: e.gained[us] - banked[us],
-      word: e.kaboot ? "🔥 كبوت!" : lost ? (e.result.declarerTeam === us ? "💔 خسرانة" : "🔥 خسرانة عليهم") : sheet?.winner === us ? "✓ لنا" : undefined,
+      word: e.kaboot ? "كبوت!" : lost ? (e.result.declarerTeam === us ? "خسرانة" : "خسرانة عليهم") : sheet?.winner === us ? "لنا" : undefined,
     });
     this.whenTableSettled(() => this.handMoment(e.result));
     this.handsPlayed++;
@@ -1768,7 +1769,7 @@ export class TableScene extends Phaser.Scene {
     const judgedIsBuyer = sheet.judgedTeam === r.declarerTeam;
     put(left + 40, y + 48, `${judgedIsBuyer ? "المشتري" : "المدبل"}: ${sheet.judgedTeam === us ? "فريقنا" : "فريقهم"}`, { fontSize: "26px" }, 0);
     const outcome = { won: ["ربحانة", "#3c9a2e"], lost: ["خسرانة", "#c8322d"], tie: ["متعادلة", "#c07a12"] }[sheet.outcome];
-    const kabootNote = sheet.kaboot !== undefined ? (sheet.kaboot === us ? " — كبوت لنا! 💥" : " — كبوت علينا") : "";
+    const kabootNote = sheet.kaboot !== undefined ? (sheet.kaboot === us ? " — كبوت لنا!" : " — كبوت علينا") : "";
     put(CENTER_X, y + 128, `نتيجة الشراء: ${outcome[0]}${kabootNote}`, { fontSize: "28px", color: outcome[1], fontStyle: "bold" });
 
     // ---- the sheet: a label column on the right, then لنا, then لهم
@@ -1837,7 +1838,7 @@ export class TableScene extends Phaser.Scene {
     const bonusTotal = e.bonuses.reduce((n, b) => n + b.points, 0);
     let running = e.gained[us] - bonusTotal;
     const lines = e.bonuses.map((b, i) =>
-      put(CENTER_X, y + i * 42, `🃏 ${b.label}: ${b.points >= 0 ? "+" : ""}${b.points}`, {
+      put(CENTER_X, y + i * 42, `${b.label}: ${b.points >= 0 ? "+" : ""}${b.points}`, {
         fontSize: "25px",
         color: b.points < 0 ? "#ff9a9a" : "#9cc3ff",
       }).setAlpha(0),
@@ -1925,12 +1926,12 @@ export class TableScene extends Phaser.Scene {
     const { shieldUsed, goldEarned } = runController.resolveMatchNode(won);
     const runState = runController.getState();
 
-    const title = (won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة") + (e.qahwa ? " — قهوة ☕" : "");
+    const title = (won ? "فزتم بالعقدة!" : "خسرتم العقدة") + (e.qahwa ? " — قهوة" : "");
     const rewardLine = won
       ? `+${goldEarned} ريال${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
       : shieldUsed
-        ? `🛡️ الدرع حماك — ما مرّت ساعة`
-        : `مرّت ساعة 🕯️ (${runState.lives === 1 ? "آخر ساعة — قرب الفجر" : `باقي ${runState.lives}`})`;
+        ? `الدرع حماك — ما مرّت ساعة`
+        : `مرّت ساعة (${runState.lives === 1 ? "آخر ساعة — قرب الفجر" : `باقي ${runState.lives}`})`;
 
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
@@ -1945,7 +1946,7 @@ export class TableScene extends Phaser.Scene {
     panel.add(arabicText(this, 0, -10, rewardLine, { fontSize: "25px", color: "#ffd54a" }));
 
     if (runState.over) {
-      const runTitle = runState.won ? "طلع الفجر وأنتم غالبين! 🏆" : "طلع الفجر عليكم";
+      const runTitle = runState.won ? "طلع الفجر وأنتم غالبين!" : "طلع الفجر عليكم";
       panel.add(arabicText(this, 0, 48, runTitle, { fontSize: "29px", color: runState.won ? "#5ad469" : "#d45a5a" }));
     }
 
@@ -1955,7 +1956,7 @@ export class TableScene extends Phaser.Scene {
       this,
       0,
       150,
-      spoils ? "الغنائم 🎁" : "المتابعة للخريطة",
+      spoils ? "الغنائم" : "المتابعة للخريطة",
       () => {
         panel.destroy();
         if (spoils) this.scene.start("reward", { goldEarned });

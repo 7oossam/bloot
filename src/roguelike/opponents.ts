@@ -52,7 +52,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "ace-guards",
     name: "حرّاس الإكك",
-    icon: "🅰️",
+    icon: "guards",
     tier: "match",
     rule: "ما تقدرون تبدون أكلة بإكة ولا عشرة (إلا إذا ما عندكم غيرها)",
     hits: "يتعب بناء الإكك: إكتك لازم تاكل وهي تغطي، مو وهي تفتح",
@@ -61,7 +61,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "project-erasers",
     name: "أهل النسيان",
-    icon: "🧽",
+    icon: "ghost",
     tier: "match",
     rule: "مشاريعكم ما تنحسب (البلوت ينحسب)",
     hits: "يتعب بناء المشاريع",
@@ -70,7 +70,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "ground-takers",
     name: "أهل الأرض",
-    icon: "🏁",
+    icon: "djinn",
     tier: "match",
     rule: "عشرة الأرض لهم دائماً، أياً كان اللي أخذ آخر أكلة",
     hits: "يتعب بناء الأرض",
@@ -79,7 +79,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "jack-snatchers",
     name: "أم الصبيان",
-    icon: "🪝",
+    icon: "witch-face",
     tier: "match",
     rule: "ولد الحكم حقكم صار أضعف ورقة حكم (أبناطه تنحسب)",
     hits: "يتعب بناء الولد",
@@ -88,7 +88,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "knowers",
     name: "أهل الفراسة",
-    icon: "🧿",
+    icon: "eyeball",
     tier: "match",
     rule: "يعرفون متى بتخسر: يدبلون على كل يد تشترونها وأنتم خسرانين (حتى الصن)",
     hits: "لا تشتري إلا وأنت ضامن — والحكم المقفول يحميك منهم",
@@ -98,7 +98,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "hokum-folk",
     name: "أهل الحكم",
-    icon: "♦️",
+    icon: "diamonds",
     tier: "elite",
     rule: "اللي على يمينك دايم معه الولد والتسعة من شكل ورقة الأرض: إذا ما شريت صن بيشترون حكم",
     hits: "لازم تعرف متى تشتري صن",
@@ -107,7 +107,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "doublers",
     name: "أهل الدَّين",
-    icon: "✖️",
+    icon: "scroll-quill",
     tier: "elite",
     rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل",
     hits: "لا تشتري إلا وأنت ضامن",
@@ -117,7 +117,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "abu-qahwa",
     name: "أبو قهوة",
-    icon: "☕",
+    icon: "coffee-cup",
     tier: "boss",
     rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل، وما تقدرون تبدون بإكة ولا عشرة",
     hits: "الشراء لازم يكون مضمون",
@@ -126,7 +126,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "front-runners",
     name: "اللي سبقوك",
-    icon: "🏃",
+    icon: "spectre",
     tier: "boss",
     rule: "يبدؤون المباراة قدامكم بـ 40",
     hits: "لازم تجيب نقاط بسرعة",
@@ -135,7 +135,7 @@ export const OPPONENTS: OpponentDef[] = [
   {
     id: "disabler",
     name: "الحاسد",
-    icon: "🔒",
+    icon: "evil-eyes",
     tier: "boss",
     rule: "عينه تجمّد أقوى تحفة عندك طول الصكّة، وعشرة الأرض لهم دائماً",
     hits: "لا تعتمد على تحفة وحدة",

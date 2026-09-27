@@ -177,3 +177,15 @@ Text only — ids, systems and numbers are unchanged. "الخصم" in the rules 
 - Shop/reward: levels show as ★, kind labels fit their column, the hint and المجموعات lines no
   longer collide with the chips. Table: the rival line is one line (name only when the rule won't
   fit), the log sits on the right.
+
+## Icons instead of emoji
+- Every emoji is gone. Items (`icon` in src/roguelike/*.ts) name an engraved one-colour icon from
+  game-icons.net (CC BY 3.0; credit line on the title screen). The player allows faces and animals
+  for icons: people and creatures use them (الخويان، المرهونين، الشايب، المرسال حمامة، الجريء صقر،
+  الجاسوس، سارق السبيت ثعلب); the other تحف are objects, following docs/theme.md §8.
+- `src/scenes/icons.ts`: `addIcon` draws an icon from its vector paths into a cached canvas texture
+  (ink on paper, gold on the table), `iconRow` lays out a row with level stars, `UI_ICON` names the
+  interface icons. `src/scenes/iconPaths.ts` is generated: after adding an icon name run
+  `node scripts/icons/build-icons.mjs` (reads the `@iconify-json/game-icons` dev dependency).
+- Emoji inside sentences (log, chatter, toasts, panels) were dropped or turned into words
+  (درع، دفعة، الثمن:، لكن:).
