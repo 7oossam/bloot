@@ -15,13 +15,13 @@ export interface BlessingDef {
 }
 
 export const BLESSINGS: BlessingDef[] = [
-  { id: "wave", name: "بدري", icon: "🌅", gift: "تبدأ كل صكّة قدام المرهونين بـ 10" },
-  { id: "heart", name: "ساعة زيادة", icon: "🕯️", gift: "ساعة زيادة من الليل" },
-  { id: "treasure", name: "صرّة الراوي", icon: "👝", gift: "100 ريال", price: "الدكّان يعرض تحفة أقل" },
-  { id: "crown", name: "تحفة جدّك", icon: "🏺", gift: "تحفة أسطورية", price: "هدف كل صكّة يزيد 10" },
-  { id: "projects", name: "البنّاي", icon: "🧱", gift: "مشاريعكم تنحسب ×2", price: "ما تقدرون تشترون صن" },
-  { id: "catch", name: "الرزق", icon: "🌾", gift: "ريالات الصكّات ×1.5", price: "الجوايز بعد المباراة خيارين بدل ثلاث" },
-  { id: "school", name: "عدّة المجموعة", icon: "🧰", gift: "ثلاث تحف عادية من مجموعة وحدة", price: "أول مرهون يبدأ قدامك بـ 20" },
+  { id: "wave", name: "بدري", icon: "sunrise", gift: "تبدأ كل صكّة قدام المرهونين بـ 10" },
+  { id: "heart", name: "ساعة زيادة", icon: "candle-light", gift: "ساعة زيادة من الليل" },
+  { id: "treasure", name: "صرّة الراوي", icon: "swap-bag", gift: "100 ريال", price: "الدكّان يعرض تحفة أقل" },
+  { id: "crown", name: "تحفة جدّك", icon: "amphora", gift: "تحفة أسطورية", price: "هدف كل صكّة يزيد 10" },
+  { id: "projects", name: "البنّاي", icon: "brick-wall", gift: "مشاريعكم تنحسب ×2", price: "ما تقدرون تشترون صن" },
+  { id: "catch", name: "الرزق", icon: "wheat", gift: "ريالات الصكّات ×1.5", price: "الجوايز بعد المباراة خيارين بدل ثلاث" },
+  { id: "school", name: "عدّة المجموعة", icon: "toolbox", gift: "ثلاث تحف عادية من مجموعة وحدة", price: "أول مرهون يبدأ قدامك بـ 20" },
 ];
 
 export function getBlessing(id: string | undefined): BlessingDef | undefined {

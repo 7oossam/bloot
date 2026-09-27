@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { INK, addIcon, iconRow } from "./icons";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
@@ -50,12 +51,16 @@ export class RewardScene extends Phaser.Scene {
     }
     paintParchment(this, { compass: false });
     addAmbience(this);
-    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
+    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير" : "غنائم الصكّة", { fontSize: "46px" });
     inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson });
 
     // Your row as it stands, so the choice is made against it.
-    const row = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""}${levelSup(runController.levelOf(id))}`).join("  ");
-    inkText(this, WIDTH / 2, 236, row ? `صفّك: ${row}` : "صفّك فاضي — اختر أول قطعة في بناءك", { fontSize: "28px" });
+    if (state.jokerIds.length) {
+      iconRow(this, WIDTH / 2, 236, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "", mark: "★".repeat(Math.max(0, runController.levelOf(id) - 1)) })), {
+        size: Math.min(46, (WIDTH - 120) / state.jokerIds.length - 12),
+        color: INK,
+      });
+    } else inkText(this, WIDTH / 2, 236, "صفّك فاضي — اختر أول قطعة في بناءك", { fontSize: "28px" });
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier || x.next)
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
@@ -98,7 +103,7 @@ export class RewardScene extends Phaser.Scene {
       card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 150 }));
 
     const iconX = cardW / 2 - 80;
-    card.add(this.add.text(iconX, -40, def.icon, { fontSize: "78px" }).setOrigin(0.5));
+    card.add(addIcon(this, iconX, -40, def.icon, 88, INK));
     const kind = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير لليلة" : style.label;
     card.add(fitWidth(inkText(this, iconX, 50, kind, { fontSize: "20px", color: style.text }), 130));
 
@@ -134,12 +139,8 @@ export class RewardScene extends Phaser.Scene {
   }
 
   private celebrate(icon: string): void {
-    const pop = this.add.text(WIDTH / 2, HEIGHT / 2, icon, { fontSize: "130px" }).setOrigin(0.5).setDepth(50);
-    this.tweens.add({ targets: pop, scale: 2.4, alpha: 0, duration: 650, ease: "Cubic.Out", onComplete: () => pop.destroy() });
+    const pop = addIcon(this, WIDTH / 2, HEIGHT / 2, icon, 150, INK).setDepth(50);
+    this.tweens.add({ targets: pop, scale: pop.scale * 2.4, alpha: 0, duration: 650, ease: "Cubic.Out", onComplete: () => pop.destroy() });
     this.cameras.main.flash(200, 255, 213, 74);
   }
-}
-
-function levelSup(level: number): string {
-  return ["", "", "²", "³"][level] ?? "";
 }

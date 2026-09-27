@@ -42,7 +42,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "trash-beats-ace",
     name: "ثورة الصغار",
-    icon: "🐕",
+    icon: "slingshot",
     levels: ["سبعاتكم وثمانياتكم (من غير الحكم) تاكل الإكة في شكلها. سبعات الخصم وثمانياته تبقى ضعيفة."],
     cost: 26,
     rarity: "rare",
@@ -51,7 +51,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "low-luck",
     name: "الحظ الواطي",
-    icon: "🍀",
+    icon: "marbles",
     levels: ["دايم يجيك سبعة أو ثمانية في أول خمس أوراق.", "دايم يجيك ثنتين.", "دايم يجيك ثلاث."],
     cost: 10,
     rarity: "common",
@@ -60,7 +60,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "lowerer",
     name: "المنزّل",
-    icon: "⬇️",
+    icon: "ladder",
     levels: ["بعد الشراء: اختر ورقة من يدك تصير الثمانية من نفس شكلها.", "ورقتين."],
     cost: 20,
     rarity: "rare",
@@ -69,7 +69,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "low-revenge",
     name: "ثأر الصغار",
-    icon: "🐜",
+    icon: "box-trap",
     levels: ["كل أكلة تاخذونها بسبعة أو ثمانية = +2 بنط.", "+3 بنط.", "+5 بنط."],
     cost: 12,
     rarity: "common",
@@ -79,7 +79,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "lucky-jack",
     name: "الولد المضمون",
-    icon: "🃏",
+    icon: "curvy-knife",
     levels: ["دايم يجيك ولد في أول خمس أوراق.", "دايم يجيك ولدين."],
     cost: 24,
     rarity: "rare",
@@ -88,7 +88,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "forged-jack",
     name: "الولد المزوّر",
-    icon: "🎭",
+    icon: "stamper",
     levels: [
       "إذا اشتريت حكم: اختر ورقة من يدك تتحول لولد الحكم — حتى لو عندك الولد.",
       "وتحوّل ورقة ثانية لتسعة الحكم.",
@@ -101,7 +101,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "jack-hunt",
     name: "صيد الولد",
-    icon: "🪝",
+    icon: "fishing-net",
     levels: [
       "كل ما أكلت بولد الحكم: بدّل ورقة من يدك بورقة عشوائية من خصم.",
       "الورقة اللي تسحبها تكون حكم إذا عنده.",
@@ -114,7 +114,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "burn",
     name: "الحرقة",
-    icon: "🧨",
+    icon: "matchbox",
     levels: [
       "كل ما أكلتوا بولد الحكم: أقوى ورقة حكم عند خصم تحترق وتصير سبعة.",
       "تحترق عند الخصمين الاثنين.",
@@ -126,7 +126,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "jack-collector",
     name: "جامع الأولاد",
-    icon: "🎖️",
+    icon: "medal",
     levels: ["كل أكلة تاخذونها بولد = +2 بنط.", "+3 لكل أكلة بولد.", "+5 لكل أكلة بولد."],
     cost: 12,
     rarity: "common",
@@ -137,7 +137,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "ground-lord",
     name: "سيد الأرض",
-    icon: "🏁",
+    icon: "scroll-unfurled",
     levels: ["إذا أكلتوا الأرض (آخر أكلة) = الجولة كلها لكم، حتى لو الخصم أكثر أبناط."],
     cost: 40,
     rarity: "legendary",
@@ -146,7 +146,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "ducker",
     name: "المخلّي",
-    icon: "🙈",
+    icon: "handheld-fan",
     levels: [
       "كل مرة الأكلة للخصم وتقدر تاكلها وتخليها = +2 بنط.",
       "+3 لكل تخلية.",
@@ -159,7 +159,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "last-card",
     name: "الورقة الأخيرة",
-    icon: "🎯",
+    icon: "arrow-flights",
     levels: ["ورقتك في الأرض (آخر أكلة) تصير أكبر ورقة في شكلها."],
     cost: 24,
     rarity: "rare",
@@ -168,7 +168,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "ard-gold",
     name: "الأرض الذهبية",
-    icon: "🏆",
+    icon: "sands-of-time",
     levels: ["الأرض تسوي 20 بدل 10.", "الأرض تسوي 30.", "الأرض تسوي 40."],
     cost: 10,
     rarity: "common",
@@ -179,7 +179,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "bare-hokum",
     name: "الحكم الأعزل",
-    icon: "🥷",
+    icon: "broadsword",
     levels: [
       "تشتري حكم وما عندك ولده ولا تسعته، وتنجح = نتيجتكم ×2.",
       "×2.5.",
@@ -192,7 +192,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "free-hokum",
     name: "الحكم الحر",
-    icon: "🎨",
+    icon: "quill-ink",
     levels: ["تقدر تشتري حكم بأي نوع — حتى في الدورة الأولى بغير نوع الأرض."],
     cost: 26,
     rarity: "rare",
@@ -201,7 +201,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "locked-hokum",
     name: "الحكم المقفول",
-    icon: "🔒",
+    icon: "padlock",
     levels: ["حكمكم محد ياخذه صن، ومحد يقدر يدبل عليكم. (يضر بناء الدبل: محد يدبل = ما فيه يد مدبلة.)"],
     cost: 14,
     rarity: "common",
@@ -210,7 +210,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "cutter",
     name: "القطّاع",
-    icon: "✂️",
+    icon: "scissors",
     levels: ["في الحكم: كل أكلة تاخذونها بالقطع = +2 بنط.", "+3 لكل قطعة.", "+5 لكل قطعة."],
     cost: 12,
     rarity: "common",
@@ -221,7 +221,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "short-sira",
     name: "نص سرا",
-    icon: "🧩",
+    icon: "key",
     levels: ["ورقتين متسلسلة من نفس الشكل = سرا لك."],
     cost: 30,
     rarity: "rare",
@@ -230,7 +230,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "sira-maker",
     name: "صانع السرا",
-    icon: "📐",
+    icon: "pencil-ruler",
     levels: ["كل سرا تسجلونها = +4 بنط و2 ريال.", "+6 بنط و4 ريال.", "+9 بنط و6 ريال."],
     cost: 12,
     rarity: "common",
@@ -239,7 +239,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "low-fours",
     name: "الأربع الصغار",
-    icon: "🎲",
+    icon: "rolling-dices",
     levels: ["أربع سبعات أو ثمانيات أو تسعات عندك = مئة."],
     cost: 10,
     rarity: "common",
@@ -248,7 +248,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "phantom-card",
     name: "الورقة الشبح",
-    icon: "👻",
+    icon: "card-random",
     levels: ["مشاريعك تكبر درجة: ثلاث متسلسلة = خمسين، أربع = مئة، وثلاث من نوع واحد = أربع (ثلاث إكك في الصن = أربعمئة)."],
     cost: 35,
     rarity: "legendary",
@@ -257,7 +257,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "arranger",
     name: "المرتّب",
-    icon: "🗂️",
+    icon: "files",
     levels: ["إذا عندك ورقتين متسلسلة من شكل في أول خمس، تجيك الثالثة (سرا).", "وإذا عندك ثلاث، تجيك الرابعة (خمسين)."],
     cost: 12,
     rarity: "common",
@@ -266,7 +266,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "project-engineer",
     name: "مهندس المشاريع",
-    icon: "🏗️",
+    icon: "compass",
     levels: ["مشاريعكم ×2.", "مشاريعكم ×2.5.", "مشاريعكم ×3."],
     cost: 26,
     rarity: "rare",
@@ -275,7 +275,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "loud-voice",
     name: "الصوت العالي",
-    icon: "📢",
+    icon: "hunting-horn",
     levels: ["مشاريعكم تنحسب دايم — حتى لو مشروع الخصم أكبر."],
     cost: 22,
     rarity: "rare",
@@ -286,7 +286,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "first-lead",
     name: "صاحب الحلة",
-    icon: "👑",
+    icon: "robe",
     levels: ["أنت دايم اللي تحل (تبدأ أول أكلة) — مهما كان الموزع."],
     cost: 28,
     rarity: "rare",
@@ -295,7 +295,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "first-strike",
     name: "الضربة الأولى",
-    icon: "⚡",
+    icon: "drum",
     levels: ["إذا أكلتوا أول أكلة = +4 بنط.", "+6 بنط.", "+9 بنط."],
     cost: 10,
     rarity: "common",
@@ -304,7 +304,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "oracle",
     name: "الدربيل",
-    icon: "🔭",
+    icon: "spyglass",
     levels: ["وقت الشراء تشوف الورقتين اللي بتجيك لو اشتريت."],
     cost: 20,
     rarity: "rare",
@@ -313,7 +313,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "akka-king",
     name: "ملك الآكه",
-    icon: "📣",
+    icon: "ringing-bell",
     levels: ["كل أكلة تاخذونها بورقة قلتوا عليها آكه = +3 بنط.", "+5 بنط.", "+7 بنط."],
     cost: 12,
     rarity: "common",
@@ -324,7 +324,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spade-king",
     name: "ملك السبيت",
-    icon: "♠️",
+    icon: "crown",
     levels: ["السبيت اللي في يدك يعتبر حكم — حتى لو اللعب صن (بس الحكم الحقيقي أقوى منه)."],
     cost: 42,
     rarity: "legendary",
@@ -333,7 +333,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spade-thief",
     name: "سارق السبيت",
-    icon: "🦊",
+    icon: "gloves",
     levels: [
       "أول كل جولة: بدّل ورقة من يدك بورقة سبيت من خصم.",
       "تاخذ أكبر سبيت عنده.",
@@ -346,7 +346,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spade-always",
     name: "سبيت دايم",
-    icon: "🗡️",
+    icon: "spade",
     levels: ["تقدر تشتري حكم سبيت في أي دورة، مهما كانت ورقة الأرض."],
     cost: 12,
     rarity: "common",
@@ -355,7 +355,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spade-treasure",
     name: "كنز السبيت",
-    icon: "💎",
+    icon: "open-treasure-chest",
     levels: ["كل أكلة تاخذونها بسبيت = +2 بنط.", "+3 بنط.", "+5 بنط."],
     cost: 10,
     rarity: "common",
@@ -364,7 +364,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "dyer",
     name: "الصبّاغ",
-    icon: "🖌️",
+    icon: "paint-brush",
     levels: ["بعد الشراء: اختر ورقة تصير سبيت بنفس رقمها.", "ورقتين."],
     cost: 22,
     rarity: "rare",
@@ -375,7 +375,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spy",
     name: "الجاسوس",
-    icon: "🕵️",
+    icon: "mirror-mirror",
     levels: ["تشوف ورقة من يد كل خصم.", "تشوف ورقتين من كل خصم.", "تشوف ثلاث أوراق من كل خصم."],
     cost: 14,
     rarity: "common",
@@ -384,7 +384,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "partner-eyes",
     name: "عين الشريك",
-    icon: "👁️",
+    icon: "spectacles",
     levels: ["ورق خويّك مكشوف لك."],
     cost: 22,
     rarity: "rare",
@@ -393,7 +393,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "memory",
     name: "الذاكرة",
-    icon: "🧠",
+    icon: "notebook",
     levels: ["تشوف كم ورقة باقية ما نزلت من كل شكل.", "وتشوف الإكك والعشرات اللي ما نزلت."],
     cost: 10,
     rarity: "common",
@@ -402,7 +402,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "golden-akka",
     name: "الآكه الذهبية",
-    icon: "🪙",
+    icon: "two-coins",
     levels: ["كل آكه تلعبونها وتاكل = +2 ريال. وإذا انقطعت = -3 بنط.", "كل آكه تاكل = +4 ريال."],
     cost: 18,
     rarity: "rare",
@@ -413,7 +413,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "translator",
     name: "المترجم",
-    icon: "🗣️",
+    icon: "book-cover",
     levels: ["يترجم لك التهريب: تشوف فوق كل لاعب وش يطلب من خويه بتهريبه، والبرقية إذا رماها."],
     cost: 26,
     rarity: "rare",
@@ -422,7 +422,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "golden-signal",
     name: "الإشارة الذهبية",
-    icon: "📡",
+    icon: "lantern-flame",
     levels: ["إذا لعب لك خويّك من شكل طلبته بالتهريب وأكلتوها: نتيجة اليد ×1.5.", "×2."],
     cost: 24,
     rarity: "rare",
@@ -431,7 +431,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "messenger",
     name: "المرسال",
-    icon: "✉️",
+    icon: "envelope",
     levels: ["بعد الشراء: أعطِ خويّك ورقة، ويعطيك أكبر ورقة عنده من نفس شكلها."],
     cost: 22,
     rarity: "rare",
@@ -442,7 +442,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "trap",
     name: "الفخ",
-    icon: "🪤",
+    icon: "wolf-trap",
     levels: ["إذا الخصم اشترى وطلعت خسرانة: +6 أبناط لكم.", "+10 أبناط.", "+15 بنط."],
     cost: 14,
     rarity: "common",
@@ -451,7 +451,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "breaker",
     name: "الكاسر",
-    icon: "🔨",
+    icon: "hammer-drop",
     levels: ["الخصم اشترى صن وطلعت خسرانة: نتيجتكم ×2.", "×3."],
     cost: 24,
     rarity: "rare",
@@ -460,7 +460,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "patience",
     name: "الصبر",
-    icon: "⏳",
+    icon: "hourglass",
     levels: ["كل يد يشتري فيها الخصم وتطلعون أكثر منه: +3 ريال.", "+5 ريال.", "+8 ريال."],
     cost: 10,
     rarity: "common",
@@ -469,7 +469,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "qahwaji",
     name: "القهوجي",
-    icon: "☕",
+    icon: "teapot",
     levels: ["تكسبون يد مدبّلة: نتيجتكم +50٪.", "+100٪."],
     cost: 26,
     rarity: "rare",
@@ -480,7 +480,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "bold",
     name: "الجريء",
-    icon: "🦁",
+    icon: "crossed-swords",
     levels: ["تقدرون تدبلون على صن الخصم دايم — بدون شرط المئة."],
     cost: 24,
     rarity: "rare",
@@ -489,7 +489,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "capital",
     name: "رأس المال",
-    icon: "💰",
+    icon: "locked-chest",
     levels: ["كل يد مدبلة تكسبونها: ريالات = مستوى الدبل × 4.", "مستوى الدبل × 7."],
     cost: 12,
     rarity: "common",
@@ -498,7 +498,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "poker-face",
     name: "الوجه البارد",
-    icon: "😐",
+    icon: "coffee-cup",
     levels: ["إذا رفعتوا (دبل، ثري، فور)، الخصم ما يرفع عليكم بعدها."],
     cost: 20,
     rarity: "rare",
@@ -509,7 +509,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "sawa",
     name: "السوا",
-    icon: "✋",
+    icon: "scales",
     levels: [
       "كل سوا صح (كل ورقة في يدك أكبر من كل ورقة باقية عند غيرك) = +6 بنط.",
       "صح = +10 بنط.",
@@ -522,7 +522,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "crawl",
     name: "الزحف",
-    icon: "🐍",
+    icon: "crossed-chains",
     levels: ["من ثالث أكلة متتالية لكم: كل أكلة تعطي بنط، وتكبر كل أكلتين (1، 1، 2، 2، 3، 3).", "من الثالثة: 1، 2، 3، 4، 5، 6."],
     cost: 12,
     rarity: "common",
@@ -533,7 +533,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "kaboot-king",
     name: "ملك الكبوت",
-    icon: "💥",
+    icon: "skeleton-key",
     levels: ["إذا أكلتوا الثمان أكلات في يد، تفوزون بالمباراة فوراً."],
     cost: 40,
     rarity: "legendary",
@@ -542,7 +542,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "wild",
     name: "الوايلد",
-    icon: "🌈",
+    icon: "prism",
     levels: ["يُحسب من كل مجموعة عندك فيها تحفة — يقرّبك من كل مجموعة."],
     cost: 24,
     rarity: "rare",
@@ -551,7 +551,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "chief",
     name: "شيخ القبيلة",
-    icon: "🧔",
+    icon: "wood-stick",
     levels: ["كل يد تكسبونها: +1 بنط لكل تحفة في أكبر مجموعة عندك.", "+2 لكل تحفة في أكبر مجموعة."],
     cost: 26,
     rarity: "rare",
@@ -560,7 +560,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "maestro",
     name: "المايسترو",
-    icon: "🎼",
+    icon: "guitar",
     levels: ["كل يد تكسبونها: +2 بنط لكل مجموعة مكتملة عندك.", "+3 لكل مجموعة مكتملة."],
     cost: 36,
     rarity: "legendary",
@@ -569,7 +569,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "copycat",
     name: "النسخة",
-    icon: "📜",
+    icon: "papers",
     levels: ["تنسخ مفعول التحفة اللي على يمينها في صفّك — ترتيبك يفرق."],
     cost: 38,
     rarity: "legendary",
@@ -578,7 +578,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "treasury",
     name: "الخزنة",
-    icon: "🏦",
+    icon: "money-stack",
     levels: ["كل دكّان: فايدة 1 ريال لكل 10 معك (حد 5).", "حد الفايدة 8.", "حد الفايدة 12."],
     cost: 12,
     rarity: "common",
@@ -587,12 +587,12 @@ export const JOKER_CATALOG: ShopItemDef[] = [
 ];
 
 export const CONSUMABLE_CATALOG: ShopItemDef[] = [
-  { id: "extra-life", kind: "consumable", name: "ساعة زيادة", icon: "🕯️", levels: ["ساعة زيادة من الليل."], cost: 22, rarity: "rare", tags: [] },
+  { id: "extra-life", kind: "consumable", name: "ساعة زيادة", icon: "candle-light", levels: ["ساعة زيادة من الليل."], cost: 22, rarity: "rare", tags: [] },
   {
     id: "shield",
     kind: "consumable",
     name: "الدرع",
-    icon: "🛡️",
+    icon: "shield",
     levels: ["أول صكّة تخسرها ما تنقص من ساعات ليلك."],
     cost: 12,
     rarity: "common",
@@ -602,7 +602,7 @@ export const CONSUMABLE_CATALOG: ShopItemDef[] = [
     id: "boost",
     kind: "consumable",
     name: "دفعة",
-    icon: "⚡",
+    icon: "lightning-arc",
     levels: ["المباراة الجاية تبدأونها متقدمين بـ 10 أبناط."],
     cost: 8,
     rarity: "common",
@@ -612,7 +612,7 @@ export const CONSUMABLE_CATALOG: ShopItemDef[] = [
     id: "upgrade-ticket",
     kind: "consumable",
     name: "تذكرة ترقية",
-    icon: "🎟️",
+    icon: "ticket",
     levels: ["يرقّي تحفة عشوائية عندك مستوى واحد ببلاش."],
     cost: 16,
     rarity: "rare",
@@ -626,7 +626,7 @@ export const UPGRADE_CATALOG: ShopItemDef[] = [
     id: "shop-slot",
     kind: "upgrade",
     name: "بسطة أكبر",
-    icon: "🛒",
+    icon: "shop",
     levels: ["الدكّان يعرض تحفة زيادة."],
     cost: 20,
     costs: [20],
@@ -637,7 +637,7 @@ export const UPGRADE_CATALOG: ShopItemDef[] = [
     id: "cheap-reroll",
     kind: "upgrade",
     name: "بياع صاحبك",
-    icon: "🎲",
+    icon: "rolling-dices",
     levels: ["تغيير البضاعة يبدأ بـ 1 ريال ويزيد 1 بس."],
     cost: 12,
     costs: [12],
@@ -648,7 +648,7 @@ export const UPGRADE_CATALOG: ShopItemDef[] = [
     id: "salary",
     kind: "upgrade",
     name: "الراتب",
-    icon: "💼",
+    icon: "cash",
     levels: ["+4 ريال مع كل صكّة تفوزها.", "+8 ريال مع كل فوز."],
     cost: 15,
     costs: [15, 25],
@@ -659,7 +659,7 @@ export const UPGRADE_CATALOG: ShopItemDef[] = [
     id: "vip",
     kind: "upgrade",
     name: "زبون مميز",
-    icon: "🏷️",
+    icon: "price-tag",
     levels: ["خصم 15٪ على كل شي في الدكّان."],
     cost: 22,
     costs: [22],

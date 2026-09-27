@@ -49,13 +49,13 @@ export const EVENTS: EventDef[] = [
   {
     id: "coffee",
     name: "فنجال المعزّب",
-    icon: "☕",
+    icon: "coffee-cup",
     text: "المعزّب يصب لك قهوة ويسولف معك عن أيام أول",
     options: [
       {
         label: "اشرب فنجالين (+1 ساعة)",
         apply: (run) => {
-          if (run.addLife()) return "ارتحت: +1 ساعة 🕯️";
+          if (run.addLife()) return "ارتحت: ساعة زيادة من الليل";
           run.addGold(15);
           return "ساعات ليلك كاملة، فعطاك 15 ريال بداله";
         },
@@ -66,7 +66,7 @@ export const EVENTS: EventDef[] = [
   {
     id: "bet",
     name: "رهان الزقاق",
-    icon: "🎲",
+    icon: "rolling-dices",
     text: "واحد بالزقاق يتحداك: رهان على ورقة، يا تكسب يا تخسر",
     options: [
       {
@@ -76,7 +76,7 @@ export const EVENTS: EventDef[] = [
           run.addGold(-BET);
           if (rand() < 0.5) {
             run.addGold(BET_WIN);
-            return `كسبت! +${BET_WIN} ريال 🎉`;
+            return `كسبت! +${BET_WIN} ريال`;
           }
           return `خسرت الرهان: −${BET} ريال`;
         },
@@ -87,21 +87,21 @@ export const EVENTS: EventDef[] = [
   {
     id: "elder",
     name: "شايب على الدكّة",
-    icon: "👴",
+    icon: "prayer-beads",
     text: "شايب لعب بلوت أربعين سنة، يبي يعلمك شي",
     options: [
       {
         label: "علّمني (ترقية تحفة عشوائية عندك)",
         blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك تحفة تترقى"),
-        apply: (run) => `ترقى: ${run.upgradeRandomJoker()} ⬆️`,
+        apply: (run) => `ترقّت: ${run.upgradeRandomJoker()}`,
       },
-      { label: "عطني نصيحة للمباراة الجاية (+10 تبدأ فيها)", apply: (run) => (run.boostNext(10), "تبدأ المباراة الجاية قدامهم بـ 10 ⚡") },
+      { label: "عطني نصيحة للمباراة الجاية (+10 تبدأ فيها)", apply: (run) => (run.boostNext(10), "تبدأ الصكّة الجاية قدامهم بـ 10") },
     ],
   },
   {
     id: "stall",
     name: "بسطة آخر الليل",
-    icon: "🧺",
+    icon: "basket",
     text: "واحد فارش بسطة تحف مستعملة، ويشتري بعد",
     options: [
       {
@@ -128,7 +128,7 @@ export const EVENTS: EventDef[] = [
   {
     id: "cursed",
     name: "الورق الملعون",
-    icon: "🃏",
+    icon: "card-random",
     text: "لقيت ورق قديم في زاوية الزقاق، يقولون ملعون",
     options: [
       {
@@ -146,13 +146,13 @@ export const EVENTS: EventDef[] = [
   {
     id: "guest",
     name: "الضيف الثقيل",
-    icon: "🫖",
+    icon: "hot-meal",
     text: "ضيف ثقيل جلس جنبك ويبي يسولف طول الليل",
     options: [
       {
         label: `عزّمه على العشا (−${GUEST_PRICE} ريال، +1 درع)`,
         blocked: (run) => (run.gold() < GUEST_PRICE ? "ريالاتك ما تكفي" : undefined),
-        apply: (run) => (run.addGold(-GUEST_PRICE), run.addShield(), "انبسط وعطاك درع 🛡️"),
+        apply: (run) => (run.addGold(-GUEST_PRICE), run.addShield(), "انبسط وعطاك درع"),
       },
       { label: "اعتذر منه", apply: (run) => (run.penalizeNext(10), "زعل وراح يشجع المرهونين: يبدؤون الصكّة الجاية بـ 10") },
     ],

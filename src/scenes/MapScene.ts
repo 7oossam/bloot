@@ -8,6 +8,7 @@ import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience } from "./fx";
 import { CSS, HEAD_FONT, PAL, goldRule, paintParchment, paperPanel } from "./theme";
+import { INK, UI_ICON, addIcon, iconRow } from "./icons";
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
@@ -88,6 +89,8 @@ const BOTTOM_MARGIN = 130;
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
 export class MapScene extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
+  private hudGroups!: Phaser.GameObjects.Text;
+  private hudRow?: Phaser.GameObjects.Container;
   private nodeLayer!: Phaser.GameObjects.Container;
   private overlay?: Phaser.GameObjects.Container;
 
@@ -105,15 +108,9 @@ export class MapScene extends Phaser.Scene {
     // Header: a crimson title on the parchment, a gold rule, and the run's state in chips.
     arabicText(this, WIDTH / 2, 70, "خريطة الليلة", { fontFamily: HEAD_FONT, fontSize: "50px", fontStyle: "700", color: CSS.crimson, shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false } });
     this.add.existing(goldRule(this, WIDTH / 2, 118, 320));
-    this.hudText = arabicText(this, WIDTH / 2, 200, "", {
-      fontFamily: HEAD_FONT,
-      fontSize: "24px",
-      color: CSS.ink,
-      align: "center",
-      lineSpacing: 10,
-      wordWrap: { width: WIDTH - 90 },
-      shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false },
-    });
+    // Three lines: where you stand, your تحف as a row of icons, and your complete sets.
+    this.hudText = this.pt(WIDTH / 2, 164, "", { fontSize: "24px", wordWrap: { width: WIDTH - 90 } });
+    this.hudGroups = this.pt(WIDTH / 2, 262, "", { fontSize: "22px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 90 } });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
   }
@@ -138,22 +135,26 @@ export class MapScene extends Phaser.Scene {
   }
 
   private updateHud(state: RunState): void {
-    // Icons with a level digit keep the line short enough not to wrap on a phone.
-    const SUP = ["", "", "²", "³"];
-    const jokerNames =
-      state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? id}${SUP[state.jokerLevels[id] ?? 1] ?? ""}`).join("  ") ||
-      "ما عندك";
-    const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
+    const shields = state.shields > 0 ? `   ·   درع ${state.shields}` : "";
+    const boost = state.nextMatchBoost ? `   ·   دفعة +${state.nextMatchBoost}` : "";
+    const partner = getPartner(state.partner);
+    this.hudText.setText(`${partner ? `${partner.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ${state.gold} ريال${shields}${boost}`);
+
+    // Your وصايا, then your تحف with their level in stars.
+    this.hudRow?.destroy();
+    const items = [
+      ...state.blessings.map((id) => ({ icon: getBlessing(id)?.icon ?? "", mark: "" })),
+      ...state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "", mark: "★".repeat(Math.max(0, (state.jokerLevels[id] ?? 1) - 1)) })),
+    ];
+    this.hudRow = items.length
+      ? iconRow(this, WIDTH / 2, 214, items, { size: Math.min(46, (WIDTH - 120) / items.length - 12), color: INK })
+      : this.add.container(WIDTH / 2, 214, [this.pt(0, 0, "ما عندك تحف للحين", { fontSize: "22px", color: CSS.inkSoft })]);
+
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier)
-      .map((x) => `${x.tag} ${x.count}✓`)
-      .join("  ");
-    const blessings = state.blessings.map((id) => getBlessing(id)?.icon ?? "").join(" ");
-    const partner = getPartner(state.partner);
-    this.hudText.setText(
-      `${partner ? `${partner.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ريال ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   ${blessings}` : ""}\nالتحف: ${jokerNames}` +
-        (synergies ? `\nالمجموعات: ${synergies}` : ""),
-    );
+      .map((x) => `${x.tag} ${x.count} ✓`)
+      .join("   ");
+    this.hudGroups.setText(synergies ? `المجموعات: ${synergies}` : "");
   }
 
   /** The branching map, bottom row first: links, then nodes (the ones you can walk into pulse). */
@@ -388,7 +389,7 @@ export class MapScene extends Phaser.Scene {
     if (behind) modifiers.headStart = { ...modifiers.headStart, 1: (modifiers.headStart?.[1] ?? 0) + behind };
     if (rival) {
       modifiers.rival = rival.rules;
-      modifiers.rivalLabel = `${rival.icon} ${rival.name}`;
+      modifiers.rivalLabel = rival.name;
       modifiers.rivalRule = rival.rule;
     }
     if (off) modifiers.disabledJoker = off;
@@ -415,9 +416,13 @@ export class MapScene extends Phaser.Scene {
       cbg.lineStyle(2.5, PAL.gold, 1);
       cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 18);
       card.add(cbg);
-      card.add(this.pt(0, -80, `${def.icon} ${def.name}`, { fontSize: "36px", color: CSS.crimson }));
-      card.add(this.pt(0, -10, `✨ ${def.perk}`, { fontSize: "27px", wordWrap: { width: cardW - 60 } }));
-      card.add(this.pt(0, 70, `⚖️ ${def.quirk}`, { fontSize: "25px", color: "#8c5a1c", wordWrap: { width: cardW - 60 } }));
+      // The icon on the right, where the eye starts; the words in the rest of the card.
+      card.add(addIcon(this, cardW / 2 - 76, 0, def.icon, 84, INK));
+      const tx = -52;
+      const tw = cardW - 210;
+      card.add(this.pt(tx, -80, def.name, { fontSize: "36px", color: CSS.crimson }));
+      card.add(this.pt(tx, -10, def.perk, { fontSize: "27px", wordWrap: { width: tw } }));
+      card.add(this.pt(tx, 70, `لكن: ${def.quirk}`, { fontSize: "25px", color: "#8c5a1c", wordWrap: { width: tw } }));
       setBoxHitArea(card, cardW, 260);
       card.input!.cursor = "pointer";
       card.on("pointerdown", () => {
@@ -436,9 +441,10 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
     this.dimMap(panel);
     panel.add(paperPanel(this, panelW, 1120));
-    panel.add(goldRule(this, 0, -455, 360));
-    panel.add(this.pt(0, -380, "📖 الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
-    panel.add(this.pt(0, -330, "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft }));
+    panel.add(goldRule(this, 0, -505, 360));
+    panel.add(addIcon(this, 0, -448, UI_ICON.narrator, 64, INK));
+    panel.add(this.pt(0, -385, "الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, -335, "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft }));
     const cardW = panelW - 80;
     offers.forEach((id, i) => {
       const def = getBlessing(id)!;
@@ -450,13 +456,16 @@ export class MapScene extends Phaser.Scene {
       cbg.lineStyle(2.5, def.price ? PAL.crimson : PAL.gold, 1);
       cbg.strokeRoundedRect(-cardW / 2, -105, cardW, 210, 18);
       card.add(cbg);
-      card.add(this.pt(0, -60, `${def.icon} ${def.name}`, { fontSize: "30px", color: CSS.crimson }));
-      card.add(this.pt(0, 0, `✨ ${def.gift}`, { fontSize: "28px", wordWrap: { width: cardW - 60 } }));
+      card.add(addIcon(this, cardW / 2 - 70, 0, def.icon, 76, INK));
+      const tx = -48;
+      const tw = cardW - 200;
+      card.add(this.pt(tx, -60, def.name, { fontSize: "30px", color: CSS.crimson }));
+      card.add(this.pt(tx, 0, def.gift, { fontSize: "28px", wordWrap: { width: tw } }));
       card.add(
-        this.pt(0, 55, def.price ? `⚖️ ${def.price}` : "بدون ثمن", {
+        this.pt(tx, 55, def.price ? `الثمن: ${def.price}` : "بدون ثمن", {
           fontSize: "25px",
           color: def.price ? "#8c5a1c" : "#3e4a2a",
-          wordWrap: { width: cardW - 60 },
+          wordWrap: { width: tw },
         }),
       );
       setBoxHitArea(card, cardW, 210);
@@ -484,8 +493,7 @@ export class MapScene extends Phaser.Scene {
         fontSize: "27px",
       }),
     );
-    const jokers = state.jokerIds.map((id) => getJokerDef(id)?.icon ?? "").join(" ");
-    if (jokers) panel.add(this.pt(0, 5, `تحفك: ${jokers}`, { fontSize: "30px" }));
+    if (state.jokerIds.length) panel.add(iconRow(this, 0, 20, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "" })), { size: 44, color: INK }));
 
     const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ ليلة جديدة", () => {
       runController.startNewRun();

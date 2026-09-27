@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { UI_ICON, addIcon } from "./icons";
 import type { Mode } from "../engine/types";
 import { ensureFxTextures, flare, rise, screenFlash } from "./fx";
 import { arabicText } from "./ui";
@@ -53,7 +54,7 @@ export class HandMeter {
   private readonly numbers: Record<Side, Phaser.GameObjects.Text>;
   private readonly medals: Record<Side, Phaser.GameObjects.Container>;
   private readonly edgeGlow: Record<Side, Phaser.GameObjects.Image>;
-  private readonly crown: Phaser.GameObjects.Text;
+  private readonly crown: Phaser.GameObjects.Image;
   private readonly bonusBadge: Phaser.GameObjects.Container;
   private readonly bonusText: Phaser.GameObjects.Text;
   private seal?: Phaser.GameObjects.Container;
@@ -133,7 +134,7 @@ export class HandMeter {
     this.numbers = { us: this.numberText(), them: this.numberText() };
     this.medals = { us: this.medal("us", MED_X), them: this.medal("them", -MED_X) };
 
-    this.crown = scene.add.text(0, -MED_R - 6, "👑", { fontSize: "26px" }).setOrigin(0.5).setAngle(-14).setVisible(false);
+    this.crown = addIcon(scene, 0, -MED_R - 8, UI_ICON.crown, 38, 0xffd98a).setAngle(-14).setVisible(false);
     this.root.add(this.crown);
 
     const badgeBg = scene.add.graphics();
@@ -187,7 +188,7 @@ export class HandMeter {
     bg.fillPoints(starPoints(0, 0, 30), true);
     bg.lineStyle(2, 0xffd98a, 1);
     bg.strokePoints(starPoints(0, 0, 30), true);
-    const t = plainText(this.scene, 0, 0, level >= 5 ? "☕" : `×${level}`, { fontSize: "22px", color: "#fff1d6", fontStyle: "bold" });
+    const t = plainText(this.scene, 0, 0, level >= 5 ? "قهوة" : `×${level}`, { fontSize: "22px", color: "#fff1d6", fontStyle: "bold" });
     const x = Math.min(this.caption.width / 2 + 58, TRACK_W / 2 - 80);
     this.seal = this.scene.add.container(-x, CAPTION_Y + 2, [bg, t]);
     this.root.add(this.seal);
@@ -245,11 +246,11 @@ export class HandMeter {
     this.push(() => {
       if (gen !== this.gen) return 0;
       const bad = amount < 0;
-      this.chip(from, this.medalPoint("us"), `${icon} ${bad ? "−" : "+"}${Math.abs(amount)}`, bad ? 0xc2453a : 0xffd98a, () => {
+      this.chip(from, this.medalPoint("us"), `${bad ? "−" : "+"}${Math.abs(amount)}`, bad ? 0xc2453a : 0xffd98a, () => {
         this.bonus += amount;
         this.showBonus();
         flare(this.scene, this.x + MED_X, this.y, bad ? 0xff7a7a : 0xffe6b0, 0.7);
-      });
+      }, icon);
       return 460;
     });
   }
@@ -365,17 +366,24 @@ export class HandMeter {
   }
 
   /** A flying chip (a project or a joker's payout) from one point to another. */
-  private chip(from: { x: number; y: number }, to: { x: number; y: number }, text: string, color: number, onLand: () => void): void {
+  private chip(from: { x: number; y: number }, to: { x: number; y: number }, text: string, color: number, onLand: () => void, icon?: string): void {
     const scene = this.scene;
     const gen = this.gen;
     const t = (/[\u0600-\u06FF]/.test(text) ? arabicText : plainText)(scene, 0, 0, text, { fontSize: "24px", color: "#2a160f", fontStyle: "bold", shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0 } });
-    const w = t.width + 30;
+    // The joker's icon leads (on the right, where Arabic starts), the amount follows.
+    const ICON = 30;
+    const w = t.width + 30 + (icon ? ICON + 8 : 0);
     const bg = scene.add.graphics();
     bg.fillStyle(color, 1);
     bg.fillRoundedRect(-w / 2, -22, w, 44, 22);
     bg.lineStyle(3, 0xfff1d6, 0.9);
     bg.strokeRoundedRect(-w / 2, -22, w, 44, 22);
-    const c = scene.add.container(from.x, from.y, [bg, t]).setDepth(80).setScale(0.2);
+    const parts: Phaser.GameObjects.GameObject[] = [bg, t];
+    if (icon) {
+      t.setX(-(ICON + 8) / 2);
+      parts.push(addIcon(scene, w / 2 - 15 - ICON / 2, 0, icon, ICON, 0x2a160f));
+    }
+    const c = scene.add.container(from.x, from.y, parts).setDepth(80).setScale(0.2);
     scene.tweens.add({ targets: c, scale: 1.15, y: from.y + 34, duration: 200, ease: "Back.Out" });
     scene.time.delayedCall(260, () => {
       bezier(scene, c, { x: c.x, y: c.y }, to, 380, () => {
@@ -441,8 +449,8 @@ export class HandMeter {
     if (!side) return;
     this.decided = side;
     const good = side === "us";
-    const word = good ? (this.buyer === "us" ? "✓ ضمنّاها!" : "🔥 خسرانة عليهم!") : this.buyer === "us" ? "💔 طاحت علينا" : "ضمنوها";
-    this.tag = good ? (this.buyer === "us" ? "✓ مضمونة" : "🔥 خسرانة عليهم") : this.buyer === "us" ? "💔 خسرانة" : "لهم";
+    const word = good ? (this.buyer === "us" ? "ضمنّاها!" : "خسرانة عليهم!") : this.buyer === "us" ? "طاحت علينا" : "ضمنوها";
+    this.tag = good ? (this.buyer === "us" ? "مضمونة" : "خسرانة عليهم") : this.buyer === "us" ? "خسرانة" : "لهم";
     this.refreshCaption();
     this.banner(word, good);
   }
@@ -450,7 +458,7 @@ export class HandMeter {
   private kabootWatch(): void {
     const played = this.tricks.us + this.tricks.them;
     if (played >= 5 && played < 8 && (this.tricks.us === played || this.tricks.them === played)) {
-      this.tag = this.tricks.us === played ? "🔥 كبوت؟" : "⚠️ كبوت عليكم؟";
+      this.tag = this.tricks.us === played ? "كبوت؟" : "كبوت عليكم؟";
       this.refreshCaption();
       this.scene.tweens.add({ targets: this.caption, scale: 1.18, duration: 160, yoyo: true, repeat: 1 });
     }
@@ -490,7 +498,7 @@ export class HandMeter {
       this.bonusBadge.setVisible(false);
       return;
     }
-    this.bonusText.setText(`🃏 ${this.bonus > 0 ? "+" : "−"}${Math.abs(this.bonus)}`);
+    this.bonusText.setText(`${this.bonus > 0 ? "+" : "−"}${Math.abs(this.bonus)}`);
     this.bonusBadge.setVisible(true);
     this.scene.tweens.killTweensOf(this.bonusBadge);
     this.bonusBadge.setScale(1);

@@ -92,7 +92,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
       <textarea placeholder="مثلاً: ليش ما لعبت الإكة؟"></textarea>
       <div class="bn-row">
         <button class="bn-save">احفظ</button>
-        <button class="bn-clear" style="flex:0 0 auto;min-width:0">🗑️</button>
+        <button class="bn-clear" style="flex:0 0 auto;min-width:0">مسح</button>
       </div>
       <div class="bn-row"><button class="bn-match"></button></div>
       <div class="bn-msg"></div>
@@ -111,7 +111,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
    */
   const fileBtn = $<HTMLButtonElement>(".bn-match");
   const refreshCount = () => {
-    fileBtn.textContent = `⬇️ حمّل ملف للتحليل (${loadNotes().length} ملاحظة، ${gamesCount().hands} يد)`;
+    fileBtn.textContent = `حمّل ملف للتحليل (${loadNotes().length} ملاحظة، ${gamesCount().hands} يد)`;
   };
   refreshCount();
   fileBtn.addEventListener("click", async () => {
@@ -121,7 +121,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
     if (nav.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: "بلوت — للتحليل" });
-        msg.textContent = "✔️ أرسل الملف لـ Claude. بعدها تقدر تمسح المحفوظ بـ 🗑️.";
+        msg.textContent = "أرسل الملف لـ Claude. بعدها تقدر تمسح المحفوظ بزر «مسح».";
         return;
       } catch (e) {
         if ((e as Error).name === "AbortError") return; // closed the share sheet
@@ -135,7 +135,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    msg.textContent = `✔️ نزل الملف (${name}) — أرفقه في المحادثة مع Claude. بعدها تقدر تمسح المحفوظ بـ 🗑️.`;
+    msg.textContent = `نزل الملف (${name}) — أرفقه في المحادثة مع Claude. بعدها تقدر تمسح المحفوظ بزر «مسح».`;
   });
 
   const render = () => {
@@ -235,7 +235,7 @@ export function openNotesPanel(o: NotesPanelOptions): () => void {
       snapshot: o.views[viewIndex].snapshot(),
     });
     area.value = "";
-    msg.textContent = `انحفظت ✔️ — عندك ${count} ملاحظة. لما تخلص حمّل الملف وأرسله لـ Claude.`;
+    msg.textContent = `انحفظت — عندك ${count} ملاحظة. لما تخلص حمّل الملف وأرسله لـ Claude.`;
     refreshCount();
   });
 

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { INK, addIcon } from "./icons";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { HEIGHT, WIDTH } from "./layout";
@@ -70,10 +71,10 @@ export class ShopScene extends Phaser.Scene {
     this.rerollBtn?.destroy();
     const state = runController.getState();
 
-    const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
-    const interest = state.lastInterest ? `   (🏦 +${state.lastInterest} فايدة)` : "";
-    const salary = state.salary ? `   💼 +${state.salary}` : "";
-    this.goldText.setText(`${state.gold} ريال${interest}   🕯️ ${state.lives}${shields}${salary}`);
+    const shields = state.shields > 0 ? `   ·   درع ${state.shields}` : "";
+    const interest = state.lastInterest ? ` (+${state.lastInterest} فايدة)` : "";
+    const salary = state.salary ? `   ·   راتب +${state.salary}` : "";
+    this.goldText.setText(`${state.gold} ريال${interest}   ·   ساعات الليل ${state.lives}${shields}${salary}`);
 
     // Your jokers as chips (no cap — like STS relics); tap one to sell it. They shrink to fit.
     this.ownedLayer.removeAll(true);
@@ -90,7 +91,7 @@ export class ShopScene extends Phaser.Scene {
       const chip = this.add.container(x, OWNED_Y, [g]);
       const def = getJokerDef(id)!;
       const roomy = chipW >= 100;
-      chip.add(this.add.text(roomy ? -22 : 0, 0, def.icon, { fontSize: "34px" }).setOrigin(0.5));
+      chip.add(addIcon(this, roomy ? -20 : 0, 0, def.icon, 44, INK));
       if (roomy) chip.add(inkText(this, 30, 0, levelBadge(runController.levelOf(id)), { fontSize: "20px", color: CSS.gold }));
       setBoxHitArea(chip, chipW, 72);
       chip.on("pointerdown", () => this.confirmSell(id));
@@ -106,7 +107,7 @@ export class ShopScene extends Phaser.Scene {
 
     const offering = runController.shopOffering();
     if (offering.length === 0) {
-      this.itemsLayer.add(inkText(this, WIDTH / 2, 600, "خلصت البضاعة! جرّب تغيّرها 🎲", { fontSize: "30px" }));
+      this.itemsLayer.add(inkText(this, WIDTH / 2, 600, "خلصت البضاعة! جرّب تغيّرها", { fontSize: "30px" }));
     }
     const slot = Math.min(MAX_CARD_H + CARD_GAP, (SHELF_BOTTOM - FIRST_CARD_Y) / Math.max(offering.length, 1));
     const cardH = slot - CARD_GAP;
@@ -118,7 +119,7 @@ export class ShopScene extends Phaser.Scene {
       this,
       WIDTH / 2,
       rerollY,
-      `🎲 غيّر البضاعة (${state.rerollCost} ريال)`,
+      `غيّر البضاعة (${state.rerollCost} ريال)`,
       () => {
         if (!runController.canReroll()) return;
         runController.reroll();
@@ -159,7 +160,7 @@ export class ShopScene extends Phaser.Scene {
     const textX = (columnLeft + columnRight) / 2;
     const textW = columnRight - columnLeft;
 
-    card.add(this.add.text(iconX, -8, def.icon, { fontSize: "64px" }).setOrigin(0.5));
+    card.add(addIcon(this, iconX, -8, def.icon, 76, INK));
     const kindLabel = def.kind === "consumable" ? "يُستخدم مرة" : def.kind === "upgrade" ? "تطوير لليلة" : style.label;
     card.add(fitWidth(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }), 120));
 
@@ -188,7 +189,7 @@ export class ShopScene extends Phaser.Scene {
         this.celebrate(def.icon);
         if (id === "upgrade-ticket" && runController.getState().lastTicket) {
           const t = getJokerDef(runController.getState().lastTicket!)!;
-          this.toast(`🎟️ ${t.icon} ${t.name} صار ${levelBadge(runController.levelOf(t.id))}`);
+          this.toast(`${t.name} صارت ${levelBadge(runController.levelOf(t.id))}`);
         }
         this.refresh();
       },
@@ -218,7 +219,7 @@ export class ShopScene extends Phaser.Scene {
     g.lineStyle(4, PAL.gold, 1);
     g.strokeRoundedRect(-w / 2, -170, w, 420, 26);
     panel.add([shade, g]);
-    panel.add(this.add.text(0, -100, def.icon, { fontSize: "64px" }).setOrigin(0.5));
+    panel.add(addIcon(this, 0, -100, def.icon, 80, INK));
     panel.add(inkText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
     panel.add(inkText(this, 0, 20, `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
     const close = () => {
@@ -235,7 +236,7 @@ export class ShopScene extends Phaser.Scene {
     panel.add([sell.container, keep.container]);
     // The row's order matters to النسخة (it copies the joker on its right).
     if (runController.getState().jokerIds.indexOf(id) > 0) {
-      const move = makeButton(this, 0, 205, "➡️ حرّكه يمين", () => {
+      const move = makeButton(this, 0, 205, "حرّكها يمين", () => {
         runController.moveJoker(id, -1);
         close();
         this.refresh();
@@ -253,10 +254,10 @@ export class ShopScene extends Phaser.Scene {
 
   /** A quick burst of the item's icon so a purchase feels like getting something. */
   private celebrate(icon: string): void {
-    const pop = this.add.text(WIDTH / 2, HEIGHT / 2, icon, { fontSize: "120px" }).setOrigin(0.5).setDepth(50);
+    const pop = addIcon(this, WIDTH / 2, HEIGHT / 2, icon, 140, INK).setDepth(50);
     this.tweens.add({
       targets: pop,
-      scale: 2.2,
+      scale: pop.scale * 2.2,
       alpha: 0,
       duration: 650,
       ease: "Cubic.Out",

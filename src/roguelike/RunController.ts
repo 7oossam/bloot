@@ -109,7 +109,7 @@ class RunController {
     const partner = getPartner(this.state.partner);
     if (partner) {
       o.partner = partner.options;
-      o.partnerLabel = `${partner.name} ${partner.icon}`;
+      o.partnerLabel = partner.name;
     }
     if (this.hasBlessing("wave")) o.headStart = { ...o.headStart, 0: (o.headStart?.[0] ?? 0) + WAVE_HEAD_START };
     if (this.hasBlessing("projects")) {
@@ -222,7 +222,7 @@ class RunController {
         if (pool.length === 0) return undefined;
         const pick = pool[Math.floor(rand() * pool.length)];
         this.grant(pick.id);
-        return `${pick.icon} ${pick.name}`;
+        return pick.name;
       },
       canUpgrade: () => this.upgradeable().length > 0,
       upgradeRandomJoker: () => {
@@ -231,7 +231,7 @@ class RunController {
         const pick = pool[Math.floor(rand() * pool.length)];
         s.jokerLevels[pick] = this.levelOf(pick) + 1;
         const def = getJokerDef(pick)!;
-        return `${def.icon} ${def.name}`;
+        return def.name;
       },
       cheapestJoker: () => {
         const c = cheapest();
@@ -245,7 +245,7 @@ class RunController {
         delete s.jokerLevels[c.id];
         s.gold += gold;
         const def = getJokerDef(c.id)!;
-        return { name: `${def.icon} ${def.name}`, gold };
+        return { name: def.name, gold };
       },
     };
   }
