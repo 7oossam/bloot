@@ -171,6 +171,7 @@ Every joker below exists in `src/roguelike/jokers.ts`; `docs/jokers.md` lists th
 ثورة الصغار is the strongest Payoff in the game; watch it if runs get too easy.
 
 ## PART 6: Feedback the table gives (so the player always knows what their jokers are doing)
+- **عدّاد اليد** (`src/scenes/HandMeter.ts`): the hand's worth (26 / 16, growing with projects) as a two-sided track under the joker row. Each trick's points pop over the table and fly into the side's medallion; each joker that pays drops a chip from its icon into ours, in order. Past the half-way star the hand is decided and the table says so.
 - **The joker row** above the table: tap a joker to read what it does at its level and its family.
 - **It lights up when it pays**: a pulse and the amount floating off it, the moment the trick is won (and a log line).
 - **The hand summary counts the jokers up one at a time**, each lighting its joker, before the match total appears (Mandate 3).
