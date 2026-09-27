@@ -63,6 +63,11 @@ export interface TrickRules {
     /** This team can't lead a trick with an Ace or a 10 while holding anything else (حرّاس الإكك). */
     noAceLead?: Team;
   };
+  /**
+   * الختم: these cards (by cardId) are sealed for the rest of the hand. A sealed trump is still a
+   * trump, but plays as the weakest one — below the trump 7. The card itself never changes.
+   */
+  sealed?: string[];
 
 }
 

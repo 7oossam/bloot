@@ -1,4 +1,4 @@
-import { isTrumpCard, rankStrength } from "./cards";
+import { cardId, isTrumpCard, rankStrength } from "./cards";
 import type { Card, Mode, Seat, Suit, Trick, TrickRules } from "./types";
 import { nextSeat, teamOf } from "./types";
 
@@ -33,7 +33,18 @@ function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined,
   return p.card.suit === ledSuit ? 1 : 0;
 }
 
+/** الختم: a sealed card sits under every other card of its suit. */
+function isSealed(card: Card, rules?: TrickRules): boolean {
+  return !!rules?.sealed?.length && rules.sealed.includes(cardId(card));
+}
+
+/** A card's rank inside its own suit, with الختم applied (a sealed card counts under the 7). */
+export function sealedStrength(card: Card, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
+  return isSealed(card, rules) ? -1 : rankStrength(card, mode, trumpSuit);
+}
+
 function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
+  if (isSealed(p.card, rules)) return -1;
   // الورقة الأخيرة: that seat's card counts as the top of its suit.
   const top = rules?.topCard === p.seat ? 100 : 0;
   // ثورة الصغار: only the joker holder's team, and only outside the trump suit (a trump 7 over the
@@ -116,8 +127,9 @@ export function legalMoves(
     // اللعب طلوع: when trumps are led, follow with a higher trump than the best one on the table
     // if you hold one.
     if (mode === "hokum" && ledSuit === trumpSuit) {
-      const best = Math.max(...playedInOrder(trick).map((p) => p.card).filter((c) => c.suit === trumpSuit).map((c) => rankStrength(c, mode, trumpSuit)));
-      const higher = followSuit.filter((c) => rankStrength(c, mode, trumpSuit) > best);
+      const power = (c: Card) => sealedStrength(c, mode, trumpSuit, trick.rules);
+      const best = Math.max(...playedInOrder(trick).map((p) => p.card).filter((c) => c.suit === trumpSuit).map(power));
+      const higher = followSuit.filter((c) => power(c) > best);
       if (higher.length > 0) return higher;
     }
     return followSuit;
@@ -137,8 +149,9 @@ export function legalMoves(
 
   if (trumpsPlayed.length === 0) return trumps; // must cut, any trump will do
 
-  const bestTrumpStrength = Math.max(...trumpsPlayed.map((c) => rankStrength(c, mode, trumpSuit)));
-  const overtrumps = trumps.filter((c) => rankStrength(c, mode, trumpSuit) > bestTrumpStrength);
+  const power = (c: Card) => sealedStrength(c, mode, trumpSuit, trick.rules);
+  const bestTrumpStrength = Math.max(...trumpsPlayed.map(power));
+  const overtrumps = trumps.filter((c) => power(c) > bestTrumpStrength);
   return overtrumps.length > 0 ? overtrumps : hand; // must overtrump if able, else free
 }
 

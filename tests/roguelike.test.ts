@@ -230,8 +230,8 @@ describe("shop", () => {
 
 describe("joker levels and synergies", () => {
   it("levels scale a joker's effect", () => {
-    expect(matchOptionsFromJokers(["cutter"], { cutter: 1 }).ruffBonus).toBe(2);
-    expect(matchOptionsFromJokers(["cutter"], { cutter: 3 }).ruffBonus).toBe(5);
+    expect(matchOptionsFromJokers(["cutter"], { cutter: 1 }).ruffSwap).toBe(1);
+    expect(matchOptionsFromJokers(["cutter"], { cutter: 3 }).ruffSwap).toBe(8);
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 1 }).jackHunt).toEqual({ preferTrump: false, nineToo: false, partnerToo: false });
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 2 }).jackHunt?.preferTrump).toBe(true);
     expect(matchOptionsFromJokers(["jack-hunt"], { "jack-hunt": 3 }).jackHunt?.nineToo).toBe(true);
@@ -267,10 +267,10 @@ describe("joker levels and synergies", () => {
     expect(o.guaranteedJacks).toBe(1);
   });
 
-  it("the سرقة synergy lets the hunt and the burn fire on your partner's Jack", () => {
+  it("the سرقة synergy lets the hunt and the seal fire on your partner's Jack", () => {
     const o = matchOptionsFromJokers(["jack-hunt", "burn"]);
     expect(o.jackHunt?.partnerToo).toBe(true);
-    expect(o.burn?.partnerToo).toBe(true);
+    expect(o.seal?.partnerToo).toBe(true);
     expect(matchOptionsFromJokers(["jack-hunt"]).jackHunt?.partnerToo).toBe(false);
   });
 
@@ -396,11 +396,11 @@ describe("build-makers: jokers that depend on your row", () => {
 
   it("النسخة copies the joker on its right — the one before it in the row", () => {
     const o = matchOptionsFromJokers(["cutter", "copycat"], { cutter: 2 });
-    expect(o.ruffBonus).toBe(6);
+    expect(o.ruffSwap).toBe(4);
     const eng = matchOptionsFromJokers(["project-engineer", "copycat"]);
     expect(eng.projectMultiplier).toBeCloseTo(3); // 2 + its 1 again
     // On the far right it has nothing to copy; order matters.
-    expect(matchOptionsFromJokers(["copycat", "cutter"]).ruffBonus).toBe(2);
+    expect(matchOptionsFromJokers(["copycat", "cutter"]).ruffSwap).toBe(1);
     runController.startNewRun(1);
     runController.addGold(500);
     runController.buyJoker("cutter");
