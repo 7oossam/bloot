@@ -39,7 +39,7 @@ export const PARTNERS: PartnerDef[] = [
   {
     id: "elder",
     name: "الشايب",
-    icon: "prayer-beads",
+    icon: "beard",
     perk: "يفهم تهريبك دايم، ويجيك في شكلك قبل ما ياكل أكلاته",
     quirk: "ما يدبل أبداً",
     options: { answerFirst: true, neverDoubles: true },
@@ -55,7 +55,7 @@ export const PARTNERS: PartnerDef[] = [
   {
     id: "lucky",
     name: "الجفرة",
-    icon: "clover",
+    icon: "camel-head",
     perk: "دايم يجيه إكة في أول خمس أوراق",
     quirk: "يلعب على البركة: ما يحسبها زين",
     options: { luckyAces: 1, noSearch: true },
@@ -63,7 +63,7 @@ export const PARTNERS: PartnerDef[] = [
   {
     id: "rookie",
     name: "الغشيم",
-    icon: "slingshot",
+    icon: "baby-face",
     perk: "ريالات الصكّات ×1.5، وخيار زيادة في الجوايز",
     quirk: "ما يفهم تهريبك، ولعبه ضعيف",
     options: { noSearch: true, deaf: true },

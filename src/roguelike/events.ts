@@ -87,7 +87,7 @@ export const EVENTS: EventDef[] = [
   {
     id: "elder",
     name: "شايب على الدكّة",
-    icon: "prayer-beads",
+    icon: "beard",
     text: "شايب لعب بلوت أربعين سنة، يبي يعلمك شي",
     options: [
       {

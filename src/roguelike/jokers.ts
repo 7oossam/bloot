@@ -333,7 +333,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spade-thief",
     name: "سارق السبيت",
-    icon: "gloves",
+    icon: "fox-head",
     levels: [
       "أول كل جولة: بدّل ورقة من يدك بورقة سبيت من خصم.",
       "تاخذ أكبر سبيت عنده.",
@@ -375,7 +375,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "spy",
     name: "الجاسوس",
-    icon: "mirror-mirror",
+    icon: "spy",
     levels: ["تشوف ورقة من يد كل خصم.", "تشوف ورقتين من كل خصم.", "تشوف ثلاث أوراق من كل خصم."],
     cost: 14,
     rarity: "common",
@@ -431,7 +431,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "messenger",
     name: "المرسال",
-    icon: "envelope",
+    icon: "dove",
     levels: ["بعد الشراء: أعطِ خويّك ورقة، ويعطيك أكبر ورقة عنده من نفس شكلها."],
     cost: 22,
     rarity: "rare",
@@ -480,7 +480,7 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   joker({
     id: "bold",
     name: "الجريء",
-    icon: "crossed-swords",
+    icon: "eagle-head",
     levels: ["تقدرون تدبلون على صن الخصم دايم — بدون شرط المئة."],
     cost: 24,
     rarity: "rare",
