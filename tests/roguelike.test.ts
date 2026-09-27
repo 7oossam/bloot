@@ -347,7 +347,7 @@ describe("run upgrades, selling and the new consumables", () => {
     runController.buyJoker("boost");
     expect(runController.takeMatchBoost()).toBe(10);
     expect(runController.takeMatchBoost()).toBe(0);
-    expect(runController.whyNot("upgrade-ticket")).toBe("ما عندك جوكر يترقى");
+    expect(runController.whyNot("upgrade-ticket")).toBe("ما عندك تحفة تترقى");
     runController.buyJoker("spy");
     runController.buyJoker("upgrade-ticket");
     expect(runController.levelOf("spy")).toBe(2);

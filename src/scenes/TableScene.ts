@@ -82,11 +82,11 @@ const SEAT_LABEL_COLOR = "#cfe0d6";
 const TURN_LABEL_COLOR = "#ffd54a";
 
 const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
-  match: "مباراة",
-  elite: "نخبة",
-  shop: "متجر",
-  boss: "الزعيم",
-  diwaniya: "الديوانية",
+  match: "ديوانية",
+  elite: "مجلس كبير",
+  shop: "دكّان التحف",
+  boss: "ديوانية الزعيم",
+  diwaniya: "طرقة",
 };
 
 export interface TableSceneData {
@@ -396,7 +396,7 @@ export class TableScene extends Phaser.Scene {
     if (amount === 0) return;
     runController.addGold(amount);
     this.pulseJokers(e.reason);
-    const text = amount > 0 ? `+${amount} ذهب 💰 ${e.reason}` : `${amount} ذهب 🎰 ${e.reason}`;
+    const text = amount > 0 ? `+${amount} ريال ${e.reason}` : `${amount} ريال 🎰 ${e.reason}`;
     const pop = arabicText(this, CENTER_X, CENTER_Y - 120, text, {
       fontSize: "30px",
       color: amount > 0 ? "#ffd54a" : "#ff7a7a",
@@ -462,7 +462,7 @@ export class TableScene extends Phaser.Scene {
     const level = runController.getState().jokerLevels[id] ?? 1;
     const lines = [`${def.icon} ${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
     if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
-    if (def.tags.length) lines.push(`العائلة: ${def.tags.join("، ")}`);
+    if (def.tags.length) lines.push(`المجموعة: ${def.tags.join("، ")}`);
     const w = WIDTH - 80;
     const text = arabicText(this, 0, 0, lines.join("\n"), {
       fontSize: "24px",
@@ -508,7 +508,7 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onJokerFired(e: JokerFired): void {
-    const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} 💰` : undefined;
+    const amount = e.points !== undefined ? `${e.points > 0 ? "+" : ""}${e.points}` : e.gold ? `+${e.gold} ريال` : undefined;
     this.pulseJokers(e.label, amount);
     if (amount) this.log(`🃏 ${e.label}: ${amount}`);
   }
@@ -840,7 +840,7 @@ export class TableScene extends Phaser.Scene {
     // No sun on offer is either the Ace rule (only the dealer's right may flip a hokum bought on
     // an Ace) or a rule of this run that bars your side from sun altogether.
     const aceGround = this.controller.getRound().bidding.groundCard.rank === "A";
-    const noSunWhy = aceGround ? "على إكة — ما يقلبها صن إلا اللي على يمين الموزع" : "— الصن ممنوع عليكم في هالرن";
+    const noSunWhy = aceGround ? "على إكة — ما يقلبها صن إلا اللي على يمين الموزع" : "— الصن ممنوع عليكم الليلة";
     const prompt = !e.challenge
       ? `دورك — ${e.round === 1 ? "الأول" : "الثاني"}`
       : !canSun
@@ -878,7 +878,7 @@ export class TableScene extends Phaser.Scene {
     bg.lineStyle(3, 0xb58cff, 1);
     bg.strokeRoundedRect(-w / 2, -95, w, 190, 18);
     panel.add(bg);
-    panel.add(arabicText(this, 0, -72, "🔮 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
+    panel.add(arabicText(this, 0, -72, "🔭 لو اشتريت يجيك:", { fontSize: "22px", color: "#d8c4ff" }));
     cards.forEach((c, i) => panel.add(new CardView(this, (i - (cards.length - 1) / 2) * 96, 18, c, true, WIDGET_CARD_SIZE)));
     this.oraclePanel = panel;
   }
@@ -1198,7 +1198,7 @@ export class TableScene extends Phaser.Scene {
           : a.kind === "dye"
             ? "🖌️ الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
             : a.kind === "partner"
-              ? "✉️ المرسال: اختر ورقة لشريكك — ويعطيك أكبر ورقة عنده من شكلها"
+              ? "✉️ المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
               : a.suit
                 ? `🦊 اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
                 : `🪝 اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
@@ -1884,10 +1884,10 @@ export class TableScene extends Phaser.Scene {
 
     const title = (won ? "فزتم بالعقدة! 🎉" : "خسرتم العقدة") + (e.qahwa ? " — قهوة ☕" : "");
     const rewardLine = won
-      ? `+${goldEarned} ذهب${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
+      ? `+${goldEarned} ريال${runState.salary ? ` (منها ${runState.salary} راتب)` : ""}`
       : shieldUsed
-        ? `🛡️ الدرع حماك — ما نقصت حياة`
-        : `-1 حياة (متبقي ${runState.lives})`;
+        ? `🛡️ الدرع حماك — ما مرّت ساعة`
+        : `مرّت ساعة 🕯️ (${runState.lives === 1 ? "آخر ساعة — قرب الفجر" : `باقي ${runState.lives}`})`;
 
     const panelW = WIDTH - 120;
     const panel = this.add.container(CENTER_X, CENTER_Y).setDepth(20);
@@ -1902,7 +1902,7 @@ export class TableScene extends Phaser.Scene {
     panel.add(arabicText(this, 0, -10, rewardLine, { fontSize: "25px", color: "#ffd54a" }));
 
     if (runState.over) {
-      const runTitle = runState.won ? "أكملتم الرن! 🏆" : "انتهى الرن";
+      const runTitle = runState.won ? "طلع الفجر وأنتم غالبين! 🏆" : "طلع الفجر عليكم";
       panel.add(arabicText(this, 0, 48, runTitle, { fontSize: "29px", color: runState.won ? "#5ad469" : "#d45a5a" }));
     }
 

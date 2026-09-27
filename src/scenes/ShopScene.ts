@@ -72,7 +72,7 @@ export class ShopScene extends Phaser.Scene {
     const shields = state.shields > 0 ? `   🛡️ ${state.shields}` : "";
     const interest = state.lastInterest ? `   (🏦 +${state.lastInterest} فايدة)` : "";
     const salary = state.salary ? `   💼 +${state.salary}` : "";
-    this.goldText.setText(`💰 ${state.gold}${interest}   ❤️ ${state.lives}${shields}${salary}`);
+    this.goldText.setText(`ريال ${state.gold}${interest}   🕯️ ${state.lives}${shields}${salary}`);
 
     // Your jokers as chips (no cap — like STS relics); tap one to sell it. They shrink to fit.
     this.ownedLayer.removeAll(true);
@@ -100,7 +100,7 @@ export class ShopScene extends Phaser.Scene {
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
     this.ownedText.setText(
-      (state.jokerIds.length ? "اضغط جوكر: بيع أو ترتيب" : "ما عندك جوكرز للحين") + (synergies ? `  —  تآزر: ${synergies}` : ""),
+      (state.jokerIds.length ? "اضغط تحفة: بيع أو ترتيب" : "ما عندك تحف للحين") + (synergies ? `  —  المجموعات: ${synergies}` : ""),
     );
 
     const offering = runController.shopOffering();
@@ -227,7 +227,7 @@ export class ShopScene extends Phaser.Scene {
     const sell = makeButton(this, 140, 110, "بيع", () => {
       runController.sellJoker(id);
       close();
-      this.toast(`💰 +${value}`);
+      this.toast(`+${value} ريال`);
       this.refresh();
     }, { width: 220, height: 76, plate: "paper" });
     const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });

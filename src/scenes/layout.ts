@@ -45,7 +45,7 @@ export const BID_BUTTON_ROW_GAP = 96;
 export const SEAT_LABEL_AR: Record<Seat, string> = {
   0: "أنت",
   1: "يمين",
-  2: "شريكك",
+  2: "خويّك",
   3: "يسار",
 };
 

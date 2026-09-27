@@ -50,8 +50,8 @@ export class RewardScene extends Phaser.Scene {
     }
     paintParchment(this, { compass: false });
     addAmbience(this);
-    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم النخبة 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
-    inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} 💰`, { fontSize: "27px", color: CSS.crimson });
+    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير 👑" : "غنائم الصكة 🎁", { fontSize: "46px" });
+    inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson });
 
     // Your row as it stands, so the choice is made against it.
     const row = state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? ""}${levelSup(runController.levelOf(id))}`).join("  ");
@@ -60,7 +60,7 @@ export class RewardScene extends Phaser.Scene {
       .filter((x) => x.tier || x.next)
       .map((x) => `${x.tag} ${x.count}${x.tier ? " ✓" : `/${x.next!.count}`}`)
       .join("  •  ");
-    if (synergies) inkText(this, WIDTH / 2, 296, `تآزر: ${synergies}`, { fontSize: "22px", color: CSS.inkSoft });
+    if (synergies) inkText(this, WIDTH / 2, 296, `المجموعات: ${synergies}`, { fontSize: "22px", color: CSS.inkSoft });
     inkText(this, WIDTH / 2, 356, "اختر وحدة ببلاش:", { fontSize: "26px", color: CSS.inkSoft });
 
     pending.items.forEach((id, i) => this.drawOffer(id, CARD_TOP + i * (CARD_H + CARD_GAP) + CARD_H / 2));

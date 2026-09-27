@@ -331,9 +331,9 @@ class RunController {
       if (lvl >= maxLevel(def)) return "أعلى مستوى";
     }
     if (def.kind === "upgrade" && lvl >= maxLevel(def)) return "مكتمل";
-    if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
-    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك جوكر يترقى";
-    if (this.state.gold < this.priceOf(itemId)) return "ذهبك ما يكفي";
+    if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "ساعات ليلك كاملة";
+    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك تحفة تترقى";
+    if (this.state.gold < this.priceOf(itemId)) return "ريالاتك ما تكفي";
     return undefined;
   }
 
@@ -386,8 +386,8 @@ class RunController {
     if (!def) return "غير موجود";
     const lvl = this.levelOf(itemId);
     if ((def.kind === "joker" || def.kind === "upgrade") && lvl >= maxLevel(def)) return "أعلى مستوى";
-    if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "أرواحك كاملة";
-    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك جوكر يترقى";
+    if (itemId === "extra-life" && this.state.lives >= MAX_LIVES) return "ساعات ليلك كاملة";
+    if (itemId === "upgrade-ticket" && this.upgradeable().length === 0) return "ما عندك تحفة تترقى";
     return undefined;
   }
 
@@ -416,7 +416,7 @@ class RunController {
   rewardHint(itemId: string): string | undefined {
     const def = getJokerDef(itemId);
     if (!def || def.kind !== "joker") return undefined;
-    if (this.levelOf(itemId) > 0) return `ترقية لجوكرك`;
+    if (this.levelOf(itemId) > 0) return `ترقية لتحفتك`;
     const owned = new Set(this.state.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
     const shared = def.tags.filter((t) => owned.has(t));
     if (shared.length) return `يناسب بناءك: ${shared.join("، ")}`;

@@ -53,32 +53,32 @@ export const EVENTS: EventDef[] = [
     text: "المعزّب يصب لك قهوة ويسولف معك عن أيام أول",
     options: [
       {
-        label: "اشرب فنجالين (+1 حياة)",
+        label: "اشرب فنجالين (+1 ساعة)",
         apply: (run) => {
-          if (run.addLife()) return "ارتحت: +1 حياة ❤️";
+          if (run.addLife()) return "ارتحت: +1 ساعة 🕯️";
           run.addGold(15);
-          return "أرواحك كاملة، فعطاك 15 ذهب بداله";
+          return "ساعات ليلك كاملة، فعطاك 15 ريال بداله";
         },
       },
-      { label: "هز الفنجال وامش (+20 ذهب)", apply: (run) => (run.addGold(20), "+20 ذهب 💰") },
+      { label: "هز الفنجال وامش (+20 ريال)", apply: (run) => (run.addGold(20), "+20 ريال") },
     ],
   },
   {
     id: "bet",
-    name: "الرهان",
+    name: "رهان الزقاق",
     icon: "🎲",
-    text: "واحد بالديوانية يتحداك: رهان على ورقة، يا تكسب يا تخسر",
+    text: "واحد بالزقاق يتحداك: رهان على ورقة، يا تكسب يا تخسر",
     options: [
       {
-        label: `راهن بـ ${BET} ذهب (يا ${BET_WIN} يا صفر)`,
-        blocked: (run) => (run.gold() < BET ? "ذهبك ما يكفي" : undefined),
+        label: `راهن بـ ${BET} ريال (يا ${BET_WIN} يا صفر)`,
+        blocked: (run) => (run.gold() < BET ? "ريالاتك ما تكفي" : undefined),
         apply: (run, rand) => {
           run.addGold(-BET);
           if (rand() < 0.5) {
             run.addGold(BET_WIN);
-            return `كسبت! +${BET_WIN} ذهب 🎉`;
+            return `كسبت! +${BET_WIN} ريال 🎉`;
           }
-          return `خسرت الرهان: −${BET} ذهب`;
+          return `خسرت الرهان: −${BET} ريال`;
         },
       },
       { label: "ما أراهن", apply: () => "تركته وجلست تتقهوى" },
@@ -86,13 +86,13 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: "elder",
-    name: "الشايب الخبير",
+    name: "شايب على الدكّة",
     icon: "👴",
     text: "شايب لعب بلوت أربعين سنة، يبي يعلمك شي",
     options: [
       {
-        label: "علّمني (ترقية جوكر عشوائي عندك)",
-        blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك جوكر يترقى"),
+        label: "علّمني (ترقية تحفة عشوائية عندك)",
+        blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك تحفة تترقى"),
         apply: (run) => `ترقى: ${run.upgradeRandomJoker()} ⬆️`,
       },
       { label: "عطني نصيحة للمباراة الجاية (+10 تبدأ فيها)", apply: (run) => (run.boostNext(10), "تبدأ المباراة الجاية قدامهم بـ 10 ⚡") },
@@ -100,13 +100,13 @@ export const EVENTS: EventDef[] = [
   },
   {
     id: "stall",
-    name: "البسطة",
+    name: "بسطة آخر الليل",
     icon: "🧺",
-    text: "واحد فارش بسطة جوكرات مستعملة، ويشتري بعد",
+    text: "واحد فارش بسطة تحف مستعملة، ويشتري بعد",
     options: [
       {
-        label: `اشترِ جوكر نادر عشوائي بـ ${STALL_PRICE} ذهب`,
-        blocked: (run) => (run.gold() < STALL_PRICE ? "ذهبك ما يكفي" : undefined),
+        label: `اشترِ تحفة نادرة عشوائية بـ ${STALL_PRICE} ريال`,
+        blocked: (run) => (run.gold() < STALL_PRICE ? "ريالاتك ما تكفي" : undefined),
         apply: (run) => {
           const name = run.grantRandomJoker("rare");
           if (!name) return "ما لقى شي يبيعك إياه";
@@ -115,11 +115,11 @@ export const EVENTS: EventDef[] = [
         },
       },
       {
-        label: "بع له أرخص جوكر عندك بضعف سعره",
-        blocked: (run) => (run.cheapestJoker() ? undefined : "ما عندك جوكر"),
+        label: "بع له أرخص تحفة عندك بضعف سعرها",
+        blocked: (run) => (run.cheapestJoker() ? undefined : "ما عندك تحفة"),
         apply: (run) => {
           const sold = run.sellCheapest(2)!;
-          return `بعت ${sold.name} بـ ${sold.gold} ذهب`;
+          return `بعت ${sold.name} بـ ${sold.gold} ريال`;
         },
       },
       { label: "امش", apply: () => "مشيت" },
@@ -129,15 +129,15 @@ export const EVENTS: EventDef[] = [
     id: "cursed",
     name: "الورق الملعون",
     icon: "🃏",
-    text: "لقيت ورق قديم في زاوية الديوانية، يقولون ملعون",
+    text: "لقيت ورق قديم في زاوية الزقاق، يقولون ملعون",
     options: [
       {
-        label: "خذه (جوكر أسطوري، والخصم الجاي يبدأ قدامك بـ 20)",
+        label: "خذه (تحفة أسطورية، والمرهون الجاي يبدأ قدامك بـ 20)",
         apply: (run) => {
           const name = run.grantRandomJoker("legendary");
           if (!name) return "الورق اختفى";
           run.penalizeNext(20);
-          return `أخذت ${name}… والخصم الجاي يبدأ بـ 20`;
+          return `أخذت ${name}… والمرهون الجاي يبدأ بـ 20`;
         },
       },
       { label: "خله مكانه", apply: () => "تركته، واللعنة معه" },
@@ -150,11 +150,11 @@ export const EVENTS: EventDef[] = [
     text: "ضيف ثقيل جلس جنبك ويبي يسولف طول الليل",
     options: [
       {
-        label: `عزّمه على العشا (−${GUEST_PRICE} ذهب، +1 درع)`,
-        blocked: (run) => (run.gold() < GUEST_PRICE ? "ذهبك ما يكفي" : undefined),
+        label: `عزّمه على العشا (−${GUEST_PRICE} ريال، +1 درع)`,
+        blocked: (run) => (run.gold() < GUEST_PRICE ? "ريالاتك ما تكفي" : undefined),
         apply: (run) => (run.addGold(-GUEST_PRICE), run.addShield(), "انبسط وعطاك درع 🛡️"),
       },
-      { label: "اعتذر منه", apply: (run) => (run.penalizeNext(10), "زعل وراح يشجع خصومك: يبدؤون المباراة الجاية بـ 10") },
+      { label: "اعتذر منه", apply: (run) => (run.penalizeNext(10), "زعل وراح يشجع المرهونين: يبدؤون الصكّة الجاية بـ 10") },
     ],
   },
 ];

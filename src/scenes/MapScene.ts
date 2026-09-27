@@ -11,11 +11,11 @@ import { CSS, HEAD_FONT, PAL, goldRule, paintParchment, paperPanel } from "./the
 import type { TableSceneData } from "./TableScene";
 
 const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
-  match: "مباراة",
-  elite: "نخبة",
-  shop: "متجر",
-  boss: "الزعيم",
-  diwaniya: "الديوانية",
+  match: "ديوانية",
+  elite: "مجلس كبير",
+  shop: "دكّان التحف",
+  boss: "ديوانية الزعيم",
+  diwaniya: "طرقة",
 };
 
 /** Each kind of stop gets an engraved ink symbol drawn in its medallion (no emoji). */
@@ -152,7 +152,7 @@ export class MapScene extends Phaser.Scene {
     const partner = getPartner(state.partner);
     this.hudText.setText(
       `${partner ? `${partner.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ريال ${state.gold}${shields}${state.nextMatchBoost ? `   ⚡ +${state.nextMatchBoost}` : ""}${blessings ? `   ${blessings}` : ""}\nالتحف: ${jokerNames}` +
-        (synergies ? `\nتآزر: ${synergies}` : ""),
+        (synergies ? `\nالمجموعات: ${synergies}` : ""),
     );
   }
 
@@ -346,7 +346,7 @@ export class MapScene extends Phaser.Scene {
     const top = -height / 2;
     const wrap = { wordWrap: { width: panelW - 90 } };
     panel.add(goldRule(this, 0, top + 95, 360));
-    panel.add(this.pt(0, top + 160, `الديوانية — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, top + 160, `طرقة — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
     panel.add(this.pt(0, top + 240, event.text, { fontSize: "26px", ...wrap }));
     event.options.forEach((option, i) => {
       const reason = runController.whyNotEventOption(i);
@@ -404,7 +404,7 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
     this.dimMap(panel);
     panel.add(paperPanel(this, panelW, 1400));
-    panel.add(this.pt(0, -630, "مين خويك هالرن؟", { fontSize: "38px", color: CSS.crimson }));
+    panel.add(this.pt(0, -630, "مين خويّك الليلة؟", { fontSize: "38px", color: CSS.crimson }));
     const cardW = panelW - 80;
     PARTNERS.forEach((def, i) => {
       const y = -470 + i * 300;
@@ -437,7 +437,7 @@ export class MapScene extends Phaser.Scene {
     this.dimMap(panel);
     panel.add(paperPanel(this, panelW, 1120));
     panel.add(goldRule(this, 0, -455, 360));
-    panel.add(this.pt(0, -380, "الحوت يعطيك بركة للرن كله", { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, -380, "📖 الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
     panel.add(this.pt(0, -330, "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft }));
     const cardW = panelW - 80;
     offers.forEach((id, i) => {
@@ -487,7 +487,7 @@ export class MapScene extends Phaser.Scene {
     const jokers = state.jokerIds.map((id) => getJokerDef(id)?.icon ?? "").join(" ");
     if (jokers) panel.add(this.pt(0, 5, `تحفك: ${jokers}`, { fontSize: "30px" }));
 
-    const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ رن جديد", () => {
+    const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ ليلة جديدة", () => {
       runController.startNewRun();
       this.scene.restart();
     }, { width: 300, plate: "teal" });

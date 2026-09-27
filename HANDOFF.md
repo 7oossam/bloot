@@ -141,3 +141,9 @@
 
 ---
 *Note to AI Agent: Please update this file with your progress, edited files, and the next step before you finish your turn so the other model can seamlessly take over. Save it as UTF-8.*
+
+## Theme text pass (docs/theme.md §3–§8)
+All visible strings now use the theme's names: التحف (not جوكر), ريال (not ذهب/💰), ساعات الليل 🕯️ (not أرواح/❤️),
+الراوي ووصاياه 📖 (not الحوت/بركات), المرهونين, الطرقات, دكّان التحف, خويّك, المجموعات (not تآزر/عائلة).
+Blessings, opponents, events and the joker renames (الدربيل، ساعة زيادة) follow the tables. Map node labels follow §2.
+Text only — ids, systems and numbers are unchanged. "الخصم" in the rules text still means the opposing team.
