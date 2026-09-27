@@ -113,11 +113,11 @@ export const JOKER_CATALOG: ShopItemDef[] = [
   }),
   joker({
     id: "burn",
-    name: "الحرقة",
-    icon: "matchbox",
+    name: "الختم",
+    icon: "wax-seal",
     levels: [
-      "كل ما أكلتوا بولد الحكم: أقوى ورقة حكم عند خصم تحترق وتصير سبعة.",
-      "تحترق عند الخصمين الاثنين.",
+      "كل ما قطعتوا، أو أكلت بولد الحكم: أقوى حكم عند خصم ينختم — يبقى في يده، بس يلعب كأضعف حكم لين آخر اليد. وتشوفه.",
+      "ينختم عند الخصمين الاثنين.",
     ],
     cost: 30,
     rarity: "rare",
@@ -211,7 +211,11 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     id: "cutter",
     name: "القطّاع",
     icon: "scissors",
-    levels: ["في الحكم: كل أكلة تاخذونها بالقطع = +2 بنط.", "+3 لكل قطعة.", "+5 لكل قطعة."],
+    levels: [
+      "أول ما تقطع في كل يد: أعطِ الخصم اللي قطعته ورقة من يدك تختارها، وخذ أكبر حكم عنده.",
+      "أول قطعتين في كل يد.",
+      "كل قطعة.",
+    ],
     cost: 12,
     rarity: "common",
     tags: ["حكم"],
@@ -726,7 +730,7 @@ export const SYNERGIES: Record<Tag, SynergyTier[]> = {
     { count: 3, text: "شرط مكسور: السبيت اللي في يدك حكم" },
   ],
   عين: [{ count: 2, text: "الجاسوس يكشف ورقة زيادة (أو ورقة لو ما عندك جاسوس)" }],
-  سرقة: [{ count: 2, text: "الصيد والحرقة يشتغلون كمان لما خويّك ياكل بالولد" }],
+  سرقة: [{ count: 2, text: "الصيد والختم يشتغلون كمان لما خويّك ياكل بالولد" }],
   دفاع: [
     { count: 2, text: "خسرانة الخصم +4 أبناط لكم" },
     { count: 3, text: "شرط مكسور: محد يقدر يدبل عليكم" },
@@ -870,8 +874,8 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   const theftTier = tier("سرقة");
   const hunt = lv("jack-hunt");
   if (hunt) o.jackHunt = { preferTrump: hunt >= 2, nineToo: hunt >= 3, partnerToo: theftTier >= 1 };
-  const burn = lv("burn");
-  if (burn) o.burn = { bothOpponents: burn >= 2, partnerToo: theftTier >= 1 };
+  const seal = lv("burn");
+  if (seal) o.seal = { bothOpponents: seal >= 2, partnerToo: theftTier >= 1 };
 
   // ---- الأرض
   const groundTier = tier("أرض");
@@ -895,8 +899,8 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
     o.lockedHokum = true;
     o.noDoubleAgainst = true;
   }
-  const cut = pick("cutter", [2, 3, 5]);
-  if (cut) o.ruffBonus = cut;
+  const cut = pick("cutter", [1, 2, 8]);
+  if (cut) o.ruffSwap = cut;
 
   // ---- المشاريع
   const projectTier = tier("مشروع");
@@ -989,6 +993,7 @@ const PAYOUT_SOURCE: Record<string, string | Tag> = {
   "ملك الآكه": "akka-king",
   "كنز السبيت": "spade-treasure",
   "القطّاع": "cutter",
+  "الختم": "burn",
   "المخلّي": "ducker",
   "سيد الأرض": "ground-lord",
   "الحكم الأعزل": "bare-hokum",

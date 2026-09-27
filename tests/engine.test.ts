@@ -977,3 +977,22 @@ describe("اللعب طلوع — following a trump lead", () => {
     expect(legalMoves([card("AS"), card("7S")], t, "hokum", "D", 2)).toEqual([card("AS"), card("7S")]);
   });
 });
+
+describe("الختم: a sealed card", () => {
+  const J = { suit: "H", rank: "J" } as const;
+  const sealed = { sealed: [cardId(J)] };
+  it("stays a trump but plays under the trump 7", () => {
+    const trick = { leader: 0 as const, cards: { 0: { suit: "H", rank: "7" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    expect(resolveTrick(trick, "hokum", "H")).toBe(0);
+    // …and still beats any side card.
+    const cut = { leader: 0 as const, cards: { 0: { suit: "S", rank: "A" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    expect(resolveTrick(cut, "hokum", "H")).toBe(1);
+  });
+
+  it("can be overtrumped by any trump, and doesn't count as a higher trump to follow with", () => {
+    // Seat 1 cut a spade lead with the sealed Jack: seat 2 (void in spades) must overtrump — the 7 does.
+    const trick = { leader: 0 as const, cards: { 0: { suit: "S", rank: "A" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    const hand = [{ suit: "H", rank: "7" }, { suit: "D", rank: "8" }] as never;
+    expect(legalMoves(hand, trick, "hokum", "H", 2)).toEqual([{ suit: "H", rank: "7" }]);
+  });
+});

@@ -331,6 +331,8 @@ export class TableScene extends Phaser.Scene {
     c.on("match:complete", (e) => this.onMatchComplete(e));
     c.on("joker:fired", (e) => this.onJokerFired(e));
     c.on("sawa", (e) => this.onSawa(e));
+    c.on("loop:chain", (e) => this.onChain(e));
+    c.on("hand:dealt", () => this.clearSeals());
   }
 
   // -------------------------------------------------------------- logging
@@ -1220,6 +1222,8 @@ export class TableScene extends Phaser.Scene {
             ? "الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
             : a.kind === "partner"
               ? "المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
+              : a.from !== undefined
+                ? `${a.source ?? ""}: اختر ورقة تعطيها لـ${SEAT_LABEL_AR[a.from]} — وتاخذ أكبر حكم عنده`
               : a.suit
                 ? `اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
                 : `اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
@@ -1293,9 +1297,11 @@ export class TableScene extends Phaser.Scene {
     if (e.kind === "transform") {
       note = `${label(e.from)} صارت ${label(e.to)}`;
     } else if (e.kind === "swap") {
-      note = `أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
+      note = `${e.source ? `${e.source}: ` : ""}أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
+      if (e.source) this.showCutSwap(e.otherSeat, e.got);
     } else {
-      note = `احترقت ${label(e.from)} عند ${SEAT_LABEL_AR[e.seat]}`;
+      note = `الختم: انختم ${label(e.card)} عند ${SEAT_LABEL_AR[e.seat]}`;
+      this.showSeal(e.seat, e.card);
     }
     this.log(note);
     this.flashNote(note);
@@ -1303,6 +1309,129 @@ export class TableScene extends Phaser.Scene {
     if (e.seat === HUMAN_SEAT || e.kind === "swap") this.redrawHumanHand(e.kind === "transform" ? e.to : e.kind === "swap" ? e.got : undefined);
     this.refreshReveals();
     this.refreshMemory();
+  }
+
+  // ------------------------------------------------ الحلقة: القطّاع + الختم
+
+  /** A gold thread from a joker in the row to the seat or card it just touched. */
+  private thread(jokerId: string, to: { x: number; y: number }): void {
+    const box = this.jokerIcons.get(jokerId);
+    if (!box) return;
+    this.pulseJokers(getJokerDef(jokerId)?.name ?? "");
+    const from = { x: box.x, y: box.y + JOKER_ICON / 2 };
+    const g = this.add.graphics().setDepth(38).setBlendMode(Phaser.BlendModes.ADD);
+    const orb = this.add.circle(from.x, from.y, 10, 0xffe6a0).setDepth(39).setBlendMode(Phaser.BlendModes.ADD);
+    const p = { t: 0 };
+    const draw = () => {
+      const x = from.x + (to.x - from.x) * p.t;
+      const y = from.y + (to.y - from.y) * p.t;
+      g.clear();
+      g.lineStyle(12, 0xe3a33b, 0.25).lineBetween(from.x, from.y, x, y);
+      g.lineStyle(4, 0xffd98a, 0.95).lineBetween(from.x, from.y, x, y);
+      orb.setPosition(x, y);
+    };
+    this.tweens.add({ targets: p, t: 1, duration: 420, ease: "Cubic.Out", onUpdate: draw });
+    this.tweens.add({ targets: [g, orb], alpha: 0, delay: 1100, duration: 500, onComplete: () => { g.destroy(); orb.destroy(); } });
+  }
+
+  /** A crimson wax seal with the Host's gold ring, stamped at (x, y) inside `parent`. */
+  private waxSeal(x: number, y: number, size: number): Phaser.GameObjects.Container {
+    const g = this.add.graphics();
+    g.fillStyle(0x4a0d12, 0.55).fillCircle(3, 4, size * 0.56);
+    // A wax blob: a circle with a few soft lobes so it doesn't read as a button.
+    g.fillStyle(0x8e1b24, 1).fillCircle(0, 0, size * 0.5);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + 0.4;
+      g.fillCircle(Math.cos(a) * size * 0.42, Math.sin(a) * size * 0.42, size * 0.14);
+    }
+    g.lineStyle(Math.max(2, size * 0.05), 0xe3a33b, 1).strokeCircle(0, 0, size * 0.34);
+    const icon = addIcon(this, 0, 0, "wax-seal", size * 0.42, GOLD);
+    return this.add.container(x, y, [g, icon]);
+  }
+
+  private sealViews = new Map<string, Phaser.GameObjects.Container>();
+
+  private clearSeals(): void {
+    for (const v of this.sealViews.values()) v.destroy();
+    this.sealViews.clear();
+    this.chainBadge?.destroy();
+    this.chainBadge = undefined;
+  }
+
+  /** الختم: the sealed card shows face up by its holder, and a seal stamps down onto it. */
+  private showSeal(seat: Seat, card: Card): void {
+    const anchor = HAND_ANCHOR[seat];
+    const i = [...this.sealViews.values()].filter((v) => v.getData("seat") === seat).length;
+    const x = anchor.x;
+    const y = anchor.y + 190 + i * 70;
+    const holder = this.add.container(x, y).setDepth(9).setData("seat", seat);
+    const view = new CardView(this, 0, 0, card, true, WIDGET_CARD_SIZE);
+    holder.add(view);
+    holder.setScale(0.3).setAlpha(0);
+    this.tweens.add({ targets: holder, scale: 1, alpha: 1, duration: 320, ease: "Back.Out" });
+    this.sealViews.set(cardId(card), holder);
+    this.thread("burn", { x, y });
+    // The stamp: comes down big and lands with a thud.
+    this.time.delayedCall(420, () => {
+      if (!holder.active) return;
+      // Low on the card, so its rank and suit stay readable above the seal.
+      const seal = this.waxSeal(6, 22, 50);
+      seal.setScale(2.4).setAlpha(0);
+      holder.add(seal);
+      this.tweens.add({
+        targets: seal,
+        scale: 1,
+        alpha: 1,
+        duration: 220,
+        ease: "Quad.In",
+        onComplete: () => {
+          this.cameras.main.shake(90, 0.003);
+          flare(this, x, y, 0xff6b4a);
+          view.setDimmed(true);
+        },
+      });
+    });
+  }
+
+  /** A sealed card hits the table: its seal travels with it, and the one by the seat goes. */
+  private sealPlayed(card: Card, view: CardView): void {
+    if (!this.controller.getRound().isSealed(card)) return;
+    this.sealViews.get(cardId(card))?.destroy();
+    this.sealViews.delete(cardId(card));
+    view.add(this.waxSeal(view.displayW * 0.28, -view.displayH * 0.3, 54));
+  }
+
+  /** القطّاع: the thread to the seat you cut, and their best trump flies into your hand. */
+  private showCutSwap(seat: Seat, got: Card): void {
+    const a = HAND_ANCHOR[seat];
+    this.thread("cutter", a);
+    const fly = new CardView(this, a.x, a.y, got, true, WIDGET_CARD_SIZE).setDepth(40);
+    arcTo(this, fly, HAND_ANCHOR[HUMAN_SEAT], { duration: 520, scale: HAND_CARD_SIZE / WIDGET_CARD_SIZE, angle: 0 });
+    this.time.delayedCall(560, () => fly.destroy());
+  }
+
+  private chainBadge?: Phaser.GameObjects.Text;
+
+  /** الحلقة: joker effects feeding each other this hand — the count grows louder each link. */
+  private onChain(e: { count: number; label: string }): void {
+    if (e.count < 2) return;
+    this.chainBadge?.destroy();
+    const size = Math.min(34 + e.count * 6, 64);
+    // Low on the table, between the trick and your hand: clear of the partner's seat and the cards.
+    const y = TABLE_RECT.bottom - 150;
+    const badge = arabicText(this, CENTER_X, y, `حلقة ×${e.count}`, {
+      fontSize: `${size}px`,
+      color: "#ffd98a",
+      fontStyle: "bold",
+      stroke: "#3a0d10",
+      strokeThickness: 8,
+    }).setDepth(36);
+    this.chainBadge = badge;
+    badge.setScale(1.8).setAlpha(0);
+    this.tweens.add({ targets: badge, scale: 1, alpha: 1, duration: 260, ease: "Back.Out" });
+    flare(this, CENTER_X, y, 0xffd54a);
+    if (e.count >= 3) this.cameras.main.shake(120, 0.002 + e.count * 0.0006);
+    this.log(`حلقة ×${e.count}`);
   }
 
   /** Rebuilds the player's hand views from the engine, popping `fresh` so it's easy to spot. */
@@ -1509,6 +1638,7 @@ export class TableScene extends Phaser.Scene {
       const anchor = HAND_ANCHOR[e.seat];
       const view = new CardView(this, anchor.x, anchor.y, e.card, true, TRICK_CARD_SIZE);
       this.trickViews[e.seat] = view;
+      this.sealPlayed(e.card, view);
       view.setAngle(e.seat === 1 ? -25 : e.seat === 3 ? 25 : 0).setScale(0.7);
       arcTo(this, view, dest, { duration: CARD_MOVE_TWEEN_MS + 70, scale: 1, angle: this.restingAngle(), land: true });
     }

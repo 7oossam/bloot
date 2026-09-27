@@ -38,7 +38,7 @@ for (const j of JOKER_CATALOG) {
 for (const [title, jokers] of groups) {
   out.push(`## ${title}`, "", "| الجوكر | الندرة | السعر | العائلات | وش يسوي (كل مستوى) |", "|---|---|---|---|---|");
   for (const j of jokers) {
-    out.push(`| ${j.icon} ${j.name} | ${RARITY[j.rarity]} | ${j.cost} | ${j.tags.join("، ") || "—"} | ${j.levels.join(" ← ")} |`);
+    out.push(`| ${j.name} | ${RARITY[j.rarity]} | ${j.cost} | ${j.tags.join("، ") || "—"} | ${j.levels.join(" ← ")} |`);
   }
   out.push("");
 }
@@ -48,9 +48,9 @@ for (const [tag, tiers] of Object.entries(SYNERGIES)) {
   out.push(`| ${tag} | ${tiers.map((t) => `${t.count}: ${t.text}`).join(" ← ")} |`);
 }
 out.push("", "## تُستخدم مرة", "", "| الغرض | السعر | وش يسوي |", "|---|---|---|");
-for (const c of CONSUMABLE_CATALOG) out.push(`| ${c.icon} ${c.name} | ${c.cost} | ${c.levels.join(" ")} |`);
+for (const c of CONSUMABLE_CATALOG) out.push(`| ${c.name} | ${c.cost} | ${c.levels.join(" ")} |`);
 out.push("", "## تطويرات الرن", "", "| التطوير | السعر | وش يسوي |", "|---|---|---|");
-for (const u of UPGRADE_CATALOG) out.push(`| ${u.icon} ${u.name} | ${(u.costs ?? [u.cost]).join(" ثم ")} | ${u.levels.join(" ← ")} |`);
+for (const u of UPGRADE_CATALOG) out.push(`| ${u.name} | ${(u.costs ?? [u.cost]).join(" ثم ")} | ${u.levels.join(" ← ")} |`);
 out.push("");
 
 writeFileSync(new URL("../docs/jokers.md", import.meta.url), out.join("\n"));

@@ -296,6 +296,22 @@ export class Round {
     hand[i] = { ...to };
   }
 
+  /**
+   * الختم: seals a card for the rest of the hand (it plays as the weakest of its suit). The seal
+   * goes into the hand's trick rules, so every later trick — and the search AI replaying them —
+   * sees it; the trick already open takes it too.
+   */
+  sealCard(card: Card): void {
+    const rules = (this.options.trickRules = { ...this.options.trickRules });
+    const sealed = [...(rules.sealed ?? []), cardId(card)];
+    rules.sealed = sealed;
+    if (this.currentTrick) this.currentTrick.rules = { ...this.currentTrick.rules, sealed };
+  }
+
+  isSealed(card: Card): boolean {
+    return !!this.options.trickRules?.sealed?.includes(cardId(card));
+  }
+
   /** Exchanges one card between two seats' hands. */
   swapCards(seatA: Seat, cardA: Card, seatB: Seat, cardB: Card): void {
     const a = this.hands[seatA].findIndex((c) => cardId(c) === cardId(cardA));
