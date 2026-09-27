@@ -167,3 +167,13 @@ All visible strings now use the theme's names: التحف (not جوكر), ريا
 الراوي ووصاياه 📖 (not الحوت/بركات), المرهونين, الطرقات, دكّان التحف, خويّك, المجموعات (not تآزر/عائلة).
 Blessings, opponents, events and the joker renames (الدربيل، ساعة زيادة) follow the tables. Map node labels follow §2.
 Text only — ids, systems and numbers are unchanged. "الخصم" in the rules text still means the opposing team.
+
+## Readable text (phone)
+- The canvas (860×1800) shows at ~0.4× on a phone, so sizes under 40px are lifted by
+  `readableSize` (src/scenes/rtl.ts) inside `arabicText`/`inkText`: 24px → 33px etc.
+- Phaser's RTL text still ordered each line left to right (numbers first, full stops on the wrong
+  side, "+24 ريال — معك 140" scrambled). `rtlLines` wraps every drawn line in an RTL embedding and
+  places it by its own width, so centred multi-line text stays centred.
+- Shop/reward: levels show as ★, kind labels fit their column, the hint and المجموعات lines no
+  longer collide with the chips. Table: the rival line is one line (name only when the rule won't
+  fit), the log sits on the right.

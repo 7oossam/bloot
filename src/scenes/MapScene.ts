@@ -139,7 +139,7 @@ export class MapScene extends Phaser.Scene {
 
   private updateHud(state: RunState): void {
     // Icons with a level digit keep the line short enough not to wrap on a phone.
-    const SUP = ["", "¹", "²", "³"];
+    const SUP = ["", "", "²", "³"];
     const jokerNames =
       state.jokerIds.map((id) => `${getJokerDef(id)?.icon ?? id}${SUP[state.jokerLevels[id] ?? 1] ?? ""}`).join("  ") ||
       "ما عندك";

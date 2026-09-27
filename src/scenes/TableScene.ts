@@ -272,7 +272,7 @@ export class TableScene extends Phaser.Scene {
     this.hudModeText = arabicText(this, CENTER_X, 92, NODE_TYPE_LABEL_AR[this.nodeData.nodeType], { fontSize: "23px", color: "#ffd54a" }).setDepth(5);
     if (this.nodeData.modifiers.rivalLabel) {
       this.hudModeText.setText("");
-      this.rivalText = arabicText(this, CENTER_X + 40, 92, "", { fontSize: "21px", color: "#ffb3b3", wordWrap: { width: WIDTH - 200, useAdvancedWrap: true } }).setDepth(5);
+      this.rivalText = arabicText(this, CENTER_X + 40, 92, "", { fontSize: "21px", color: "#ffb3b3" }).setDepth(5);
       this.refreshRival();
     }
     this.meter = new HandMeter(this, CENTER_X, 240);
@@ -302,12 +302,12 @@ export class TableScene extends Phaser.Scene {
       this.opponentWidget[seat] = { back, count };
     }
 
-    this.logText = arabicText(this, 22, HEIGHT - 12, "", {
+    this.logText = arabicText(this, WIDTH - 22, HEIGHT - 12, "", {
       fontSize: "24px",
-      color: "#b9d7c5",
-      align: "left",
+      color: "#dcebe2",
+      align: "right",
     })
-      .setOrigin(0, 1)
+      .setOrigin(1, 1)
       .setDepth(5);
   }
 
@@ -619,7 +619,10 @@ export class TableScene extends Phaser.Scene {
   private refreshRival(): void {
     const mods = this.nodeData.modifiers;
     if (!this.rivalText || !mods.rivalLabel) return;
+    // One line only (the joker row sits right under it): the rule when it fits, else just who
+    // they are — the rule was on the node's panel before the match.
     this.rivalText.setText(`${mods.rivalLabel}: ${mods.rivalRule ?? ""}`);
+    if (this.rivalText.width > WIDTH - 200) this.rivalText.setText(mods.rivalLabel);
   }
 
   /** المترجم: over each player, what their discards ask their partner for (docs/baloot-guide.md §4أ). */

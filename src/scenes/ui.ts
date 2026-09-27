@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { RANKS, SUITS, type Rank, type Suit } from "../engine/types";
+import { readableSize, rtlLines } from "./rtl";
 import { HEAD_FONT, PAL, diamond } from "./theme";
 
 const ARABIC_FONT = "Tajawal, Tahoma, 'Segoe UI', Arial, sans-serif";
@@ -12,17 +13,20 @@ export function arabicText(
   text: string,
   style: Phaser.Types.GameObjects.Text.TextStyle = {},
 ): Phaser.GameObjects.Text {
-  return scene.add
-    .text(x, y, text, {
-      fontFamily: ARABIC_FONT,
-      color: "#ffffff",
-      align: "center",
-      // A soft dark halo keeps text readable over the lit sky and the table.
-      shadow: { offsetX: 0, offsetY: 2, color: "rgba(20,10,8,0.65)", blur: 6, fill: true },
-      ...style,
-    })
-    .setRTL(true)
-    .setOrigin(0.5);
+  return rtlLines(
+    scene.add
+      .text(x, y, text, {
+        fontFamily: ARABIC_FONT,
+        color: "#ffffff",
+        align: "center",
+        // A soft dark halo keeps text readable over the lit sky and the table.
+        shadow: { offsetX: 0, offsetY: 2, color: "rgba(20,10,8,0.65)", blur: 6, fill: true },
+        ...style,
+        fontSize: readableSize(style.fontSize),
+      })
+      .setRTL(true)
+      .setOrigin(0.5),
+  );
 }
 
 export interface ButtonHandle {
