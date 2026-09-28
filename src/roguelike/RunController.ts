@@ -1,5 +1,5 @@
 import { mulberry32 } from "../engine/rng";
-import { generateMap } from "./mapgen";
+import { ACTS, generateAct, generateMap } from "./mapgen";
 import {
   CONSUMABLE_CATALOG,
   getJokerDef,
@@ -86,6 +86,21 @@ class RunController {
     if (!id) throw new Error(`No blessing ${index}`);
     const rand = mulberry32(s.seed * 23 + 5);
     const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker" && !s.jokerIds.includes(d.id) && this.inPool(d));
+    // الراوي's gift between maps: instant, and it doesn't join your وصايا.
+    if (id.startsWith("act-")) {
+      if (id === "act-rest") s.lives = Math.min(MAX_LIVES, s.lives + 2);
+      if (id === "act-gold") s.gold += 60;
+      if (id === "act-shield") s.shields += 2;
+      if (id === "act-rare") {
+        const own = new Set(getCharacter(s.character)?.tags ?? []);
+        const pool = jokers.filter((d) => d.rarity === "rare" && (own.size === 0 || d.tags.some((t) => own.has(t))));
+        const from = pool.length ? pool : jokers.filter((d) => d.rarity === "rare");
+        const pick = from[Math.floor(rand() * from.length)];
+        if (pick) this.grant(pick.id);
+      }
+      s.blessing = undefined;
+      return;
+    }
     switch (id) {
       case "heart":
         s.lives = Math.min(MAX_LIVES, s.lives + 1);
@@ -222,19 +237,19 @@ class RunController {
 
   /** What's happening at a ديوانية node. */
   eventFor(node: MapNode): EventDef | undefined {
-    return getEvent(node.event);
+    return getEvent(node.event, this.state.character);
   }
 
   /** Why a ديوانية choice can't be picked, if it can't. */
   whyNotEventOption(index: number): string | undefined {
-    const event = getEvent(this.state.nodes[this.state.currentIndex]?.event);
+    const event = getEvent(this.state.nodes[this.state.currentIndex]?.event, this.state.character);
     return event?.options[index]?.blocked?.(this.eventRun());
   }
 
   /** Makes a ديوانية choice at the current node; returns what happened. */
   chooseEventOption(index: number): string {
     const node = this.state.nodes[this.state.currentIndex];
-    const option = getEvent(node?.event)?.options[index];
+    const option = getEvent(node?.event, this.state.character)?.options[index];
     if (!option || node.type !== "diwaniya") throw new Error("No event choice here");
     const reason = this.whyNotEventOption(index);
     if (reason) throw new Error(reason);
@@ -255,6 +270,8 @@ class RunController {
       gold: () => s.gold,
       addGold: (amount) => (s.gold = Math.max(0, s.gold + amount)),
       addLife: () => (s.lives < MAX_LIVES ? (s.lives++, true) : false),
+      lives: () => s.lives,
+      loseLife: () => void (s.lives = Math.max(1, s.lives - 1)),
       addShield: () => void s.shields++,
       boostNext: (points) => void (s.nextMatchBoost += points),
       penalizeNext: (points) => void (s.nextMatchPenalty += points),
@@ -264,6 +281,34 @@ class RunController {
         const pick = pool[Math.floor(rand() * pool.length)];
         this.grant(pick.id);
         return pick.name;
+      },
+      grantOwnJoker: () => {
+        const own = new Set(getCharacter(s.character)?.tags ?? []);
+        const mine = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.tags.some((t) => own.has(t)) && !this.isStarter(d.id));
+        const fresh = mine.filter((d) => !s.jokerIds.includes(d.id));
+        const pick = fresh.length ? fresh[Math.floor(rand() * fresh.length)] : mine.find((d) => this.upgradeable().includes(d.id));
+        if (!pick) return undefined;
+        if (s.jokerIds.includes(pick.id)) s.jokerLevels[pick.id] = this.levelOf(pick.id) + 1;
+        else this.grant(pick.id);
+        return pick.name;
+      },
+      offerStamps: (count, title, first) => {
+        const rolled = rollStampOffers(s.seed * 59 + s.currentIndex * 13 + s.gold, count + 1).filter((x) => x !== first);
+        const stamps = first ? [first, ...rolled].slice(0, count) : rolled.slice(0, count);
+        s.pendingRewards = { items: [], stamps, skipGold: 0, elite: false, title };
+      },
+      growCards: () => Object.values(s.stamps ?? {}).filter((ids) => ids.includes("grow")).length,
+      stampCard: (stamp, cardId) => {
+        s.stamps = s.stamps ?? {};
+        const now = s.stamps[cardId] ?? [];
+        if (now.includes(stamp)) return false;
+        s.stamps[cardId] = [...now, stamp].slice(-MAX_STAMPS_PER_CARD);
+        return true;
+      },
+      growAll: () => {
+        const cards = Object.entries(s.stamps ?? {}).filter(([, ids]) => ids.includes("grow")).map(([c]) => c);
+        for (const c of cards) this.addStampStar(c);
+        return cards.length;
       },
       canUpgrade: () => this.upgradeable().length > 0,
       upgradeRandomJoker: () => {
@@ -320,9 +365,11 @@ class RunController {
       const mult = (this.hasBlessing("catch") ? 1.5 : 1) * (getPartner(this.state.partner)?.goldMultiplier ?? 1);
       goldEarned = Math.round(node.reward * mult) + this.state.salary;
       this.state.gold += goldEarned;
-      if (node.type === "boss") {
+      if (node.type === "boss" && this.state.act >= ACTS.length - 1) {
         this.state.over = true;
         this.state.won = true;
+      } else if (node.type === "boss") {
+        this.rollBossRewards();
       } else {
         this.rollRewards(node.type === "elite");
       }
@@ -465,6 +512,7 @@ class RunController {
     if (reason) throw new Error(`Cannot take ${itemId}: ${reason}`);
     this.grant(itemId);
     this.state.pendingRewards = undefined;
+    if (pending.boss) this.advanceAct();
   }
 
   /** Leaves the spoils for some gold instead. */
@@ -473,6 +521,37 @@ class RunController {
     if (!pending) return;
     this.state.gold += pending.skipGold;
     this.state.pendingRewards = undefined;
+    if (pending.boss) this.advanceAct();
+  }
+
+  /** A map's boss beaten: three legendary تحف to choose from (rares if the legendaries run out). */
+  private rollBossRewards(): void {
+    const s = this.state;
+    const rand = mulberry32(s.seed * 41 + s.act * 97);
+    const open = (rarity: string) => JOKER_CATALOG.filter((d) => d.kind === "joker" && d.rarity === rarity && !s.jokerIds.includes(d.id) && this.inPool(d));
+    const pool = [...open("legendary")].sort(() => rand() - 0.5);
+    const items = pool.slice(0, 3).map((d) => d.id);
+    for (const d of open("rare").sort(() => rand() - 0.5)) if (items.length < 3) items.push(d.id);
+    s.pendingRewards = { items, skipGold: 30, elite: true, boss: true };
+  }
+
+  /**
+   * Through the next door: the next map, an hour of the night back, and الراوي's gift for the
+   * new map (one of three, taken on the map screen).
+   */
+  advanceAct(): void {
+    const s = this.state;
+    if (s.act >= ACTS.length - 1) return;
+    s.act++;
+    s.nodes = generateAct(s.seed, s.act);
+    s.currentIndex = -1;
+    s.cleared = s.nodes.map(() => false);
+    s.nodeWon = s.nodes.map(() => false);
+    s.lives = Math.min(MAX_LIVES, s.lives + 1);
+    const rand = mulberry32(s.seed * 53 + s.act);
+    const gifts = ["act-rest", "act-rare", "act-gold", "act-shield"].sort(() => rand() - 0.5);
+    s.blessing = gifts.slice(0, 3);
+    s.actIntro = ACTS[s.act].name;
   }
 
   /**

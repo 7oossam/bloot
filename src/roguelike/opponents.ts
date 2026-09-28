@@ -128,9 +128,9 @@ export const OPPONENTS: OpponentDef[] = [
     name: "اللي سبقوك",
     icon: "spectre",
     tier: "boss",
-    rule: "يبدؤون المباراة قدامكم بـ 40",
+    rule: "يبدؤون الصكّة قدامكم بـ 20",
     hits: "لازم تجيب نقاط بسرعة",
-    rules: { headStart: 40 },
+    rules: { headStart: 20 },
   },
   {
     id: "disabler",

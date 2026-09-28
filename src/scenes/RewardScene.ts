@@ -61,7 +61,7 @@ export class RewardScene extends Phaser.Scene {
       this.showStampOffers(pending.stamps, pending.skipGold);
       return;
     }
-    inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير" : "غنائم الصكّة", { fontSize: "46px" });
+    inkText(this, WIDTH / 2, 86, pending.boss ? "غنائم الزعيم" : pending.elite ? "غنائم المجلس الكبير" : "غنائم الصكّة", { fontSize: "46px" });
     inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson });
 
     // Your row as it stands, so the choice is made against it.
@@ -158,8 +158,8 @@ export class RewardScene extends Phaser.Scene {
     const layer = this.add.container(0, 0);
     this.stampLayer = layer;
     const state = runController.getState();
-    layer.add(inkText(this, WIDTH / 2, 86, "غنائم الصكّة: وسم", { fontSize: "46px" }));
-    layer.add(inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson }));
+    layer.add(inkText(this, WIDTH / 2, 86, state.pendingRewards?.title ?? "غنائم الصكّة: وسم", { fontSize: "46px" }));
+    layer.add(inkText(this, WIDTH / 2, 156, this.goldEarned ? `+${this.goldEarned} ريال  —  معك ${state.gold} ريال` : `معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson }));
     layer.add(
       inkText(this, WIDTH / 2, 236, "الوسم يبقى على الورقة طول الليل، ويشتغل بس إذا كانت في يدك", {
         fontSize: "25px",
@@ -195,7 +195,7 @@ export class RewardScene extends Phaser.Scene {
       this,
       WIDTH / 2,
       HEIGHT - 150,
-      `تخطي (+${skipGold} ريال)`,
+      skipGold ? `تخطي (+${skipGold} ريال)` : "تخطي",
       () => {
         runController.skipReward();
         this.scene.start("map");

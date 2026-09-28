@@ -8,13 +8,13 @@ import { scoreHand } from "../src/engine/scoring";
 import { legalMoves, resolveTrick } from "../src/engine/trick";
 import { teamOf, type Card, type HandResult, type Seat, type Trick } from "../src/engine/types";
 import { GameController, HUMAN_SEAT, type MatchOptions } from "../src/game/GameController";
-import { EVENTS, getEvent } from "../src/roguelike/events";
+import { EVENTS, getEvent, OWN_EVENT } from "../src/roguelike/events";
 import { getJokerDef } from "../src/roguelike/jokers";
-import { generateMap, pathTo } from "../src/roguelike/mapgen";
+import { ACTS, generateAct, generateMap, pathTo } from "../src/roguelike/mapgen";
 import { getOpponent } from "../src/roguelike/opponents";
 import { runController } from "../src/roguelike/RunController";
 import { CROWN_TARGET, getBlessing, TREASURE_GOLD } from "../src/roguelike/blessings";
-import { STARTING_GOLD } from "../src/roguelike/types";
+import { STARTING_GOLD, type RunState } from "../src/roguelike/types";
 
 const c = (s: string): Card => ({ suit: s.slice(-1) as Card["suit"], rank: s.slice(0, -1) as Card["rank"] });
 const trickOf = (leader: Seat, plays: string[], rules?: Trick["rules"]): Trick => {
@@ -134,7 +134,9 @@ describe("the run: opponents, الديوانية and الحوت", () => {
     for (let seed = 1; seed <= 30; seed++) {
       const map = generateMap(seed);
       for (const n of map.nodes) {
-        if (n.type === "match" || n.type === "elite" || n.type === "boss") expect(getOpponent(n.opponent)?.tier).toBe(n.type);
+        // The night's very first row is plain Baloot.
+        if (n.type === "match" && n.floor === 0) expect(n.opponent).toBeUndefined();
+        else if (n.type === "match" || n.type === "elite" || n.type === "boss") expect(getOpponent(n.opponent)?.tier).toBe(n.type);
         if (n.type === "diwaniya") expect(getEvent(n.event)).toBeDefined();
       }
     }
@@ -151,7 +153,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
         expect(pathTo(nodes, n.id)).toBeDefined();
         if (n.type !== "boss") expect(n.next.length).toBeGreaterThan(0);
         for (const id of n.next) expect(nodes.find((x) => x.id === id)!.floor).toBe(n.floor + 1);
-        if (n.type === "elite") expect(n.floor).toBeGreaterThanOrEqual(3);
+        if (n.type === "elite") expect(n.floor).toBeGreaterThanOrEqual(2);
       }
       // A real choice: some row offers more than one node.
       expect(nodes.filter((n) => n.floor === 1).length).toBeGreaterThanOrEqual(2);
@@ -210,7 +212,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
     bless("wave");
     const w: MatchOptions = {};
     runController.applyBlessings(w);
-    expect(w.headStart?.[0]).toBe(10);
+    expect(w.headStart?.[0]).toBe(5);
 
     runController.startNewRun(77);
     bless("school");
@@ -218,7 +220,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
     expect(got.length).toBeGreaterThanOrEqual(2);
     expect(got.every((d) => d.rarity === "common")).toBe(true);
     expect(got.every((d) => d.tags.some((t) => got[0].tags.includes(t)))).toBe(true);
-    expect(runController.takeMatchPenalty()).toBe(20);
+    expect(runController.takeMatchPenalty()).toBe(10);
 
     runController.startNewRun(77);
     bless("catch");
@@ -249,7 +251,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
     for (const node of path.slice(0, -1)) {
       runController.enterNode(node.id);
       if (node.type === "shop") runController.leaveShopNode();
-      else if (node.type === "diwaniya") runController.chooseEventOption(node.event === "stall" ? 2 : 1);
+      else if (node.type === "diwaniya") runController.chooseEventOption(runController.eventFor(node)!.options.length - 1);
       else {
         runController.resolveMatchNode(true);
         runController.skipReward();
@@ -269,10 +271,71 @@ describe("the run: opponents, الديوانية and الحوت", () => {
 
     runController.startNewRun(77);
     atDiwaniya("cursed");
+    const lives = runController.getState().lives;
     runController.chooseEventOption(0);
     expect(getJokerDef(runController.getState().jokerIds.at(-1)!)!.rarity).toBe("legendary");
-    expect(runController.takeMatchPenalty()).toBe(20);
-    expect(runController.takeMatchPenalty()).toBe(0);
+    expect(runController.getState().lives).toBe(lives - 1);
+  });
+
+  it("الديوانية: a price in hours never takes your last one", () => {
+    atDiwaniya("clock");
+    (runController.getState() as RunState).lives = 1;
+    expect(runController.whyNotEventOption(0)).toBe("ما بقى لك إلا ساعة");
+    expect(() => runController.chooseEventOption(0)).toThrow();
+  });
+
+  it("الوشّام: a stamp pick after the event, for a price or a head start for them", () => {
+    atDiwaniya("tattoo");
+    const gold = runController.getState().gold;
+    runController.chooseEventOption(0);
+    const pending = runController.getState().pendingRewards!;
+    expect(runController.getState().gold).toBe(gold - 15);
+    expect(pending.stamps).toHaveLength(3);
+    expect(pending.title).toContain("الوشّام");
+    runController.applyStamp(pending.stamps![0], "HA");
+    expect(runController.getState().stamps["HA"]).toEqual([pending.stamps![0]]);
+
+    runController.startNewRun(77);
+    atDiwaniya("tattoo");
+    runController.chooseEventOption(1);
+    expect(runController.getState().pendingRewards!.stamps).toHaveLength(2);
+    expect(runController.takeMatchPenalty()).toBe(10);
+  });
+
+  it("الفلّاح: waters every الكبّارة card, or offers the seed", () => {
+    atDiwaniya("farmer");
+    expect(runController.whyNotEventOption(0)).toBeDefined();
+    const s = runController.getState() as RunState;
+    s.stamps = { C7: ["grow"], D9: ["grow", "crescent"], HA: ["crescent"] };
+    runController.chooseEventOption(0);
+    expect(s.stampStars).toEqual({ C7: 1, D9: 1 });
+
+    runController.startNewRun(77);
+    atDiwaniya("farmer");
+    runController.chooseEventOption(1);
+    expect(runController.getState().pendingRewards!.stamps![0]).toBe("grow");
+  });
+
+  it("each map deals its own events, and one ديوانية a map is your character's", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (let act = 0; act < ACTS.length; act++) {
+        const events = generateAct(seed, act).filter((n) => n.type === "diwaniya").map((n) => n.event!);
+        if (!events.length) continue;
+        expect(events[0]).toBe(OWN_EVENT);
+        for (const id of events.slice(1)) expect(getEvent(id)!.acts ?? [act]).toContain(act);
+      }
+    }
+    expect(getEvent(OWN_EVENT, "hara")!.id).toBe("hara-kids");
+    expect(getEvent(OWN_EVENT, "spade")!.id).toBe("spade-maker");
+  });
+
+  it("صانع الورق: puts المسافرة on the ace of spades", () => {
+    runController.chooseCharacter("spade");
+    const s = runController.getState() as RunState;
+    s.blessing = undefined;
+    atDiwaniya(OWN_EVENT);
+    runController.chooseEventOption(0);
+    expect(s.stamps["SA"]).toEqual(["travel"]);
   });
 
   it("الديوانية: a choice you can't afford is blocked", () => {

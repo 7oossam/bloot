@@ -4,6 +4,8 @@ import { runController } from "../roguelike/RunController";
 import { getBlessing } from "../roguelike/blessings";
 import { CHARACTERS, getCharacter } from "../roguelike/characters";
 import type { MapNode, RunState } from "../roguelike/types";
+import { ACTS } from "../roguelike/mapgen";
+import { EVENT_KINDS } from "../roguelike/events";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience } from "./fx";
@@ -106,7 +108,8 @@ export class MapScene extends Phaser.Scene {
     paintParchment(this);
     addAmbience(this);
     // Header: a crimson title on the parchment, a gold rule, and the run's state in chips.
-    arabicText(this, WIDTH / 2, 70, "خريطة الليلة", { fontFamily: HEAD_FONT, fontSize: "50px", fontStyle: "700", color: CSS.crimson, shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false } });
+    const act = runController.getState().act ?? 0;
+    arabicText(this, WIDTH / 2, 70, `${ACTS[act].name}  ·  ${act + 1} من ${ACTS.length}`, { fontFamily: HEAD_FONT, fontSize: "50px", fontStyle: "700", color: CSS.crimson, shadow: { offsetX: 0, offsetY: 0, color: "rgba(0,0,0,0)", blur: 0, fill: false } });
     this.add.existing(goldRule(this, WIDTH / 2, 118, 320));
     // Three lines: where you stand, your تحف as a row of icons, and your complete sets.
     this.hudText = this.pt(WIDTH / 2, 164, "", { fontSize: "24px", wordWrap: { width: WIDTH - 90 } });
@@ -346,6 +349,9 @@ export class MapScene extends Phaser.Scene {
     const { panel, panelW } = this.openPanel(height, PAL.gold);
     const top = -height / 2;
     const wrap = { wordWrap: { width: panelW - 90 } };
+    // The kind of door first (ضيافة، سوق، رهان…), so you know what you're walking into.
+    const kind = EVENT_KINDS[event.kind];
+    panel.add(this.pt(0, top + 55, kind.label, { fontSize: "26px", color: kind.color }));
     panel.add(goldRule(this, 0, top + 95, 360));
     panel.add(this.pt(0, top + 160, `طرقة — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
     panel.add(this.pt(0, top + 240, event.text, { fontSize: "26px", ...wrap }));
@@ -370,7 +376,9 @@ export class MapScene extends Phaser.Scene {
   private showEventResult(text: string): void {
     const { panel } = this.openPanel(440, PAL.gold);
     panel.add(this.pt(0, -80, text, { fontSize: "30px", wordWrap: { width: WIDTH - 170 } }));
-    panel.add(makeButton(this, 0, 110, "كمّل", () => this.refresh(), { width: 260 }).container);
+    // Some choices end in a pick (a وسم to put on a card): the spoils screen handles it.
+    const next = () => (runController.getState().pendingRewards ? this.scene.start("reward", { goldEarned: 0 }) : this.refresh());
+    panel.add(makeButton(this, 0, 110, "كمّل", next, { width: 260 }).container);
   }
 
   private startMatch(node: MapNode): void {
@@ -445,8 +453,10 @@ export class MapScene extends Phaser.Scene {
     panel.add(paperPanel(this, panelW, 1120));
     panel.add(goldRule(this, 0, -505, 360));
     panel.add(addIcon(this, 0, -448, UI_ICON.narrator, 64, INK));
-    panel.add(this.pt(0, -385, "الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
-    panel.add(this.pt(0, -335, "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft }));
+    // Between maps it's a gift for the road, with the new map's line; at the start, a وصية.
+    const between = offers[0]?.startsWith("act-");
+    panel.add(this.pt(0, -385, between ? `وصلت ${ACTS[state.act].name}` : "الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, -335, between ? `${ACTS[state.act].intro} — الراوي يعطيك هدية، اختر وحدة` : "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft, wordWrap: { width: panelW - 90 } }));
     const cardW = panelW - 80;
     offers.forEach((id, i) => {
       const def = getBlessing(id)!;

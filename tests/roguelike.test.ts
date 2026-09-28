@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { generateMap, pathTo } from "../src/roguelike/mapgen";
+import { ACTS, generateMap, pathTo } from "../src/roguelike/mapgen";
 import { runController } from "../src/roguelike/RunController";
 import {
   activeSynergies,
@@ -11,7 +11,7 @@ import {
   sellPrice,
   UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
-import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
+import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES, type RunState } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -82,19 +82,49 @@ describe("RunController", () => {
     expect(runController.getState().won).toBe(false);
   });
 
-  it("winning the boss node ends the run as a win", () => {
+  it("the night is three maps: each boss leads to the next, the third ends the run as a win", () => {
+    const acts: number[] = [];
     let node = runController.getAvailableNode();
     while (node) {
       runController.enterNode(node.id);
       if (node.type === "shop") {
         runController.leaveShopNode();
       } else {
+        const act = runController.getState().act;
         runController.resolveMatchNode(true);
+        const pending = runController.getState().pendingRewards;
+        if (node.type === "boss" && pending) {
+          // Three legendaries (or rares when they run out), and the next map after them.
+          expect(pending.boss).toBe(true);
+          expect(pending.items).toHaveLength(3);
+          acts.push(act);
+        }
+        if (pending) runController.skipReward();
       }
       node = runController.getAvailableNode();
     }
+    expect(acts).toEqual([0, 1]);
+    expect(runController.getState().act).toBe(ACTS.length - 1);
     expect(runController.getState().over).toBe(true);
     expect(runController.getState().won).toBe(true);
+  });
+
+  it("a new map: fresh nodes, an hour back, and الراوي's three gifts for it", () => {
+    const s = runController.getState() as RunState;
+    s.lives = 1;
+    runController.advanceAct();
+    expect(s.act).toBe(1);
+    expect(s.nodes.every((n) => n.id.startsWith("a1-"))).toBe(true);
+    expect(s.currentIndex).toBe(-1);
+    expect(s.lives).toBe(2);
+    expect(s.blessing).toHaveLength(3);
+    const gold = s.gold;
+    const at = s.blessing!.indexOf("act-gold");
+    if (at >= 0) {
+      runController.takeBlessing(at);
+      expect(s.gold).toBe(gold + 60);
+      expect(s.blessings).not.toContain("act-gold");
+    }
   });
 
   it("buyJoker respects affordability, duplicates, and the joker cap", () => {

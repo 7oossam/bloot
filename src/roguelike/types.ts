@@ -20,6 +20,10 @@ export interface MapNode {
 
 export interface RunState {
   seed: number;
+  /** Which of the night's three maps you're on (0–2; src/roguelike/mapgen.ts ACTS). */
+  act: number;
+  /** A new map just opened (its name), for the map screen to announce once. */
+  actIntro?: string;
   nodes: MapNode[]; // linear order, floor 0 first
   currentIndex: number; // index into nodes of the node the player is standing at (-1 = not started)
   lives: number;
@@ -48,7 +52,7 @@ export interface RunState {
   /** Run-long counters some jokers grow (الحصالة). */
   jokerCounters: Record<string, number>;
   /** The spoils waiting after a won match: pick one of `items`, or skip for `skipGold`. */
-  pendingRewards?: { items: string[]; skipGold: number; elite: boolean; stamps?: StampId[] };
+  pendingRewards?: { items: string[]; skipGold: number; elite: boolean; stamps?: StampId[]; boss?: boolean; title?: string };
   /** الوسوم on the shared deck's cards, by card id (src/roguelike/stamps.ts). */
   stamps: Record<string, StampId[]>;
   /** الكبّارة: stars earned by each stamped card (tricks you took with it). */
