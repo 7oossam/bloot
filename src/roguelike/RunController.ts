@@ -54,6 +54,25 @@ class RunController {
   startNewRun(seed: number = Date.now()): void {
     this.state = withBlessing(generateMap(seed));
     this.shopRolls = 0;
+    if (this.testKit) this.giveTestKit(this.testKit);
+  }
+
+  private testKit?: string;
+
+  /**
+   * A playtest kit, opened from the page's address (?loop=cut): the run starts holding one
+   * joker loop so the player can feel it without hunting for it in shops.
+   */
+  giveTestKit(kit: string): void {
+    const kits: Record<string, Array<[string, number]>> = {
+      // الحلقة: القطّاع cuts and trades for their best trump, الختم seals the next one, الحكم الحر buys
+      // hokum in any suit, and صاحب الكلمة lets you speak first — your hokum can't be taken as sun.
+      cut: [["cutter", 2], ["burn", 1], ["free-hokum", 1], ["first-word", 2]],
+    };
+    const items = kits[kit];
+    if (!items) return;
+    this.testKit = kit;
+    for (const [id, level] of items) for (let i = this.levelOf(id); i < level; i++) this.grant(id);
   }
 
   /** Takes one of الحوت's blessings (by its place in the offer); what's instant happens now. */

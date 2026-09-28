@@ -276,29 +276,59 @@ describe("combo jokers", () => {
     expect(trumpDraws).toBe(trumpAvailable);
   });
 
-  it("الحرقة: winning with the trump Jack burns an opponent's best trump into a 7", () => {
-    let burns = 0;
-    for (let seed = 1; seed <= 200 && burns === 0; seed++) {
+  it("الختم: a cut seals an opponent's best trump — it stays in their hand and plays as the weakest", () => {
+    let seals = 0;
+    for (let seed = 1; seed <= 300 && seals < 3; seed++) {
       const c = new GameController(mulberry32(seed), {
         matchTarget: 999,
         forgedJack: { nine: false, partnerToo: false },
-        burn: { bothOpponents: true, partnerToo: true },
+        seal: { bothOpponents: false, partnerToo: true },
       });
       c.on("hand:changed", (e) => {
-        if (e.kind !== "burn") return;
-        const trump = c.getRound().bidding.result!.trumpSuit!;
-        expect(e.from.suit).toBe(trump);
-        expect(e.to.rank).toBe("7");
-        expect(e.to.suit).not.toBe(trump);
-        // It was their strongest trump: nothing left in their hand outranks it.
-        const left = c.getRound().hands[e.seat].filter((x) => x.suit === trump);
-        for (const x of left) expect(rankStrength(x, "hokum", trump)).toBeLessThanOrEqual(rankStrength(e.from, "hokum", trump));
-        burns++;
+        if (e.kind !== "seal") return;
+        const round = c.getRound();
+        const trump = round.bidding.result!.trumpSuit!;
+        expect(e.card.suit).toBe(trump);
+        // Nothing leaves the deck: the sealed card is still in its holder's hand.
+        expect(round.hands[e.seat].some((x) => x.suit === e.card.suit && x.rank === e.card.rank)).toBe(true);
+        expect(round.isSealed(e.card)).toBe(true);
+        // It was their strongest open trump.
+        const open = round.hands[e.seat].filter((x) => x.suit === trump && !round.isSealed(x));
+        for (const x of open) expect(rankStrength(x, "hokum", trump)).toBeLessThan(rankStrength(e.card, "hokum", trump));
+        seals++;
       });
       c.startMatch();
-      autoplay(c, () => burns > 0, 800);
+      const before = seals;
+      autoplay(c, () => seals > before, 800);
     }
-    expect(burns).toBeGreaterThan(0);
+    expect(seals).toBeGreaterThan(0);
+  });
+
+  it("القطّاع: your cut trades a card you pick for the cut opponent's best trump, a set number of times a hand", () => {
+    let swaps = 0;
+    let checked = 0;
+    for (let seed = 1; seed <= 300 && checked < 4; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, forgedJack: { nine: false, partnerToo: false }, ruffSwap: 1 });
+      let thisHand = 0;
+      c.on("hand:dealt", () => (thisHand = 0));
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "swap" || e.source !== "القطّاع") return;
+        const trump = c.getRound().bidding.result!.trumpSuit!;
+        const theirs = c.getRound().hands[e.otherSeat];
+        // They kept nothing stronger in trumps than what you took (the card you gave aside).
+        const kept = theirs.filter((y) => !(y.suit === e.gave.suit && y.rank === e.gave.rank));
+        if (e.got.suit === trump) for (const x of kept.filter((y) => y.suit === trump)) expect(rankStrength(x, "hokum", trump)).toBeLessThanOrEqual(rankStrength(e.got, "hokum", trump));
+        expect(e.otherSeat === 1 || e.otherSeat === 3).toBe(true);
+        thisHand++;
+        expect(thisHand).toBeLessThanOrEqual(1);
+        swaps++;
+      });
+      c.startMatch();
+      const before = swaps;
+      autoplay(c, () => swaps > before, 800);
+      if (swaps > before) checked++;
+    }
+    expect(swaps).toBeGreaterThan(0);
   });
 
   it("جامع الأولاد pays per trick your team takes with a Jack", () => {
@@ -358,7 +388,7 @@ describe("the shop-rework jokers in play", () => {
 });
 
 describe("build-maker effects in play", () => {
-  it("win bonuses pay only on hands we win; المقامر costs gold on lost hands; الصراف and القطّاع score", () => {
+  it("win bonuses pay only on hands we win; المقامر costs gold on lost hands; الصراف scores", () => {
     const labels: Record<string, number> = {};
     const gold: Record<string, number> = {};
     let wonHands = 0, lostHands = 0, bonusHands = 0;
@@ -368,7 +398,6 @@ describe("build-maker effects in play", () => {
       gamblerMultiplier: 1.5,
       lossGoldCost: 4,
       goldToPoints: { per: 10, cap: 4, startingGold: 45 },
-      ruffBonus: 1,
     });
     c.on("gold:earned", (e) => (gold[e.reason] = (gold[e.reason] ?? 0) + e.amount));
     c.on("hand:complete", (e) => {
@@ -383,7 +412,6 @@ describe("build-maker effects in play", () => {
     expect(bonusHands).toBe(wonHands);
     expect(gold["المقامر"]).toBe(-4 * lostHands);
     expect(labels["الصراف"]).toBeGreaterThan(0); // 45 gold at the start = 4 per hand
-    expect(labels["القطّاع"] ?? 0).toBeGreaterThan(0);
     expect(labels["المقامر"]).toBeGreaterThan(0);
   });
 });
@@ -486,5 +514,22 @@ describe("play-changing jokers in a match", () => {
       }
     }
     expect(paid).toBeGreaterThan(0);
+  });
+});
+
+describe("صاحب الكلمة in a match", () => {
+  it("you speak first in every hand, whoever deals", () => {
+    const c = new GameController(mulberry32(5), { matchTarget: 999, firstBidder: true });
+    const firsts: number[] = [];
+    let fresh = false;
+    c.on("hand:dealt", () => (fresh = true));
+    c.on("bidding:bid", (e) => {
+      if (fresh) firsts.push(e.bid.seat);
+      fresh = false;
+    });
+    c.startMatch();
+    autoplay(c, () => firsts.length >= 6, 4000);
+    expect(firsts.length).toBeGreaterThanOrEqual(6);
+    expect(firsts.every((s) => s === HUMAN_SEAT)).toBe(true);
   });
 });

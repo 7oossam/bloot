@@ -51,6 +51,10 @@ function boot(): Phaser.Game {
   }
 }
 
+// A playtest kit from the address bar, e.g. ?loop=cut (see RunController.giveTestKit).
+const kit = new URLSearchParams(location.search).get("loop");
+if (kit) runController.giveTestKit(kit);
+
 fontsReady().then(start);
 
 function start(): void {

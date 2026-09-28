@@ -59,10 +59,15 @@ export interface MatchOptions {
   trashBeatsAce?: boolean;
   /** 3-of-a-kind projects count as 4-of-a-kind, and 3-card Sira counts as 4-card. */
   phantomProjects?: boolean;
+  /** صاحب الكلمة: you always speak first in the bidding. */
+  firstBidder?: boolean;
   /** Winning a trick with the trump Jack lets you swap a card with a random opponent card. */
   jackHunt?: { preferTrump: boolean; nineToo: boolean; partnerToo: boolean };
-  /** Winning a trick with the trump Jack burns an opponent's best trump into a 7. */
-  burn?: { bothOpponents: boolean; partnerToo: boolean };
+  /**
+   * الختم: when your side cuts (or you take a trick with the trump Jack), an opponent's best
+   * trump is sealed — it stays in their hand but plays as the weakest trump until the hand ends.
+   */
+  seal?: { bothOpponents: boolean; partnerToo: boolean };
   /** Your team's projects are worth this many times their game points. */
   projectMultiplier?: number;
   /** +points every hand your team scores a project (the مشروع synergy). */
@@ -85,8 +90,11 @@ export interface MatchOptions {
   winBonuses?: Array<{ label: string; points: number }>;
   /** الصراف: at the end of each hand, +1 point per `per` gold held (gold at the start plus earned), capped. */
   goldToPoints?: { per: number; cap: number; startingGold: number };
-  /** Points per trick your team takes by trumping (hokum). */
-  ruffBonus?: number;
+  /**
+   * القطّاع: the first N times a hand you cut, you give the opponent you cut a card of your
+   * choice and take their best trump.
+   */
+  ruffSwap?: number;
   /** المقامر: multiplies your team's hand result... */
   gamblerMultiplier?: number;
   /** ...and costs this much gold every hand you lose. */
@@ -199,7 +207,7 @@ export const SUN_DOUBLE_LIMIT = 100;
 /** Something the human has to decide mid-hand because a joker fired: which card to use. */
 export type PendingAction =
   | { kind: "transform"; to: Card }
-  | { kind: "swap"; preferTrump: boolean; suit?: Suit; best?: boolean }
+  | { kind: "swap"; preferTrump: boolean; suit?: Suit; best?: boolean; from?: Seat; source?: string }
   /** المنزّل: the card you pick becomes the 8 of its suit. */
   | { kind: "lower" }
   /** الصبّاغ: the card you pick becomes the spade of its rank. */
@@ -219,8 +227,8 @@ export function actionTarget(action: PendingAction, card: Card, hand: Card[]): C
 /** What a joker just did to someone's hand, for the scene to show. */
 export type HandChange =
   | { kind: "transform"; seat: Seat; from: Card; to: Card }
-  | { kind: "swap"; seat: Seat; gave: Card; got: Card; otherSeat: Seat }
-  | { kind: "burn"; seat: Seat; from: Card; to: Card };
+  | { kind: "swap"; seat: Seat; gave: Card; got: Card; otherSeat: Seat; source?: string }
+  | { kind: "seal"; seat: Seat; card: Card };
 
 /** One line in the hand summary for each joker that paid out. */
 export interface HandBonus {
@@ -264,6 +272,8 @@ interface EventMap {
   "gold:earned": { amount: number; reason: string };
   "action:turn": { action: PendingAction };
   "hand:changed": HandChange;
+  /** A joker link fired: this hand's chain is now `count` long (الحلقة). */
+  "loop:chain": { count: number; label: string };
   "joker:fired": JokerFired;
   /** السوا was claimed: `ok` if every card left really does win. */
   sawa: { ok: boolean };
@@ -327,6 +337,9 @@ export class GameController extends Emitter<EventMap> {
   private jackTricks = 0;
   private sunAceTricks = 0;
   private ruffTricks = 0;
+  /** القطّاع's swaps used this hand, and how many joker links fired in a row this hand. */
+  private ruffSwaps = 0;
+  private chain = 0;
   private ducks = 0;
   private akkaWins = 0;
   private suitTricks = 0;
@@ -483,6 +496,8 @@ export class GameController extends Emitter<EventMap> {
     this.jackTricks = 0;
     this.sunAceTricks = 0;
     this.ruffTricks = 0;
+    this.ruffSwaps = 0;
+    this.chain = 0;
     this.ducks = 0;
     this.akkaWins = 0;
     this.suitTricks = 0;
@@ -527,6 +542,7 @@ export class GameController extends Emitter<EventMap> {
     const rules: Partial<RoundOptions> = {};
     if (o.extraHokumSuits?.length) rules.extraHokum = { seat: HUMAN_SEAT, suits: o.extraHokumSuits };
     if (o.alwaysLead) rules.firstLeader = HUMAN_SEAT;
+    if (o.firstBidder) rules.firstBidder = HUMAN_SEAT;
     if (o.shortSira || o.lowFours || o.phantomProjects) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours, phantomProjects: o.phantomProjects } };
     if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }
@@ -728,6 +744,20 @@ export class GameController extends Emitter<EventMap> {
       return;
     }
     const trump = this.round.bidding.result?.trumpSuit;
+    if (action.from !== undefined) {
+      // القطّاع: straight from the opponent you cut — their best trump that isn't sealed.
+      const theirs = this.round.hands[action.from];
+      if (theirs.length === 0) return;
+      const trumps = theirs.filter((c) => c.suit === trump);
+      const open = trumps.filter((c) => !this.round.isSealed(c));
+      const pool = open.length ? open : trumps.length ? trumps : theirs;
+      const mode = this.round.bidding.result!.mode;
+      const got = pool.reduce((a, b) => (rankStrength(b, mode, trump) > rankStrength(a, mode, trump) ? b : a));
+      this.round.swapCards(HUMAN_SEAT, card, action.from, got);
+      this.emit("hand:changed", { kind: "swap", seat: HUMAN_SEAT, gave: card, got, otherSeat: action.from, source: action.source });
+      if (action.source) this.linkChain(action.source);
+      return;
+    }
     const wanted = action.suit ?? (action.preferTrump ? trump : undefined);
     let opponents = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].length > 0);
     // A suit-seeking swap goes to whoever holds that suit.
@@ -839,10 +869,8 @@ export class GameController extends Emitter<EventMap> {
       this.emit("joker:fired", { label: "كنز السبيت", points: o.suitTrickBonus.points });
     }
     const led = ledCard;
-    if (ours && trump && card.suit === trump && led.suit !== trump) {
-      this.ruffTricks++;
-      if (o.ruffBonus) this.emit("joker:fired", { label: "القطّاع", points: o.ruffBonus });
-    }
+    const cut = ours && !!trump && card.suit === trump && led.suit !== trump;
+    if (cut) this.ruffTricks++;
     if (ours && result.mode === "sun" && Object.values(trick.cards).some((c) => c?.rank === "A")) this.sunAceTricks++;
 
     if (o.goldPerAceTrick && ours) {
@@ -853,21 +881,46 @@ export class GameController extends Emitter<EventMap> {
     if (handOver || !ours) return;
 
     const byMe = winner === HUMAN_SEAT;
-    if (o.burn && isTrumpJack && (byMe || o.burn.partnerToo)) {
-      const targets = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].some((c) => c.suit === trump));
-      const chosen = o.burn.bothOpponents || targets.length <= 1 ? targets : [targets[Math.floor(this.rand() * targets.length)]];
+    // الختم: a cut, or the trump Jack, seals an opponent's best trump — nothing leaves the deck.
+    if (o.seal && trump && (cut || (isTrumpJack && (byMe || o.seal.partnerToo)))) {
+      const open = (s: Seat) => this.round.hands[s].filter((c) => c.suit === trump && !this.round.isSealed(c));
+      const targets = ([1, 3] as Seat[]).filter((s) => open(s).length > 0);
+      const chosen = o.seal.bothOpponents || targets.length <= 1 ? targets : [targets[Math.floor(this.rand() * targets.length)]];
       for (const seat of chosen) {
-        const best = this.round.hands[seat]
-          .filter((c) => c.suit === trump)
-          .sort((a, b) => rankStrength(b, "hokum", trump) - rankStrength(a, "hokum", trump))[0];
-        const ash: Card = { suit: (["S", "H", "D", "C"] as Suit[]).find((x) => x !== trump)!, rank: "7" };
-        this.round.replaceCard(seat, best, ash);
-        this.emit("hand:changed", { kind: "burn", seat, from: best, to: ash });
+        const best = open(seat).sort((a, b) => rankStrength(b, "hokum", trump) - rankStrength(a, "hokum", trump))[0];
+        this.round.sealCard(best);
+        this.emit("hand:changed", { kind: "seal", seat, card: best });
+        this.linkChain("الختم");
+      }
+    }
+    // القطّاع: your own cut lets you trade a card of your choice for the cut opponent's best trump.
+    if (o.ruffSwap && cut && byMe && this.ruffSwaps < o.ruffSwap) {
+      const from = this.cutOpponent(trick);
+      if (from !== undefined && this.round.hands[from].length > 0) {
+        this.ruffSwaps++;
+        this.pendingActions.push({ kind: "swap", preferTrump: true, best: true, from, source: "القطّاع" });
       }
     }
     if (o.jackHunt && (isTrumpJack || (o.jackHunt.nineToo && isTrumpNine)) && (byMe || o.jackHunt.partnerToo)) {
       this.pendingActions.push({ kind: "swap", preferTrump: o.jackHunt.preferTrump });
     }
+  }
+
+  /** One more link in this hand's chain of joker effects. */
+  private linkChain(label: string): void {
+    this.chain++;
+    this.emit("loop:chain", { count: this.chain, label });
+  }
+
+  /** The opponent whose trick you cut: the one who led it, else the one who played its suit highest. */
+  private cutOpponent(trick: Trick): Seat | undefined {
+    const us = teamOf(HUMAN_SEAT);
+    if (teamOf(trick.leader) !== us) return trick.leader;
+    const led = trick.cards[trick.leader]!.suit;
+    const { mode, trumpSuit } = this.round.bidding.result!;
+    const followers = trick.order.filter((s) => teamOf(s) !== us && trick.cards[s]!.suit === led);
+    if (followers.length === 0) return trick.order.find((s) => teamOf(s) !== us);
+    return followers.reduce((a, b) => (rankStrength(trick.cards[b]!, mode, trumpSuit) > rankStrength(trick.cards[a]!, mode, trumpSuit) ? b : a));
   }
 
   private applyBid(bid: Bid): void {
@@ -1048,11 +1101,6 @@ export class GameController extends Emitter<EventMap> {
         bonuses.push({ label: "صانع السرا", points: o.siraBonus.points * siras });
         this.emit("gold:earned", { amount: o.siraBonus.gold * siras, reason: "صانع السرا" });
       }
-    }
-    if (o.ruffBonus && this.ruffTricks > 0) {
-      const pts = o.ruffBonus * this.ruffTricks;
-      gained[us] += pts;
-      bonuses.push({ label: "القطّاع", points: pts });
     }
     // مشروع 3: our projects count even when theirs were bigger.
     const proj = this.round.projects;

@@ -50,6 +50,8 @@ export interface RoundOptions {
   extraHokum?: { seat: Seat; suits: Suit[] };
   /** صاحب الحلة: this seat always leads the first trick. */
   firstLeader?: Seat;
+  /** صاحب الكلمة: this seat always speaks first in the bidding. */
+  firstBidder?: Seat;
   /** Per-seat project rules (نص سرا، الأربع الصغار). */
   projectRules?: Partial<Record<Seat, ProjectRules>>;
   /** Nobody may double this team's contract (الحكم المقفول). */
@@ -201,7 +203,7 @@ export class Round {
       const suit = this.initial.stock[0].suit;
       giveCards(this.initial, options.hokumSeat, rand, 2, (c) => c.suit === suit && (c.rank === "J" || c.rank === "9"));
     }
-    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
+    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum, options.firstBidder);
     if (options.noSunFor !== undefined) this.bidding = { ...this.bidding, noSunTeams: [options.noSunFor] };
     this.hands = {
       0: [...this.initial.hands[0]],
@@ -294,6 +296,22 @@ export class Round {
     const i = hand.findIndex((c) => cardId(c) === cardId(from));
     if (i === -1) throw new Error(`Seat ${seat} has no ${cardId(from)} to replace`);
     hand[i] = { ...to };
+  }
+
+  /**
+   * الختم: seals a card for the rest of the hand (it plays as the weakest of its suit). The seal
+   * goes into the hand's trick rules, so every later trick — and the search AI replaying them —
+   * sees it; the trick already open takes it too.
+   */
+  sealCard(card: Card): void {
+    const rules = (this.options.trickRules = { ...this.options.trickRules });
+    const sealed = [...(rules.sealed ?? []), cardId(card)];
+    rules.sealed = sealed;
+    if (this.currentTrick) this.currentTrick.rules = { ...this.currentTrick.rules, sealed };
+  }
+
+  isSealed(card: Card): boolean {
+    return !!this.options.trickRules?.sealed?.includes(cardId(card));
   }
 
   /** Exchanges one card between two seats' hands. */

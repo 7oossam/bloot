@@ -977,3 +977,49 @@ describe("اللعب طلوع — following a trump lead", () => {
     expect(legalMoves([card("AS"), card("7S")], t, "hokum", "D", 2)).toEqual([card("AS"), card("7S")]);
   });
 });
+
+describe("الختم: a sealed card", () => {
+  const J = { suit: "H", rank: "J" } as const;
+  const sealed = { sealed: [cardId(J)] };
+  it("stays a trump but plays under the trump 7", () => {
+    const trick = { leader: 0 as const, cards: { 0: { suit: "H", rank: "7" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    expect(resolveTrick(trick, "hokum", "H")).toBe(0);
+    // …and still beats any side card.
+    const cut = { leader: 0 as const, cards: { 0: { suit: "S", rank: "A" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    expect(resolveTrick(cut, "hokum", "H")).toBe(1);
+  });
+
+  it("can be overtrumped by any trump, and doesn't count as a higher trump to follow with", () => {
+    // Seat 1 cut a spade lead with the sealed Jack: seat 2 (void in spades) must overtrump — the 7 does.
+    const trick = { leader: 0 as const, cards: { 0: { suit: "S", rank: "A" }, 1: J }, order: [0, 1], rules: sealed } as never;
+    const hand = [{ suit: "H", rank: "7" }, { suit: "D", rank: "8" }] as never;
+    expect(legalMoves(hand, trick, "hokum", "H", 2)).toEqual([{ suit: "H", rank: "7" }]);
+  });
+});
+
+describe("صاحب الكلمة: a set first bidder", () => {
+  const ground = { suit: "H", rank: "8" } as const;
+  it("speaks first in both rounds, and every seat still gets a turn before the round ends", () => {
+    // Dealer 1 would normally start with seat 2; seat 0 speaks first instead.
+    let s = startBidding(1, ground, [], undefined, 0);
+    expect(s.turnSeat).toBe(0);
+    const order: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      order.push(s.turnSeat);
+      s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    }
+    expect(order).toEqual([0, 1, 2, 3]);
+    expect(s.round).toBe(2);
+    expect(s.turnSeat).toBe(0);
+    for (let i = 0; i < 4; i++) s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    expect(s.redeal).toBe(true);
+  });
+
+  it("changes nothing when unset: the dealer's right starts and the dealer closes the round", () => {
+    let s = startBidding(1, ground);
+    expect(s.turnSeat).toBe(2);
+    for (let i = 0; i < 4; i++) s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    expect(s.round).toBe(2);
+    expect(s.turnSeat).toBe(2);
+  });
+});
