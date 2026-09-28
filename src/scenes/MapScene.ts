@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { activeSynergies, getJokerDef, matchOptionsFromJokers } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { getBlessing } from "../roguelike/blessings";
-import { getPartner, PARTNERS } from "../roguelike/partners";
+import { CHARACTERS, getCharacter } from "../roguelike/characters";
 import type { MapNode, RunState } from "../roguelike/types";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
@@ -129,16 +129,16 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.drawPath(state);
-    // The run opens with your partner, then الحوت's blessing.
-    if (!state.partner) this.showPartnerPanel();
+    // The run opens with who you are, then الراوي's وصية. (The partner pick is hidden for now.)
+    if (!state.character) this.showCharacterPanel();
     else if (state.blessing) this.showBlessingPanel(state);
   }
 
   private updateHud(state: RunState): void {
     const shields = state.shields > 0 ? `   ·   درع ${state.shields}` : "";
     const boost = state.nextMatchBoost ? `   ·   دفعة +${state.nextMatchBoost}` : "";
-    const partner = getPartner(state.partner);
-    this.hudText.setText(`${partner ? `${partner.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ${state.gold} ريال${shields}${boost}`);
+    const character = getCharacter(state.character);
+    this.hudText.setText(`${character ? `${character.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ${state.gold} ريال${shields}${boost}`);
 
     // Your وصايا, then your تحف with their level in stars.
     this.hudRow?.destroy();
@@ -398,35 +398,35 @@ export class MapScene extends Phaser.Scene {
     this.scene.start("table", data);
   }
 
-  /** شخصيات الخوي: pick who sits across from you this run. */
-  private showPartnerPanel(): void {
+  /** الشخصيات: pick who you are this run — its rule is yours from the first hand. */
+  private showCharacterPanel(): void {
     const panelW = WIDTH - 60;
     const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(20);
     this.overlay = panel;
     this.dimMap(panel);
-    panel.add(paperPanel(this, panelW, 1400));
-    panel.add(this.pt(0, -630, "مين خويّك الليلة؟", { fontSize: "38px", color: CSS.crimson }));
+    panel.add(paperPanel(this, panelW, 820));
+    panel.add(this.pt(0, -340, "مين أنت الليلة؟", { fontSize: "38px", color: CSS.crimson }));
     const cardW = panelW - 80;
-    PARTNERS.forEach((def, i) => {
-      const y = -470 + i * 300;
+    CHARACTERS.forEach((def, i) => {
+      const y = -150 + i * 320;
       const card = this.add.container(0, y);
       const cbg = this.add.graphics();
       cbg.fillStyle(PAL.paperDeep, 1);
-      cbg.fillRoundedRect(-cardW / 2, -130, cardW, 260, 18);
+      cbg.fillRoundedRect(-cardW / 2, -140, cardW, 280, 18);
       cbg.lineStyle(2.5, PAL.gold, 1);
-      cbg.strokeRoundedRect(-cardW / 2, -130, cardW, 260, 18);
+      cbg.strokeRoundedRect(-cardW / 2, -140, cardW, 280, 18);
       card.add(cbg);
       // The icon on the right, where the eye starts; the words in the rest of the card.
-      card.add(addIcon(this, cardW / 2 - 76, 0, def.icon, 84, INK));
+      card.add(addIcon(this, cardW / 2 - 76, 0, def.icon, 92, INK));
       const tx = -52;
       const tw = cardW - 210;
-      card.add(this.pt(tx, -80, def.name, { fontSize: "36px", color: CSS.crimson }));
-      card.add(this.pt(tx, -10, def.perk, { fontSize: "27px", wordWrap: { width: tw } }));
-      card.add(this.pt(tx, 70, `لكن: ${def.quirk}`, { fontSize: "25px", color: "#8c5a1c", wordWrap: { width: tw } }));
-      setBoxHitArea(card, cardW, 260);
+      card.add(this.pt(tx, -98, def.name, { fontSize: "38px", color: CSS.crimson }));
+      card.add(this.pt(tx, -8, def.rule, { fontSize: "26px", wordWrap: { width: tw } }));
+      card.add(this.pt(tx, 92, def.style, { fontSize: "25px", color: "#8c5a1c", wordWrap: { width: tw } }));
+      setBoxHitArea(card, cardW, 280);
       card.input!.cursor = "pointer";
       card.on("pointerdown", () => {
-        runController.choosePartner(def.id);
+        runController.chooseCharacter(def.id);
         this.refresh();
       });
       panel.add(card);

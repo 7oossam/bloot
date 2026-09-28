@@ -5,6 +5,13 @@
 
 ## 1. What We Just Did
 
+### الشخصيات — the run opens with who you are (Sept 28, the player's design)
+- The player: the strong rule-breakers (ثورة الصغار…) become a **character** you pick at the start (like Slay the Spire), and تحف split in two: the character's own, and general ones (buying, doubling, counting, economy). Start with two characters; **the partner pick is hidden for now** (`partners.ts` stays; `state.partner` is simply never set).
+- `src/roguelike/characters.ts`: **ولد الحارة** (starts with ثورة الصغار; owns the صغار family) and **صاحب السبيت** (starts with ملك السبيت + سبيت دايم; owns the سبيت family). The player chose a fixed spade character — no suit picking ("picking a suit alone changes nothing").
+- `RunController.chooseCharacter` grants the start تحف and re-rolls الراوي's offer: **one free general, one priced general, and the character's own** (`hara-pocket` جيب الحارة: الحظ الواطي + المنزّل, first opponent +10; `spade-chest` صندوق البحّار: الصبّاغ + سارق السبيت, +20). `inCharacterPool` keeps another character's تحف out of the shop, the spoils, تحفة جدّك, عدّة المجموعة and the ديوانية's gifts. The character's start تحف can't be sold (`isStarter`; the shop's sell dialog says so) and a ديوانية never sells them.
+- `MapScene.showCharacterPanel` replaced the partner panel («مين أنت الليلة؟»); the map HUD shows the character's name. Tests: `tests/characters.test.ts`.
+- **Open:** each character owns only 3–4 تحف — it needs more of its own (the design docs' conversions are candidates). ثورة الصغار from the first hand is strong (measured the strongest payoff) — watch it on the phone; المعطّل (boss) can switch a character's rule off, which may feel harsh.
+
 ### عدّاد اليد — the live hand meter (latest session; the player asked to try this before cutting any "math" jokers)
 - `src/scenes/HandMeter.ts`, placed under the joker row (y 240) in `TableScene`. A lacquered plaque with a brass track: لنا fills in gold from the right, لهم in teal from the left, toward the hand's worth (sun 26, hokum 16 — +الأرض changes from jokers), with the half-way mark as a cream star showing the number to pass. Zellige-star medallions at both ends hold each side's number; a crown marks the buyer; a wax seal shows ×2/×3/×4/☕ when doubled.
 - Units are game points (card points ÷5 sun, ÷10 hokum; projects at their PROJECT_VALUE, بلوت 2). Live numbers round; on `hand:complete` the meter settles on the real sheet (`sheet.result`), with the jokers' extra as a 🃏 badge on our medallion.
@@ -97,6 +104,7 @@
 - **Ideas from the player's terms video, waiting on the player:** opponents built on table culture (الجفرة، أهل الرصّة، ياخذون القلم…), and the bidding rules قبلك / ما لك ثالث (a later seat's sun in round 1 can be claimed by an earlier seat who passed, not from your partner; after ولا you can't buy a third time). The terms themselves: `docs/` has no copy — ask the player for the video file if needed.
 
 ## 3. Next Steps (Where to pick up)
+- **Mechanics that play with the hand meter** — ideas in `docs/items-restructure.md` («الجولة الخامسة»): a pin you place on the bar before trick 1 (replaces الضربة الأولى), a notch-moving rule-breaker (and an opponent rule that moves it against you), stealing bar from them on a cut, a جرّة that stores points past the half to rescue a later hand, a «زيادة» push to a 75% line, a ghost fill (المنظار) when deciding a double, an opponent rule that darkens the bar, charge beads for counter jokers. Suggested first: the pin, the جرّة, المنظار. Waiting on the player's pick.
 
 ### Playtest findings (Sept 27, 2026) — the coming work plan
 Claude played one full night in the built game (Playwright, 359×685): partner الجفرة, blessing بدري; map, events, shop and spoils picked by hand, the cards/bids of our seat mostly by the rule AI (`decideCard`/`decideBid`), which is ~2 a hand weaker than the rivals' search AI, so the difficulty read is a little pessimistic. Result: lost the first three صكّات (44–46, 15–99, 75–94), won the elite 122–4 and the boss 138–99 (كبوت in the last hand) — **won the night while losing 3 of 5 matches**, with 3 تحف at the end. Verdict: the Baloot core, AI, chatter and art are strong; what's missing is the roguelike loop (stakes, a power fantasy), sound and story.
