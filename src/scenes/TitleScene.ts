@@ -3,6 +3,7 @@ import { HOME_ART, addAmbience, addCameraGrade, paintBackdrop } from "./fx";
 import { CENTER_X, HEIGHT, WIDTH } from "./layout";
 import { HEAD_FONT } from "./theme";
 import { arabicText, makeButton, preloadUi } from "./ui";
+import { storySeen } from "./StoryScene";
 
 const LOGO = "ui-logo";
 
@@ -40,8 +41,11 @@ export class TitleScene extends Phaser.Scene {
       this.tweens.add({ targets: logo, alpha: 1, y: 240, duration: 700, ease: "Cubic.Out" });
     }
 
-    makeButton(this, CENTER_X, HEIGHT - 250, "ادخل الديوانية", () => this.scene.start("map"), { width: 500, height: 116, plate: "burgundy" });
-    arabicText(this, CENTER_X, HEIGHT - 140, "الأبواب مفتوحة حتى الفجر", { fontFamily: HEAD_FONT, fontSize: "30px", color: "#f2e3c2" });
+    // The first time in, the story and how the night works come before the map.
+    makeButton(this, CENTER_X, HEIGHT - 290, "ادخل الديوانية", () => (storySeen() ? this.scene.start("map") : this.scene.start("story", { next: "map" })), { width: 500, height: 116, plate: "burgundy" });
+    arabicText(this, CENTER_X, HEIGHT - 190, "الأبواب مفتوحة حتى الفجر", { fontFamily: HEAD_FONT, fontSize: "30px", color: "#f2e3c2" });
+    const story = arabicText(this, CENTER_X, HEIGHT - 120, "القصة وكيف تمشي الليلة", { fontSize: "28px", color: "#ffd98a" });
+    story.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.scene.start("story", { next: "title" }));
     // game-icons.net asks for credit (CC BY 3.0).
     this.add.text(CENTER_X, HEIGHT - 44, "Icons: game-icons.net (CC BY 3.0)", { fontFamily: "Tajawal, Arial", fontSize: "22px", color: "#c9b48c" }).setOrigin(0.5).setAlpha(0.8);
   }

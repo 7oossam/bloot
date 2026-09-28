@@ -70,6 +70,8 @@ export class HandMeter {
   private decided?: Side;
   private tag = "";
   private divisor = 5;
+  /** دبل ×2, ثري ×3…: the whole hand goes to one side, times this. */
+  private doubleLevel = 1;
 
   private queue: Array<() => number> = [];
   private busy = false;
@@ -149,6 +151,11 @@ export class HandMeter {
     this.idle("");
   }
 
+  /** Hidden while the score sheet is open (it sits over the sheet's header). */
+  setVisible(visible: boolean): void {
+    this.root.setVisible(visible);
+  }
+
   /** Where a side's medallion sits on the screen (the points fly there). */
   medalPoint(side: Side): { x: number; y: number } {
     return { x: this.x + (side === "us" ? MED_X : -MED_X), y: this.y };
@@ -180,9 +187,10 @@ export class HandMeter {
     this.flashTrack();
   }
 
-  /** دبل / ثري / فور / قهوة: a wax seal stamped beside the caption. */
+  /** دبل / ثري / فور / قهوة: a wax seal stamped beside the caption, and the stake in it. */
   setDouble(level: number, label: string): void {
     this.seal?.destroy();
+    this.doubleLevel = level;
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x9e2b25, 1);
     bg.fillPoints(starPoints(0, 0, 30), true);
@@ -192,6 +200,7 @@ export class HandMeter {
     const x = Math.min(this.caption.width / 2 + 58, TRACK_W / 2 - 80);
     this.seal = this.scene.add.container(-x, CAPTION_Y + 2, [bg, t]);
     this.root.add(this.seal);
+    this.refreshCaption();
     this.seal.setScale(2.4).setAlpha(0);
     this.scene.tweens.add({
       targets: this.seal,
@@ -296,6 +305,7 @@ export class HandMeter {
     this.tricks = { us: 0, them: 0 };
     this.decided = undefined;
     this.tag = "";
+    this.doubleLevel = 1;
     this.crown.setVisible(false);
     this.bonusBadge.setVisible(false);
     this.seal?.destroy();
@@ -424,7 +434,10 @@ export class HandMeter {
         this.shown[side] = state.v;
         this.redraw();
       },
-      onComplete: () => this.checkDecided(),
+      onComplete: () => {
+        this.checkDecided();
+        this.refreshCaption();
+      },
     });
   }
 
@@ -460,8 +473,17 @@ export class HandMeter {
     if (!side) return;
     this.decided = side;
     const good = side === "us";
-    const word = good ? (this.buyer === "us" ? "ضمنّاها!" : "خسرانة عليهم!") : this.buyer === "us" ? "طاحت علينا" : "ضمنوها";
-    this.tag = good ? (this.buyer === "us" ? "مضمونة" : "خسرانة عليهم") : this.buyer === "us" ? "خسرانة" : "لهم";
+    const doubled = this.doubleLevel > 1;
+    // What the table would say: a buyer who passes the half has made it (مشت), one who can't
+    // any more has lost it (خسرانة); on a دبل the whole stake goes with it.
+    const word = good
+      ? this.buyer === "us"
+        ? doubled ? "الدبل لنا!" : "مشت! الشرا لنا"
+        : "خسّرناهم!"
+      : this.buyer === "us"
+        ? doubled ? "راح الدبل عليهم" : "خسرانة علينا"
+        : doubled ? "الدبل لهم" : "مشت لهم";
+    this.tag = good ? (this.buyer === "us" ? "مشت" : "خسرانة عليهم") : this.buyer === "us" ? "خسرانة" : "مشت لهم";
     this.refreshCaption();
     this.banner(word, good);
   }
@@ -469,7 +491,7 @@ export class HandMeter {
   private kabootWatch(): void {
     const played = this.tricks.us + this.tricks.them;
     if (played >= 5 && played < 8 && (this.tricks.us === played || this.tricks.them === played)) {
-      this.tag = this.tricks.us === played ? "كبوت؟" : "كبوت عليكم؟";
+      this.tag = this.tricks.us === played ? "على الكبوت!" : "كبوت علينا؟";
       this.refreshCaption();
       this.scene.tweens.add({ targets: this.caption, scale: 1.18, duration: 160, yoyo: true, repeat: 1 });
     }
@@ -499,9 +521,18 @@ export class HandMeter {
 
   private refreshCaption(): void {
     const extra = this.pie - this.basePie;
-    const worth = this.basePie > 0 ? ` · ${this.basePie}${extra > 0 ? ` + ${extra} = ${this.pie}` : ""}` : "";
-    this.caption.setText(`${this.modeLabel}${worth}${this.tag ? `   ${this.tag}` : ""}`);
+    // The دبل's stake is on its wax seal, beside the caption.
+    const worth = this.basePie > 0 ? ` · ${this.basePie}${extra > 0 ? `+${extra}` : ""}` : "";
+    this.caption.setText(`${this.modeLabel}${worth}   ${this.tag || this.need()}`.trimEnd());
     if (this.seal) this.seal.setX(-Math.min(this.caption.width / 2 + 58, TRACK_W / 2 - 80));
+  }
+
+  /** Until the hand is decided: how much the buyer still needs to make it («باقي لنا 7»). */
+  private need(): string {
+    if (!this.buyer || this.decided || this.pie <= 0) return "";
+    const left = Math.ceil(this.pie / 2 - this.exact[this.buyer]);
+    if (left <= 0) return "";
+    return `باقي ${this.buyer === "us" ? "لنا" : "لهم"} ${left}`;
   }
 
   private showBonus(): void {

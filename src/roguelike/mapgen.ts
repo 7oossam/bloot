@@ -25,9 +25,9 @@ export interface ActDef {
 }
 
 export const ACTS: ActDef[] = [
-  { name: "الحارة", intro: "الشمس تغيب على الحارة، وأول ديوانية فتحت بابها", matchTarget: 31, eliteTarget: 41, bossTarget: 61, matchReward: 18, eliteReward: 40, bossReward: 60, boss: "front-runners" },
-  { name: "الأندلس", intro: "الباب الثاني يفتح على ظهر أندلسي ما يمشي فيه الوقت", matchTarget: 41, eliteTarget: 51, bossTarget: 71, matchReward: 24, eliteReward: 50, bossReward: 70, boss: "disabler" },
-  { name: "قصر المعزّب", intro: "قصر المعزّب عند الشروق — آخر باب قبل الفجر", matchTarget: 41, eliteTarget: 61, bossTarget: 91, matchReward: 30, eliteReward: 60, bossReward: 0, boss: "abu-qahwa" },
+  { name: "الحارة", intro: "الأبواب انفتحت في جدران الحي، والمغرب واقف في أول ديوانية", matchTarget: 31, eliteTarget: 41, bossTarget: 61, matchReward: 18, eliteReward: 40, bossReward: 60, boss: "front-runners" },
+  { name: "الأندلس", intro: "معك المفتاح الأول. الباب الثاني يفتح على ظهر أندلسي ما يمشي فيه الوقت، وأهل غرناطة ماسكين مفاتيح بيوتهم", matchTarget: 41, eliteTarget: 51, bossTarget: 71, matchReward: 24, eliteReward: 50, bossReward: 70, boss: "disabler" },
+  { name: "قصر المعزّب", intro: "مفتاحين في جيبك. قصر المعزّب عند الشروق، وورا آخر باب جدّك جالس على الطاولة", matchTarget: 41, eliteTarget: 61, bossTarget: 91, matchReward: 30, eliteReward: 60, bossReward: 0, boss: "abu-qahwa" },
 ];
 
 /** Rows of a map, bottom (0) to top: the last is the boss, the one before it a shop. */

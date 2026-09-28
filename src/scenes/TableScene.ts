@@ -901,7 +901,7 @@ export class TableScene extends Phaser.Scene {
     }).setAlpha(0);
     this.tweens.add({ targets: this.groundLabel, alpha: 1, delay: t, duration: DEAL_FLY_MS });
 
-    this.meter.idle(`مزايدة — ورقة الأرض ${SUIT_SYMBOL[e.groundCard.suit]} ${SUIT_NAME_AR[e.groundCard.suit]}`);
+    this.meter.idle(`الشرا على ${SUIT_SYMBOL[e.groundCard.suit]} ${SUIT_NAME_AR[e.groundCard.suit]} — مين بيشتري؟`);
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.placeDealerChip(e.dealer);
     this.spied = {};
@@ -1970,7 +1970,11 @@ export class TableScene extends Phaser.Scene {
       us: banked[us],
       them: e.gained[them],
       bonus: e.gained[us] - banked[us],
-      word: e.kaboot ? "كبوت!" : lost ? (e.result.declarerTeam === us ? "خسرانة" : "خسرانة عليهم") : sheet?.winner === us ? "لنا" : undefined,
+      word: sheet?.kaboot !== undefined
+        ? sheet.kaboot === us ? "كبوت لنا!" : "كبوت علينا"
+        : lost
+          ? e.result.declarerTeam === us ? "خسرانة علينا" : "خسرانة عليهم"
+          : sheet?.outcome === "tie" ? "متعادلة" : sheet?.winner === us || e.result.declarerTeam === us ? "اليد لنا" : "اليد لهم",
     });
     this.whenTableSettled(() => this.handMoment(e.result));
     this.handsPlayed++;
@@ -2012,6 +2016,8 @@ export class TableScene extends Phaser.Scene {
 
     const panel = this.add.container(0, 0).setDepth(20);
     this.handSummaryPanel = panel;
+    // The meter sits where the sheet's header goes: out of the way while it's open.
+    this.meter.setVisible(false);
     const g = this.add.graphics();
     panel.add(g);
     g.fillStyle(0x000000, 0.6);
@@ -2151,6 +2157,7 @@ export class TableScene extends Phaser.Scene {
         panel.destroy();
         this.handSummaryPanel = undefined;
         this.showingHandSummary = false;
+        this.meter.setVisible(true);
         if (this.pendingMatchEnd) {
           const end = this.pendingMatchEnd;
           this.pendingMatchEnd = undefined;

@@ -497,17 +497,20 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
 
     this.dimMap(panel);
-    panel.add(paperPanel(this, panelW, 440, { accent: won ? PAL.gold : PAL.crimson }));
+    panel.add(paperPanel(this, panelW, 480, { accent: won ? PAL.gold : PAL.crimson }));
 
-    panel.add(this.pt(0, -120, won ? "طلع الفجر وأنتم غالبين" : "طلع الفجر عليكم", { fontSize: "42px", color: won ? CSS.crimson : CSS.ink }));
+    panel.add(this.pt(0, -120, won ? "انفتح الباب اللي ما له باب" : "طلع الفجر وأنت على الطاولة", { fontSize: "40px", color: won ? CSS.crimson : CSS.ink, wordWrap: { width: panelW - 80 } }));
     panel.add(
-      this.pt(0, -50, `جمعت ${state.gold} ريال وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
+      this.pt(0, -60, won ? "ثلاث مفاتيح، ورجع اسم جدّك لأهل الحي" : "تبقى ضيف عند المعزّب لين ليلة الأربعين الجاية", { fontSize: "25px", color: CSS.inkSoft, wordWrap: { width: panelW - 80 } }),
+    );
+    panel.add(
+      this.pt(0, 0, `وصلت ${ACTS[state.act].name} · ${state.act + 1} من ${ACTS.length}`, {
         fontSize: "27px",
       }),
     );
-    if (state.jokerIds.length) panel.add(iconRow(this, 0, 20, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "" })), { size: 44, color: INK }));
+    if (state.jokerIds.length) panel.add(iconRow(this, 0, 55, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "" })), { size: 44, color: INK }));
 
-    const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ ليلة جديدة", () => {
+    const btn: ButtonHandle = makeButton(this, 0, 150, "ابدأ ليلة جديدة", () => {
       runController.startNewRun();
       this.scene.restart();
     }, { width: 300, plate: "teal" });
