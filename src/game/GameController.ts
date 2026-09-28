@@ -149,6 +149,14 @@ export interface MatchOptions {
   trashNine?: boolean;
   /** عين النبّالة: every trick your side takes with a 7 or 8 shows you this many cards of an opponent's hand. */
   lowReveal?: number;
+  /** الفزعة: you and your partner both play a 7 or an 8 in a trick — it's yours, over a trump too. */
+  faz3a?: boolean;
+  /** الصفر: the other side buys and your side takes no trick — you score the كبوت. */
+  zeroKaboot?: boolean;
+  /** آخر الكلام: this many times a hand, pass your turn in a trick and play its last card. */
+  lastWord?: number;
+  /** البيعة: after the full deal, hand your side's contract to the other side (they must make it). */
+  contractSale?: boolean;
   /** الوسوم: stamped card ids per stamp (src/roguelike/stamps.ts). They work only in your hand. */
   stamps?: { bounce: string[]; grow: string[]; travel: string[]; crescent: string[]; guard: string[]; bait: string[]; royal: string[]; diver: string[]; top: string[] };
   /** المرتّب: one card short of a run this long at the deal, you're dealt the missing card. */
@@ -295,6 +303,11 @@ interface EventMap {
   "joker:reveal": { seat: Seat; cards: Card[]; label: string };
   /** السوا was claimed: `ok` if every card left really does win. */
   sawa: { ok: boolean };
+  /** البيعة: your side bought — sell it before the first card? */
+  "sale:offer": Record<string, never>;
+  "sale:done": { to: Seat };
+  /** آخر الكلام: you passed your turn in this trick. */
+  "turn:deferred": { seat: Seat; left: number };
   /** `qahwa` when a قهوة hand decided the match outright. */
   "match:complete": { winner: Team; matchScore: Record<Team, number>; qahwa?: boolean };
 }
@@ -384,6 +397,10 @@ export class GameController extends Emitter<EventMap> {
   private akkaCuts = 0;
   /** السوا this hand: undefined = not claimed, true = claimed right (you auto-play the rest), false = wrong. */
   private sawaClaim?: boolean;
+  /** آخر الكلام: passes used this hand. */
+  private lastWordUsed = 0;
+  /** البيعة: offered (and answered) this hand. */
+  private saleOffered = false;
   private playLog: PlayLogEntry[] = [];
   private lastHand?: { plays: PlayLogEntry[]; snapshot: HandSnapshot };
   /** Every finished hand of this صكة, for «انسخ الصكة» and the analysis. */
@@ -540,6 +557,8 @@ export class GameController extends Emitter<EventMap> {
     this.humanAsks = [];
     this.signalHits = 0;
     this.akkaCuts = 0;
+    this.lastWordUsed = 0;
+    this.saleOffered = false;
     this.sawaClaim = undefined;
     this.playLog = [];
     const o = this.options;
@@ -583,6 +602,8 @@ export class GameController extends Emitter<EventMap> {
       if (st.travel.length) rules.travelCards = { seat: HUMAN_SEAT, ids: st.travel };
     }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
+    if (o.faz3a) rules.trickRules = { ...rules.trickRules, faz3a: HUMAN_SEAT };
+    if (o.zeroKaboot) rules.zeroFor = us;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
     if (o.noSun) rules.noSunFor = us;
     // الجفرة: your partner is always dealt an Ace.
@@ -671,6 +692,12 @@ export class GameController extends Emitter<EventMap> {
       return "waiting-human";
     }
 
+    // البيعة: before the first card of a hand your side bought, you may sell it.
+    if (this.round.phase === "playing" && this.canSellContract()) {
+      this.emit("sale:offer", {});
+      return "waiting-human";
+    }
+
     if (this.round.phase === "playing") {
       const seat = this.round.turnSeat!;
       // A right سوا plays your sure winners out for you.
@@ -695,6 +722,17 @@ export class GameController extends Emitter<EventMap> {
         if (sure) {
           this.logPlay(seat, { kind: "sawa", card: sure });
           this.applyCard(seat, sure);
+          return "advanced";
+        }
+      }
+      // الفزعة: your partner answers your small card with one of theirs.
+      if (this.options.faz3a && seat === partnerOf(HUMAN_SEAT) && !this.sawaClaim) {
+        const small = (c: Card) => c.rank === "7" || c.rank === "8";
+        const mine = trick.cards[HUMAN_SEAT];
+        const answer = mine && small(mine) ? this.round.legalMovesFor(seat).find(small) : undefined;
+        if (answer) {
+          this.logPlay(seat, { kind: "habit", card: answer });
+          this.applyCard(seat, answer);
           return "advanced";
         }
       }
@@ -824,6 +862,40 @@ export class GameController extends Emitter<EventMap> {
   /** Lets a joker's pick go unused (every action is optional). */
   skipPlayerAction(): void {
     if (!this.pendingActions.shift()) throw new Error("No joker action is waiting");
+  }
+
+  /** البيعة is on offer: your side bought, nothing's been played, and you haven't answered. */
+  canSellContract(): boolean {
+    return !!this.options.contractSale && !this.saleOffered && this.pendingActions.length === 0 && this.round.canSellContract(HUMAN_SEAT);
+  }
+
+  /** البيعة: the contract goes to the opponent on your right, who now has to make it. */
+  sellContract(): void {
+    if (!this.canSellContract()) throw new Error("البيعة isn't available now");
+    this.saleOffered = true;
+    const to = nextSeat(HUMAN_SEAT);
+    this.round.sellContract(HUMAN_SEAT, to);
+    this.emit("sale:done", { to });
+    this.emit("joker:fired", { label: "البيعة" });
+  }
+
+  /** Keeps the contract. */
+  keepContract(): void {
+    this.saleOffered = true;
+  }
+
+  /** آخر الكلام is on offer: your turn, mid-trick, with passes left. */
+  canDeferTurn(): boolean {
+    return (this.options.lastWord ?? 0) > this.lastWordUsed && this.pendingActions.length === 0 && this.sawaClaim === undefined && this.round.canDefer(HUMAN_SEAT);
+  }
+
+  /** آخر الكلام: the players after you go first; you play the trick's last card. */
+  deferTurn(): void {
+    if (!this.canDeferTurn()) throw new Error("آخر الكلام isn't available now");
+    this.round.deferTurn(HUMAN_SEAT);
+    this.lastWordUsed++;
+    this.emit("turn:deferred", { seat: HUMAN_SEAT, left: (this.options.lastWord ?? 0) - this.lastWordUsed });
+    this.emit("joker:fired", { label: "آخر الكلام" });
   }
 
   /** السوا is on offer: you haven't claimed this hand, and you're leading a trick. */

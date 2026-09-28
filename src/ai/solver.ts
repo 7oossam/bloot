@@ -1,5 +1,5 @@
 import { cardPoints, rankStrength } from "../engine/cards";
-import { currentWinner, legalMoves } from "../engine/trick";
+import { currentWinner, legalMoves, turnOf } from "../engine/trick";
 import { SUITS, RANKS, teamOf, type Card, type Mode, type Seat, type Suit, type Trick, type TrickRules } from "../engine/types";
 
 /**
@@ -49,7 +49,7 @@ export class Solver {
 
   /** Each legal card for the seat to play, with the position's value for that seat's team after it. */
   moves(hands: Record<Seat, Card[]>, trick: Trick, done: number): Array<{ card: Card; value: number }> {
-    const seat = ((trick.leader + trick.order.length) % 4) as Seat;
+    const seat = turnOf(trick);
     const sign = teamOf(seat) === 0 ? 1 : -1;
     return legalMoves(hands[seat], trick, this.mode, this.trumpSuit, seat, this.closed).map((card) => {
       const next = this.play(hands, trick, done, seat, card);
@@ -59,7 +59,7 @@ export class Solver {
 
   private play(hands: Record<Seat, Card[]>, trick: Trick, done: number, seat: Seat, card: Card) {
     const nextHands = { ...hands, [seat]: hands[seat].filter((c) => c !== card) } as Record<Seat, Card[]>;
-    const t: Trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: this.rules };
+    const t: Trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: this.rules, deferred: trick.deferred };
     if (t.order.length < 4) return { hands: nextHands, trick: t, done, gained: 0 };
     const winner = currentWinner(t, this.mode, this.trumpSuit);
     let points = t.order.reduce<number>((n, s) => n + cardPoints(t.cards[s]!, this.mode, this.trumpSuit), 0);
@@ -96,7 +96,7 @@ export class Solver {
     }
     const a0 = alpha;
     const b0 = beta;
-    const seat = ((trick.leader + trick.order.length) % 4) as Seat;
+    const seat = turnOf(trick);
     const maximizing = teamOf(seat) === 0;
     const moves = this.order(this.distinct(legalMoves(hands[seat], trick, this.mode, this.trumpSuit, seat, this.closed), hands, seat));
     let best = maximizing ? -Infinity : Infinity;
@@ -173,7 +173,7 @@ export function reviewHand(
   // A replay can start mid-hand: the tricks already gone are the cards missing from a full hand.
   const before = tricks.length ? 8 - start[tricks[0].leader].length : 0;
   tricks.forEach((played, t) => {
-    let trick: Trick = { leader: played.leader, cards: {}, order: [], rules: opts.rules };
+    let trick: Trick = { leader: played.leader, cards: {}, order: [], rules: opts.rules, deferred: played.deferred };
     for (const seat of played.order) {
       const card = played.cards[seat]!;
       if (seats.includes(seat)) {
@@ -185,7 +185,7 @@ export function reviewHand(
       // Only the one card played goes: a joker may have doubled it.
       const at = hands[seat].findIndex((c) => c.suit === card.suit && c.rank === card.rank);
       hands = { ...hands, [seat]: hands[seat].filter((_, i) => i !== at) } as Record<Seat, Card[]>;
-      trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: opts.rules };
+      trick = { leader: trick.leader, cards: { ...trick.cards, [seat]: card }, order: [...trick.order, seat], rules: opts.rules, deferred: trick.deferred };
     }
   });
   return reviews;

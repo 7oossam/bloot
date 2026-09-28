@@ -188,6 +188,10 @@ export class TableScene extends Phaser.Scene {
   private manualOrder: string[] = [];
   private memoryPanel?: Phaser.GameObjects.Container;
   private sawaButton?: ButtonHandle;
+  /** آخر الكلام's button, on your turn mid-trick. */
+  private deferButton?: ButtonHandle;
+  /** البيعة's two buttons, before the first card of a hand your side bought. */
+  private saleButtons: ButtonHandle[] = [];
 
   constructor() {
     super("table");
@@ -340,6 +344,9 @@ export class TableScene extends Phaser.Scene {
     c.on("joker:reveal", (e) => this.onJokerReveal(e));
     c.on("stamp:fired", (e) => this.onStampFired(e));
     c.on("sawa", (e) => this.onSawa(e));
+    c.on("sale:offer", () => this.onSaleOffer());
+    c.on("sale:done", (e) => this.onSaleDone(e));
+    c.on("turn:deferred", (e) => this.onTurnDeferred(e));
     c.on("loop:chain", (e) => this.onChain(e));
     c.on("hand:dealt", () => this.clearSeals());
   }
@@ -1219,9 +1226,77 @@ export class TableScene extends Phaser.Scene {
     this.tweens.add({ targets: this.contractChip, scale: 1, duration: 260, ease: "Back.Out" });
   }
 
+  // ---------------------------------------------------------------- آخر الكلام والبيعة
+
+  private showDeferButton(): void {
+    this.deferButton?.destroy();
+    this.deferButton = undefined;
+    if (!this.controller.canDeferTurn()) return;
+    this.deferButton = makeButton(this, WIDTH - 130, HAND_ANCHOR[HUMAN_SEAT].y - 128, "آخر الكلام", () => {
+      this.deferButton?.destroy();
+      this.deferButton = undefined;
+      for (const v of this.playerHandViews) {
+        v.off("pointerdown");
+        v.off("dragstart");
+        v.off("drag");
+        v.off("dragend");
+        if (v.input) {
+          this.input.setDraggable(v, false);
+          v.disableInteractive();
+        }
+        v.setDimmed(false);
+      }
+      this.controller.deferTurn();
+      this.time.delayedCall(AI_PLAY_DELAY_MS, () => this.driveAI());
+    }, { width: 210, height: 64, kind: "play", tone: "sawa" });
+    this.deferButton.container.setDepth(6);
+  }
+
+  private onTurnDeferred(e: { seat: Seat; left: number }): void {
+    this.showSeatBubble(e.seat, "آخر الكلام", 0xffd54a);
+    this.flashNote("آخر الكلام: يلعبون قبلك، وأنت آخر واحد");
+    this.log("أنت: آخر الكلام");
+  }
+
+  private onSaleOffer(): void {
+    for (const b of this.saleButtons) b.destroy();
+    const done = (sell: boolean) => {
+      for (const b of this.saleButtons) b.destroy();
+      this.saleButtons = [];
+      this.actionPrompt?.destroy();
+      this.actionPrompt = undefined;
+      if (sell) this.controller.sellContract();
+      else this.controller.keepContract();
+      this.time.delayedCall(sell ? 900 : 100, () => this.driveAI());
+    };
+    this.actionPrompt?.destroy();
+    this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 310, "البيعة: تبيع شراكم على الخصم؟ لازم يجيبه هو", {
+      fontSize: "27px",
+      color: "#ffd54a",
+      backgroundColor: "#0a2318",
+      padding: { x: 18, y: 10 },
+      wordWrap: { width: WIDTH - 80, useAdvancedWrap: true },
+    }).setDepth(12);
+    this.saleButtons = [
+      makeButton(this, CENTER_X + 120, HAND_ANCHOR[0].y - 215, "بع", () => done(true), { width: 200, height: 64, kind: "play", tone: "sawa" }),
+      makeButton(this, CENTER_X - 120, HAND_ANCHOR[0].y - 215, "العب", () => done(false), { width: 200, height: 64, kind: "play", tone: "quiet" }),
+    ];
+    for (const b of this.saleButtons) b.container.setDepth(12);
+  }
+
+  private onSaleDone(e: { to: Seat }): void {
+    const res = this.controller.getRound().bidding.result!;
+    this.meter.start({ mode: res.mode, label: res.mode === "hokum" ? `حكم ${SUIT_SYMBOL[res.trumpSuit!]}` : "صن", buyer: this.sideOf(e.to), ground: this.lastTrickBonus() });
+    this.placeContractChip(e.to, this.contractLabel());
+    this.showSeatBubble(HUMAN_SEAT, "بعناه", 0xffd54a);
+    this.flashNote(`البيعة: الشرا صار على ${SEAT_LABEL_AR[e.to]}`);
+    this.log(`البيعة — الشرا على ${SEAT_LABEL_AR[e.to]}`);
+  }
+
   private onPlayTurn(e: { seat: Seat; legal: Card[] }): void {
     if (e.seat !== HUMAN_SEAT) return;
     this.showSawaButton();
+    this.showDeferButton();
     const legalIds = new Set(e.legal.map(cardId));
     for (const view of this.playerHandViews) {
       // A card can stay in hand, legal-but-unclicked, across more than one of our turns
@@ -1652,6 +1727,8 @@ export class TableScene extends Phaser.Scene {
     if (e.seat === HUMAN_SEAT) {
       this.sawaButton?.destroy();
       this.sawaButton = undefined;
+      this.deferButton?.destroy();
+      this.deferButton = undefined;
     }
     this.time.delayedCall(0, () => {
       this.refreshMemory();

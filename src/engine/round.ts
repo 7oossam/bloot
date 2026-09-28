@@ -1,6 +1,6 @@
 import { type BiddingState, legalCalls, startBidding, submitBid } from "./bidding";
 import { dealInitial, finalizeDeal, type InitialDeal } from "./deck";
-import { legalMoves, resolveTrick } from "./trick";
+import { legalMoves, resolveTrick, turnOf } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
 import { SEQUENCE_ORDER } from "./projects";
@@ -72,6 +72,8 @@ export interface RoundOptions {
   hokumSeat?: Seat;
   /** This team may not buy sun (nor call أشكل, which buys it). */
   noSunFor?: Team;
+  /** الصفر: if the other side buys and this team takes no trick, it scores a كبوت. */
+  zeroFor?: Team;
   /** الجفرة (a partner): this seat's first five always hold this many Aces (from the shared deck). */
   luckyAces?: { seat: Seat; count: number };
 }
@@ -367,8 +369,37 @@ export class Round {
   /** The seat whose turn it is to play, or undefined once the hand is complete. */
   get turnSeat(): Seat | undefined {
     if (this.phase !== "playing" || !this.currentTrick) return undefined;
-    const { leader, order } = this.currentTrick;
-    return order.length === 0 ? leader : nextSeat(order[order.length - 1]);
+    return turnOf(this.currentTrick);
+  }
+
+  /**
+   * آخر الكلام: `seat`, whose turn it is (not leading, and not last already), passes — the
+   * players after it go first and it plays the trick's last card.
+   */
+  canDefer(seat: Seat): boolean {
+    const t = this.currentTrick;
+    return !!t && this.turnSeat === seat && t.deferred === undefined && t.order.length >= 1 && t.order.length <= 2;
+  }
+
+  deferTurn(seat: Seat): void {
+    if (!this.canDefer(seat)) throw new Error(`Seat ${seat} can't pass its turn now`);
+    this.currentTrick!.deferred = seat;
+  }
+
+  /**
+   * البيعة: after the full deal and before the first card, the buying side hands its contract to
+   * `toSeat` on the other side — the same مشترى, but now they have to make it. Not on a doubled
+   * hand (the دبل was called on the old buyer).
+   */
+  canSellContract(seat: Seat): boolean {
+    const r = this.bidding.result;
+    const doubled = !!this.doubling && this.doubling.level > 1;
+    return this.phase === "playing" && !!r && r.declarerTeam === teamOf(seat) && this.tricks.length === 0 && !this.currentTrick?.order.length && !doubled;
+  }
+
+  sellContract(seat: Seat, toSeat: Seat): void {
+    if (!this.canSellContract(seat) || teamOf(toSeat) === teamOf(seat)) throw new Error("Can't sell the contract now");
+    this.bidding = { ...this.bidding, result: { ...this.bidding.result!, declarer: toSeat, declarerTeam: teamOf(toSeat) } };
   }
 
   legalMovesFor(seat: Seat): Card[] {
@@ -414,6 +445,7 @@ export class Round {
           projects: this.projects,
           baloot,
           groundTo: this.options.groundTo,
+          zeroFor: this.options.zeroFor,
           double:
             this.doubling && this.doubling.level > 1
               ? { level: this.doubling.level, raiserTeam: raiserTeam(this.doubling), closed: this.doubling.closed }

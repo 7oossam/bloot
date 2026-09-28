@@ -236,12 +236,15 @@ Only العارفين (a foreseen play-out) makes doubling a threat — and ال
 are its counters, which is why the player wanted them kept. Also rejected: "you can't buy
 sun" (≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
 
-### The map branches (src/roguelike/mapgen.ts)
-Like Slay the Spire: 9 rows, 2–3 nodes a row in 3 lanes, each linked to the node above and
-diagonally one way per row (so links never cross). Row 0 is all matches, elites from row 3,
-shops from row 3 (rare), the row before the boss is all shops, then the boss. A match's
-target and gold grow with its row (41 + 10×row, 20 + 3×row). You choose your route: more
-fights for more rewards, a ديوانية for a gamble, an elite for rarer spoils.
+### Three maps a night (src/roguelike/mapgen.ts)
+Like Slay the Spire's acts: الحارة → الأندلس → قصر المعزّب, each **6 rows** (a match row,
+three mixed rows, a shop row, the boss) — about 11 / 13 / 15 hands a map, so a whole night is
+roughly what one old map took. 2–3 nodes a row in 3 lanes, linked up and diagonally one way per
+row (links never cross). Elites and shops from row 2; every map has at least one elite and two
+ديوانيات. Targets come from `ACTS` (and `scripts/pace-sim.ts` measures hands per target).
+Beating the boss of maps 1–2: three legendaries to choose from, then الراوي's gift for the road
+(hours, a character rare, gold, or shields). **Pacing rule:** a map should stay near 15 minutes
+— check the hands per path whenever targets or rows change.
 
 ### السوا is for everyone
 The سوا button shows whenever you lead; either way the rest plays itself out. Right keeps the
@@ -254,10 +257,19 @@ Like Slay the Spire's relics there's no limit on how many jokers you hold. The r
 and the chips in the shop shrink to fit. (The جيب زيادة upgrade is gone.)
 
 ### الديوانية (src/roguelike/events.ts)
-Map nodes with a short scene and a choice:
-safe, a gamble, or a price now for something later. The events are فنجال المعزّب، الرهان،
-الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
-with the reason, and every event has at least one choice that's always open.
+Map nodes with a short scene and a choice. Every event has a **kind**, shown on its panel so the
+player knows the door before knocking: ضيافة (rest), سوق (trade), رهان (gamble), وسم (stamps),
+حكاية (a story with a later price), حكايتك (the character's own — the first ديوانية of every
+map). **No free lunches:** each choice costs gold, an hour of the night (never the last one),
+a head start for the next opponents, or a gamble. Each map has its own pool (`acts`). A choice
+you can't afford is greyed out with the reason, and every event has a choice that's always open.
+
+### Table-verb تحف (the STS-relic layer)
+تحف that give the player a new **verb at the table**, not a number: الفزعة (you and your partner
+each throw a 7/8 → the trick is yours), الصفر (they buy, you take nothing → your كبوت), آخر
+الكلام (pass your turn mid-trick, play last), البيعة (sell your side's contract after the
+deal). Each passed the Baloot sanity check with the player; ideas still waiting: الطوفان،
+الانتقاء، النقض.
 
 ### بركات الحوت (src/roguelike/blessings.ts)
 At the start of the map the whale offers three **blessings** — one free, two stronger ones

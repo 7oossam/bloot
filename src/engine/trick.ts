@@ -1,6 +1,6 @@
 import { cardId, isTrumpCard, rankStrength } from "./cards";
 import type { Card, Mode, Seat, Suit, Trick, TrickRules } from "./types";
-import { nextSeat, teamOf } from "./types";
+import { teamOf } from "./types";
 
 interface Played {
   seat: Seat;
@@ -11,8 +11,20 @@ function playedInOrder(trick: Trick): Played[] {
   return trick.order.map((seat) => ({ seat, card: trick.cards[seat]! }));
 }
 
+/** Whose turn it is in an unfinished trick: clockwise from the leader, a deferred seat last (آخر الكلام). */
+export function turnOf(trick: Trick): Seat {
+  const seats = [0, 1, 2, 3].map((k) => ((trick.leader + k) % 4) as Seat);
+  const order = trick.deferred === undefined ? seats : [...seats.filter((s) => s !== trick.deferred), trick.deferred];
+  return order.find((s) => !trick.order.includes(s)) ?? trick.leader;
+}
+
+const isLowCard = (c: Card | undefined) => !!c && (c.rank === "7" || c.rank === "8");
+
 /** Resolves the winner among whatever cards have been played so far in the trick. */
 export function currentWinner(trick: Trick, mode: Mode, trumpSuit?: Suit): Seat {
+  // الفزعة: you and your partner both throw a small card — the trick is yours.
+  const f = trick.rules?.faz3a;
+  if (f !== undefined && isLowCard(trick.cards[f]) && isLowCard(trick.cards[((f + 2) % 4) as Seat])) return f;
   const played = playedInOrder(trick);
   const ledSuit = played[0].card.suit;
   const guarded = isGuarded(trick, mode, trumpSuit);
@@ -101,7 +113,7 @@ export function wouldWinAgainstCurrent(card: Card, trick: Trick, mode: Mode, tru
   if (trick.order.length === 0) return true; // leading always "wins" so far
   const ledSuit = trick.cards[trick.order[0]]!.suit;
   const winnerSeat = currentWinner(trick, mode, trumpSuit);
-  const seat = nextSeat(trick.order[trick.order.length - 1]);
+  const seat = turnOf(trick);
   return isBetter({ seat, card }, { seat: winnerSeat, card: trick.cards[winnerSeat]! }, ledSuit, mode, trumpSuit, trick.rules, isGuarded(trick, mode, trumpSuit));
 }
 

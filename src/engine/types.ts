@@ -80,7 +80,11 @@ export interface TrickRules {
    * trump, but plays as the weakest one — below the trump 7. The card itself never changes.
    */
   sealed?: string[];
-
+  /**
+   * الفزعة: if this seat and its partner both play a 7 or an 8 in the trick, this seat takes it —
+   * over anything, a trump included.
+   */
+  faz3a?: Seat;
 }
 
 export interface Trick {
@@ -88,6 +92,8 @@ export interface Trick {
   cards: Partial<Record<Seat, Card>>;
   order: Seat[]; // seats in the order they played, for resolving ties/precedence
   winner?: Seat;
+  /** آخر الكلام: this seat passed its turn and plays last in the trick. */
+  deferred?: Seat;
   rules?: TrickRules;
 }
 

@@ -96,6 +96,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     rarity: "common",
     tags: ["صغار"],
   }),
+  joker({
+    id: "faz3a",
+    name: "الفزعة",
+    icon: "shaking-hands",
+    levels: ["إذا لعبت سبعة أو ثمانية ولعب خويّك سبعة أو ثمانية في نفس الأكلة: الأكلة لك — حتى لو فيها حكم. (خويّك يفزع لك إذا عنده.)"],
+    cost: 26,
+    rarity: "rare",
+    tags: ["صغار"],
+  }),
   // ---- الولد: Jacks, and stealing with them
   joker({
     id: "lucky-jack",
@@ -348,6 +357,18 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["حلة", "عين"],
   }),
   joker({
+    id: "last-word",
+    name: "آخر الكلام",
+    icon: "stopwatch",
+    levels: [
+      "مرة في كل يد: إذا جا دورك في نص الأكلة، تقدر تقول «آخر الكلام» — اللي بعدك يلعبون، وأنت تلعب آخر واحد.",
+      "مرتين في كل يد.",
+    ],
+    cost: 20,
+    rarity: "rare",
+    tags: ["حلة"],
+  }),
+  joker({
     id: "akka-king",
     name: "ملك الآكه",
     icon: "ringing-bell",
@@ -509,6 +530,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["دفاع"],
   }),
   joker({
+    id: "zero",
+    name: "الصفر",
+    icon: "empty-hourglass",
+    levels: ["إذا الخصم اشترى وما أكلتوا ولا أكلة: الكبوت لكم بداله."],
+    cost: 22,
+    rarity: "rare",
+    tags: ["دفاع"],
+  }),
+  joker({
     id: "patience",
     name: "الصبر",
     icon: "hourglass",
@@ -589,6 +619,15 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     cost: 40,
     rarity: "legendary",
     tags: ["كبوت"],
+  }),
+  joker({
+    id: "bay3a",
+    name: "البيعة",
+    icon: "sell-card",
+    levels: ["إذا اشتريتوا: بعد ما يتوزع الورق كامل وقبل أول ورقة، تقدر تبيع الشرا على الخصم — نفس المشترى، بس هو اللي لازم يجيبه. (مو على يد مدبّلة.)"],
+    cost: 40,
+    rarity: "legendary",
+    tags: [],
   }),
   joker({
     id: "wild",
@@ -879,6 +918,11 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   const lowTier = tier("صغار");
   if (lv("trash-beats-ace") || lowTier >= 2) o.trashBeatsAce = true;
   if (lv("naughty-nine")) o.trashNine = true;
+  if (lv("faz3a")) o.faz3a = true;
+  if (lv("zero")) o.zeroKaboot = true;
+  const lastWord = pick("last-word", [1, 2]);
+  if (lastWord) o.lastWord = lastWord;
+  if (lv("bay3a")) o.contractSale = true;
   const sling = lv("slingshot-eye");
   if (sling) o.lowReveal = sling;
   const low = pick("low-luck", [1, 2, 3]);

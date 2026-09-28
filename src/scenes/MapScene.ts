@@ -452,11 +452,11 @@ export class MapScene extends Phaser.Scene {
     this.dimMap(panel);
     panel.add(paperPanel(this, panelW, 1120));
     panel.add(goldRule(this, 0, -505, 360));
-    panel.add(addIcon(this, 0, -448, UI_ICON.narrator, 64, INK));
+    panel.add(addIcon(this, 0, -455, UI_ICON.narrator, 60, INK));
     // Between maps it's a gift for the road, with the new map's line; at the start, a وصية.
     const between = offers[0]?.startsWith("act-");
-    panel.add(this.pt(0, -385, between ? `وصلت ${ACTS[state.act].name}` : "الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
-    panel.add(this.pt(0, -335, between ? `${ACTS[state.act].intro} — الراوي يعطيك هدية، اختر وحدة` : "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft, wordWrap: { width: panelW - 90 } }));
+    panel.add(this.pt(0, -398, between ? `وصلت ${ACTS[state.act].name}` : "الراوي يعطيك وصية لليلة كلها", { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, -325, between ? `${ACTS[state.act].intro} — الراوي يعطيك هدية، اختر وحدة` : "اختر وحدة", { fontSize: "25px", color: CSS.inkSoft, wordWrap: { width: panelW - 90 } }));
     const cardW = panelW - 80;
     offers.forEach((id, i) => {
       const def = getBlessing(id)!;
