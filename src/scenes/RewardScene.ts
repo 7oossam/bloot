@@ -6,6 +6,11 @@ import { HEIGHT, WIDTH } from "./layout";
 import { makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience } from "./fx";
 import { CSS, PAL, inkText, paintParchment, fitWidth } from "./theme";
+import { getStamp, MAX_STAMPS_PER_CARD, type StampId } from "../roguelike/stamps";
+import { CardView } from "./CardView";
+import { installStampView } from "./stampView";
+import { SUITS, type Card } from "../engine/types";
+import { cardId } from "../engine/cards";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
@@ -51,6 +56,11 @@ export class RewardScene extends Phaser.Scene {
     }
     paintParchment(this, { compass: false });
     addAmbience(this);
+    if (pending.stamps?.length) {
+      installStampView();
+      this.showStampOffers(pending.stamps, pending.skipGold);
+      return;
+    }
     inkText(this, WIDTH / 2, 86, pending.elite ? "غنائم المجلس الكبير" : "غنائم الصكّة", { fontSize: "46px" });
     inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson });
 
@@ -136,6 +146,103 @@ export class RewardScene extends Phaser.Scene {
     );
     card.add(btn.container);
     if (def.rarity === "legendary") this.tweens.add({ targets: bg, alpha: 0.78, duration: 700, yoyo: true, repeat: -1 });
+  }
+
+  // ------------------------------------------------------------------ الوسوم
+
+  private stampLayer?: Phaser.GameObjects.Container;
+
+  /** A plain match's spoils: three stamps; pick one, then the card it goes on. */
+  private showStampOffers(offers: StampId[], skipGold: number): void {
+    this.stampLayer?.destroy();
+    const layer = this.add.container(0, 0);
+    this.stampLayer = layer;
+    const state = runController.getState();
+    layer.add(inkText(this, WIDTH / 2, 86, "غنائم الصكّة: وسم", { fontSize: "46px" }));
+    layer.add(inkText(this, WIDTH / 2, 156, `+${this.goldEarned} ريال  —  معك ${state.gold} ريال`, { fontSize: "27px", color: CSS.crimson }));
+    layer.add(
+      inkText(this, WIDTH / 2, 236, "الوسم يبقى على الورقة طول الليل، ويشتغل بس إذا كانت في يدك", {
+        fontSize: "25px",
+        color: CSS.inkSoft,
+        wordWrap: { width: WIDTH - 100 },
+      }),
+    );
+    const cardW = WIDTH - 80;
+    const h = 250;
+    offers.forEach((id, i) => {
+      const def = getStamp(id)!;
+      const y = 320 + i * (h + 30) + h / 2;
+      const bg = this.add.graphics();
+      bg.fillStyle(PAL.paper, 1);
+      bg.fillRoundedRect(-cardW / 2, -h / 2, cardW, h, 26);
+      bg.lineStyle(4, PAL.gold, 1);
+      bg.strokeRoundedRect(-cardW / 2, -h / 2, cardW, h, 26);
+      const card = this.add.container(WIDTH / 2, y, [bg]);
+      const seal = this.add.graphics();
+      seal.fillStyle(0xf0cb7a, 1);
+      seal.fillCircle(cardW / 2 - 80, -10, 54);
+      seal.lineStyle(3, 0x3a2620, 0.9);
+      seal.strokeCircle(cardW / 2 - 80, -10, 54);
+      card.add(seal);
+      card.add(addIcon(this, cardW / 2 - 80, -10, def.icon, 70, INK));
+      card.add(inkText(this, -50, -80, def.name, { fontSize: "32px", color: CSS.crimson }));
+      card.add(inkText(this, -50, -10, def.text, { fontSize: "23px", color: CSS.inkSoft, wordWrap: { width: cardW - 260 } }));
+      const btn = makeButton(this, -50, h / 2 - 48, "اختر الورقة", () => this.showCardPicker(id, offers, skipGold), { width: 260, height: 70, plate: "sun" });
+      card.add(btn.container);
+      layer.add(card);
+    });
+    const skip = makeButton(
+      this,
+      WIDTH / 2,
+      HEIGHT - 150,
+      `تخطي (+${skipGold} ريال)`,
+      () => {
+        runController.skipReward();
+        this.scene.start("map");
+      },
+      { width: 420, height: 84, plate: "paper" },
+    );
+    layer.add(skip.container);
+  }
+
+  /** The whole deck, suit by suit: tap the card that gets the stamp. */
+  private showCardPicker(stamp: StampId, offers: StampId[], skipGold: number): void {
+    this.stampLayer?.destroy();
+    const layer = this.add.container(0, 0);
+    this.stampLayer = layer;
+    const def = getStamp(stamp)!;
+    layer.add(inkText(this, WIDTH / 2, 90, `وين تحط «${def.name}»؟`, { fontSize: "42px", color: CSS.crimson }));
+    layer.add(inkText(this, WIDTH / 2, 160, def.text, { fontSize: "24px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 100 } }));
+    layer.add(
+      inkText(this, WIDTH / 2, 232, `الورقة تشيل ${MAX_STAMPS_PER_CARD} وسوم بالكثير — الثالث يشيل أقدمها`, { fontSize: "22px", color: CSS.inkSoft }),
+    );
+    const RANKS: Card["rank"][] = ["A", "10", "K", "Q", "J", "9", "8", "7"];
+    const size = 0.74;
+    const colW = 103;
+    const rowH = 175;
+    const top = 380;
+    SUITS.forEach((suit, row) => {
+      RANKS.forEach((rank, col) => {
+        const card: Card = { suit, rank };
+        const x = WIDTH / 2 + (col - 3.5) * colW;
+        const y = top + row * rowH;
+        const view = new CardView(this, x, y, card, true, size);
+        setBoxHitArea(view, view.displayW, view.displayH);
+        view.input!.cursor = "pointer";
+        view.on("pointerdown", () => {
+          runController.applyStamp(stamp, cardId(card));
+          view.destroy();
+          const fresh = new CardView(this, x, y, card, true, size);
+          layer.add(fresh);
+          this.tweens.add({ targets: fresh, scale: 1.35, duration: 180, yoyo: true, ease: "Back.Out" });
+          this.celebrate(def.icon);
+          this.time.delayedCall(800, () => this.scene.start("map"));
+        });
+        layer.add(view);
+      });
+    });
+    const back = makeButton(this, WIDTH / 2 - 150, HEIGHT - 150, "رجوع", () => this.showStampOffers(offers, skipGold), { width: 240, height: 80, plate: "paper" });
+    layer.add(back.container);
   }
 
   private celebrate(icon: string): void {

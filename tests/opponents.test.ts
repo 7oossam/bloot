@@ -226,7 +226,7 @@ describe("the run: opponents, الديوانية and الحوت", () => {
     runController.enterNode(node.id);
     const { goldEarned } = runController.resolveMatchNode(true);
     expect(goldEarned).toBe(Math.round(node.reward * 1.5));
-    expect(runController.getState().pendingRewards!.items).toHaveLength(2);
+    expect(runController.getState().pendingRewards!.stamps).toHaveLength(2);
   });
 
   it("بحر المشاريع's price: your team can't buy sun or call أشكل", () => {

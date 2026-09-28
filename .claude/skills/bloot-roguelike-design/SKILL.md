@@ -276,6 +276,13 @@ sold. The player's taste: no blessing that costs a life, and no shop discount.
 
 It appears at the start of the map only (never in the middle).
 
+### الوسوم (src/roguelike/stamps.ts) — the build that stays
+The reward of a plain won match: stamps on cards of the shared deck, kept all night, working only
+in YOUR hand (never the opponents' or the partner's). A card holds two. The eight: المرتدة،
+الكبّارة، المسافرة، الهلال، الحارسة، الطُّعم، الملكية، الغطّاسة. تحف come only from the big مجالس
+(3 to pick, one rare+ at least), the boss and the shop. Three layers: stamps build your cards,
+تحف bend the rules, ضيافة (not built) is a one-off save.
+
 ### الشخصيات (src/roguelike/characters.ts) — who you are
 The run opens with picking a character (the partner pick is hidden for now). Each starts with its
 rule-breaker and owns a family whose تحف only it is offered; every other تحفة is general. الراوي's

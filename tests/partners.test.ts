@@ -94,6 +94,6 @@ describe("شخصيات الخوي", () => {
     runController.enterNode(node.id);
     const { goldEarned } = runController.resolveMatchNode(true);
     expect(goldEarned).toBe(Math.round(node.reward * 1.5));
-    expect(runController.getState().pendingRewards!.items).toHaveLength(4);
+    expect(runController.getState().pendingRewards!.stamps).toHaveLength(4);
   });
 });

@@ -28,7 +28,7 @@ describe("الشخصيات", () => {
     }
   });
 
-  it("العهد: a won match played the character's way brings one of its تحف, and asks for more next time", () => {
+  it("العهد: a won match played the character's way brings one of its تحف — once a night", () => {
     runController.startNewRun(3);
     runController.chooseCharacter("hara");
     runController.takeBlessing(2);
@@ -49,8 +49,8 @@ describe("الشخصيات", () => {
     expect(inCharacterPool(getJokerDef(s.jokerIds[1])!.tags, "spade")).toBe(false); // it's a حارة تحفة
     runController.skipReward();
     fight();
-    // The next time asks for two more.
-    expect(runController.resolveMatchNode(true, { lowTricks: 4, spadeTricks: 0 }).vow!.need).toBe(5);
+    // Kept once a night: after that it's done.
+    expect(runController.resolveMatchNode(true, { lowTricks: 9, spadeTricks: 0 }).vow).toBeUndefined();
   });
 
   it("never offers another character's تحف, in shops or spoils", () => {

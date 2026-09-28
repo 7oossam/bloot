@@ -93,6 +93,8 @@ export function generateMap(seed: number): RunState {
     nextMatchPenalty: 0,
     blessings: [],
     jokerCounters: {},
+    stamps: {},
+    stampStars: {},
     nodeWon: nodes.map(() => false),
     shields: 0,
     shopStock: [],

@@ -431,15 +431,16 @@ describe("غنائم الصكة — rewards after every match won", () => {
     return runController.resolveMatchNode(true);
   };
 
-  it("a won match offers three free spoils; a lost one offers none", () => {
+  it("a won match offers three stamps (not تحف); a lost one offers none", () => {
     winNext();
     const r = runController.getState().pendingRewards!;
-    expect(r.items).toHaveLength(3);
-    expect(new Set(r.items).size).toBe(3);
-    const id = r.items.find((x) => !runController.whyNotReward(x))!;
+    expect(r.items).toHaveLength(0);
+    expect(r.stamps).toHaveLength(3);
+    expect(new Set(r.stamps).size).toBe(3);
     const gold = runController.getState().gold;
-    runController.takeReward(id);
+    runController.applyStamp(r.stamps![0], "HA");
     expect(runController.getState().gold).toBe(gold); // free
+    expect(runController.getState().stamps.HA).toEqual([r.stamps![0]]);
     expect(runController.getState().pendingRewards).toBeUndefined();
     const node = runController.getAvailableNode()!;
     runController.enterNode(node.id);
@@ -454,28 +455,57 @@ describe("غنائم الصكة — rewards after every match won", () => {
     expect(runController.getState().gold).toBe(gold + 8);
   });
 
-  it("offers lean towards your build: jokers sharing your families show up far more", () => {
-    // Share of spoils that are حكم jokers, over the same seeds, with and without a حكم build.
+  it("the مجلس's offers lean towards your build: jokers sharing your families show up far more", () => {
+    // Share of an elite's spoils that are حكم jokers, over the same seeds, with and without a حكم build.
     const hokumShare = (withBuild: boolean) => {
       let aligned = 0, total = 0;
-      for (let seed = 1; seed <= 200; seed++) {
+      for (let seed = 1; seed <= 120; seed++) {
         runController.startNewRun(seed);
         runController.addGold(200);
         if (withBuild) {
           runController.buyJoker("bare-hokum");
           runController.buyJoker("cutter");
         }
-        winNext();
+        const nodes = runController.getState().nodes;
+        const elite = nodes.find((n) => n.type === "elite");
+        if (!elite) continue;
+        for (const node of pathTo(nodes, elite.id)!) {
+          runController.enterNode(node.id);
+          if (node.type === "shop") { runController.leaveShopNode(); continue; }
+          if (node.type === "diwaniya") { runController.chooseEventOption([0, 1, 2, 3].find((i) => !runController.whyNotEventOption(i))!); continue; }
+          runController.resolveMatchNode(true);
+          if (node.type === "elite") break;
+          runController.skipReward();
+        }
         for (const id of runController.getState().pendingRewards!.items) {
-          const def = getJokerDef(id)!;
           total++;
-          if (def.kind === "joker" && def.tags.includes("حكم")) aligned++;
+          if (getJokerDef(id)!.tags.includes("حكم")) aligned++;
         }
       }
       return aligned / total;
     };
     // Compared against a run with no build, so adding jokers to the catalog doesn't move the bar.
     expect(hokumShare(true)).toBeGreaterThan(1.5 * hokumShare(false));
+  });
+
+  it("every مجلس offers تحف only, at least one of them rare or legendary", () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      runController.startNewRun(seed);
+      const nodes = runController.getState().nodes;
+      const elite = nodes.find((n) => n.type === "elite");
+      if (!elite) continue;
+      for (const node of pathTo(nodes, elite.id)!) {
+        runController.enterNode(node.id);
+        if (node.type === "shop") { runController.leaveShopNode(); continue; }
+        if (node.type === "diwaniya") { runController.chooseEventOption([0, 1, 2, 3].find((i) => !runController.whyNotEventOption(i))!); continue; }
+        runController.resolveMatchNode(true);
+        if (node.type === "elite") break;
+        runController.skipReward();
+      }
+      const items = runController.getState().pendingRewards!.items;
+      expect(items.every((id) => getJokerDef(id)!.kind === "joker")).toBe(true);
+      expect(items.some((id) => getJokerDef(id)!.rarity !== "common")).toBe(true);
+    }
   });
 
   it("the elite's spoils are rarer, and the boss ends the run without any", () => {

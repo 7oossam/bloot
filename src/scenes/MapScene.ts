@@ -394,6 +394,8 @@ export class MapScene extends Phaser.Scene {
     }
     if (off) modifiers.disabledJoker = off;
     runController.applyBlessings(modifiers);
+    // الوسوم on the deck's cards (they work only in your hand).
+    modifiers.stamps = runController.stampRules();
     const data: TableSceneData = { nodeType: node.type, matchTarget: runController.matchTargetFor(node)!, modifiers };
     this.scene.start("table", data);
   }

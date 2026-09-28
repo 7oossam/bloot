@@ -56,6 +56,16 @@ export interface TrickRules {
   trashBeatsAce?: Team;
   /** التسعة الشقية: with trashBeatsAce, that team's 9s outside the trump suit beat the Ace too. */
   trashNine?: boolean;
+  /**
+   * الوسوم (stamps): card ids with a stamp's rule. They work only in `seat`'s hand — a stamped
+   * card anywhere else is an ordinary card (the player's rule: not even the partner's).
+   * royal: counts as a trump for that seat (under a real trump). guard: led by that seat in
+   * hokum, nobody may cut it. diver: that seat may play it whatever the led suit. top: a grown
+   * الكبّارة — the top card of its suit.
+   */
+  stamps?: { seat: Seat; royal?: string[]; guard?: string[]; diver?: string[]; top?: string[] };
+  /** الطُّعم: this trick's leader must lead this suit if they hold any. */
+  forcedLead?: Suit;
   /** Opponent rules (see src/roguelike/opponents.ts). */
   rival?: {
     /** This team's trump Jack drops below the trump 9 (خاطفين الولد)… */

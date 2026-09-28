@@ -35,6 +35,8 @@ export interface RoundOptions {
   guaranteedJacks?: number;
   /** الحظ الواطي: this many 7s/8s in `guaranteeJackFor`'s first five. */
   guaranteedLow?: number;
+  /** المسافرة (a stamp): these cards (ids) are dealt into this seat's first five, wherever they'd have gone. */
+  travelCards?: { seat: Seat; ids: string[] };
   /** البوصلة: this many of the spade Jack and 9 in `guaranteeJackFor`'s first five. */
   guaranteedTopSpades?: number;
   /** المرتّب: at the deal, one card short of a run of this length → that seat gets the card. */
@@ -202,6 +204,16 @@ export class Round {
         completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
       }
     }
+    if (options.travelCards?.ids.length) {
+      const { seat, ids } = options.travelCards;
+      // Never at the cost of what a joker already guaranteed.
+      const kept = (c: Card) =>
+        ids.includes(cardId(c)) ||
+        (!!options.guaranteedLow && (c.rank === "7" || c.rank === "8")) ||
+        (!!options.guaranteedJacks && c.rank === "J") ||
+        (!!options.guaranteedTopSpades && c.suit === "S" && (c.rank === "J" || c.rank === "9"));
+      for (const id of ids) giveCards(this.initial, seat, rand, 1, (c) => cardId(c) === id, kept);
+    }
     if (options.luckyAces) {
       giveCards(this.initial, options.luckyAces.seat, rand, options.luckyAces.count, (c) => c.rank === "A");
     }
@@ -318,6 +330,29 @@ export class Round {
 
   isSealed(card: Card): boolean {
     return !!this.options.trickRules?.sealed?.includes(cardId(card));
+  }
+
+  /**
+   * المرتدة (a stamp): after a finished trick, `seat`'s card in it goes back to their hand and
+   * `replacement` from their hand takes its place. The trick keeps its winner — you lost it
+   * anyway; you just choose what you lose.
+   */
+  bounceBack(trickIndex: number, seat: Seat, replacement: Card): Card {
+    const trick = this.tricks[trickIndex];
+    const old = trick?.cards[seat];
+    if (!old) throw new Error(`bounceBack: seat ${seat} has no card in trick ${trickIndex}`);
+    const hand = this.hands[seat];
+    const i = hand.findIndex((c) => cardId(c) === cardId(replacement));
+    if (i === -1) throw new Error(`bounceBack: ${cardId(replacement)} not in hand`);
+    hand[i] = { ...old };
+    trick.cards[seat] = { ...replacement };
+    return old;
+  }
+
+  /** الطُّعم: the trick about to be led must be led in `suit` (if the leader holds any). */
+  forceLead(suit: Suit): void {
+    if (!this.currentTrick || this.currentTrick.order.length > 0) return;
+    this.currentTrick.rules = { ...this.currentTrick.rules, forcedLead: suit };
   }
 
   /** Exchanges one card between two seats' hands. */

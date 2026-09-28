@@ -149,6 +149,8 @@ export interface MatchOptions {
   trashNine?: boolean;
   /** عين النبّالة: every trick your side takes with a 7 or 8 shows you this many cards of an opponent's hand. */
   lowReveal?: number;
+  /** الوسوم: stamped card ids per stamp (src/roguelike/stamps.ts). They work only in your hand. */
+  stamps?: { bounce: string[]; grow: string[]; travel: string[]; crescent: string[]; guard: string[]; bait: string[]; royal: string[]; diver: string[]; top: string[] };
   /** المرتّب: one card short of a run this long at the deal, you're dealt the missing card. */
   completeRunTo?: 3 | 4;
   /** المنزّل: once the contract is set, turn this many of your cards into the 8 of their suit. */
@@ -221,7 +223,9 @@ export type PendingAction =
   /** الصبّاغ: the card you pick becomes the spade of its rank. */
   | { kind: "dye" }
   /** المرسال: the card you pick goes to your partner for their best card of its suit. */
-  | { kind: "partner" };
+  | { kind: "partner" }
+  /** المرتدة: `card` lost trick `trickIndex`; the card you pick goes into that trick in its place. */
+  | { kind: "bounce"; card: Card; trickIndex: number };
 
 /** What an action would turn `card` into (lower/dye), or undefined if it would change nothing. */
 export function actionTarget(action: PendingAction, card: Card, hand: Card[]): Card | undefined {
@@ -236,6 +240,8 @@ export function actionTarget(action: PendingAction, card: Card, hand: Card[]): C
 export type HandChange =
   | { kind: "transform"; seat: Seat; from: Card; to: Card }
   | { kind: "swap"; seat: Seat; gave: Card; got: Card; otherSeat: Seat; source?: string }
+  /** المرتدة: `back` returned to the hand, `gave` went into trick `trickIndex` instead. */
+  | { kind: "bounce"; seat: Seat; back: Card; gave: Card; trickIndex: number }
   | { kind: "seal"; seat: Seat; card: Card };
 
 /** One line in the hand summary for each joker that paid out. */
@@ -283,6 +289,8 @@ interface EventMap {
   /** A joker link fired: this hand's chain is now `count` long (الحلقة). */
   "loop:chain": { count: number; label: string };
   "joker:fired": JokerFired;
+  /** A stamp did its thing: الكبّارة took a star, الهلال paid, الطُّعم bit… (card id + stamp). */
+  "stamp:fired": { card: Card; stamp: "grow" | "crescent" | "bait" | "guard" | "royal" | "diver" | "bounce" };
   /** عين النبّالة: these cards of `seat`'s hand are shown to you until the hand ends. */
   "joker:reveal": { seat: Seat; cards: Card[]; label: string };
   /** السوا was claimed: `ok` if every card left really does win. */
@@ -350,6 +358,8 @@ export class GameController extends Emitter<EventMap> {
   /** القطّاع's swaps used this hand, and how many joker links fired in a row this hand. */
   private ruffSwaps = 0;
   private spadeWaves = 0;
+  /** المرتدة cards that already came back this hand (once a hand each). */
+  private bounced = new Set<string>();
   /** Cards عين النبّالة has shown this hand (ids), so it never shows one twice. */
   private revealed = new Set<string>();
   /** This match's tricks your side took with a 7/8, and with a spade (for the characters' vows). */
@@ -514,6 +524,7 @@ export class GameController extends Emitter<EventMap> {
     this.ruffTricks = 0;
     this.ruffSwaps = 0;
     this.spadeWaves = 0;
+    this.bounced = new Set();
     this.revealed = new Set();
     this.chain = 0;
     this.ducks = 0;
@@ -566,6 +577,11 @@ export class GameController extends Emitter<EventMap> {
     if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }
     if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; rules.trickRules.trashNine = !!o.trashNine; }
+    const st = o.stamps;
+    if (st) {
+      rules.trickRules = { ...rules.trickRules, stamps: { seat: HUMAN_SEAT, royal: st.royal, guard: st.guard, diver: st.diver, top: st.top } };
+      if (st.travel.length) rules.travelCards = { seat: HUMAN_SEAT, ids: st.travel };
+    }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
     if (o.noSun) rules.noSunFor = us;
@@ -743,6 +759,12 @@ export class GameController extends Emitter<EventMap> {
   submitPlayerAction(card: Card): void {
     const action = this.pendingActions.shift();
     if (!action) throw new Error("No joker action is waiting");
+    if (action.kind === "bounce") {
+      const back = this.round.bounceBack(action.trickIndex, HUMAN_SEAT, card);
+      this.emit("hand:changed", { kind: "bounce", seat: HUMAN_SEAT, back, gave: card, trickIndex: action.trickIndex });
+      this.emit("stamp:fired", { card: back, stamp: "bounce" });
+      return;
+    }
     if (action.kind === "transform" || action.kind === "lower" || action.kind === "dye") {
       const to = actionTarget(action, card, this.round.hands[HUMAN_SEAT]);
       if (!to) return; // a pointless pick: the joker simply does nothing
@@ -849,6 +871,7 @@ export class GameController extends Emitter<EventMap> {
       this.jackTricks++;
       if (o.jackTrickBonus) this.emit("joker:fired", { label: "أكلات الأولاد", points: o.jackTrickBonus });
     }
+    this.stampsOnTrick(trick);
     if (ours && card.suit === "S") this.matchStats.spadeTricks++;
     if (ours && (card.rank === "7" || card.rank === "8")) {
       this.matchStats.lowTricks++;
@@ -949,6 +972,37 @@ export class GameController extends Emitter<EventMap> {
     for (const c of cards) this.revealed.add(cardId(c));
     this.emit("joker:reveal", { seat, cards, label: "عين النبّالة" });
     this.linkChain("عين النبّالة");
+  }
+
+  /** الوسوم on your card in a finished trick: الهلال pays, الكبّارة grows, الطُّعم bites, المرتدة comes back. */
+  private stampsOnTrick(trick: Trick): void {
+    const st = this.options.stamps;
+    const mine = trick.cards[HUMAN_SEAT];
+    if (!st || !mine) return;
+    const id = cardId(mine);
+    const won = trick.winner === HUMAN_SEAT;
+    const lost = teamOf(trick.winner!) !== teamOf(HUMAN_SEAT);
+    const index = this.round.tricks.indexOf(trick);
+    const handOver = this.round.tricks.length === 8;
+    if (won && st.crescent.includes(id)) {
+      this.emit("gold:earned", { amount: 2, reason: "الهلال" });
+      this.emit("stamp:fired", { card: mine, stamp: "crescent" });
+    }
+    if (won && st.grow.includes(id)) this.emit("stamp:fired", { card: mine, stamp: "grow" });
+    if (lost && !handOver && st.bait.includes(id) && trick.leader !== HUMAN_SEAT) {
+      this.round.forceLead(mine.suit);
+      this.emit("stamp:fired", { card: mine, stamp: "bait" });
+    }
+    if (lost && !handOver && st.bounce.includes(id) && !this.bounced.has(id) && this.round.hands[HUMAN_SEAT].length > 0) {
+      this.bounced.add(id);
+      this.pendingActions.push({ kind: "bounce", card: mine, trickIndex: index });
+    }
+  }
+
+  /** الكبّارة has its stars: from now on the card is the top of its suit (from the next hand). */
+  growStamp(id: string): void {
+    const st = this.options.stamps;
+    if (st && !st.top.includes(id)) st.top.push(id);
   }
 
   /** What your side did this match, for the characters' vows (عهد). */

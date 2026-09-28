@@ -27,8 +27,8 @@ export const BLESSINGS: BlessingDef[] = [
   { id: "catch", name: "الرزق", icon: "wheat", gift: "ريالات الصكّات ×1.5", price: "الجوايز بعد المباراة خيارين بدل ثلاث" },
   { id: "school", name: "عدّة المجموعة", icon: "toolbox", gift: "ثلاث تحف عادية من مجموعة وحدة", price: "أول مرهون يبدأ قدامك بـ 20" },
   // الراوي's third offer depends on who you are: an عهد, earned by playing the character's way.
-  { id: "hara-vow", name: "عهد الحارة", icon: "scroll-quill", gift: "فز بصكّة فيها 3 أكلات لكم بسبعة أو ثمانية: تجيك تحفة حارة", note: "كل مرة توفي فيها، العدد يزيد 2", character: "hara" },
-  { id: "spade-vow", name: "عهد البحّار", icon: "scroll-quill", gift: "فز بصكّة فيها 5 أكلات لكم بالسبيت: تجيك تحفة سبيت", note: "كل مرة توفي فيها، العدد يزيد 3", character: "spade" },
+  { id: "hara-vow", name: "عهد الحارة", icon: "scroll-quill", gift: "فز بصكّة فيها 3 أكلات لكم بسبعة أو ثمانية: تجيك تحفة حارة", note: "مرة وحدة في الليلة", character: "hara" },
+  { id: "spade-vow", name: "عهد البحّار", icon: "scroll-quill", gift: "فز بصكّة فيها 5 أكلات لكم بالسبيت: تجيك تحفة سبيت", note: "مرة وحدة في الليلة", character: "spade" },
 ];
 
 /** A vow: which of the match's counts it watches, how many the first time, and how many more each time after. */

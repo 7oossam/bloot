@@ -225,6 +225,17 @@ export class HandMeter {
     });
   }
 
+  /** A correction in card points (المرتدة swapped what they took): the side's bar moves by it. */
+  adjust(side: Side, raw: number): void {
+    const gen = this.gen;
+    this.push(() => {
+      if (gen !== this.gen) return 0;
+      this.exact[side] = Math.max(0, this.exact[side] + raw / this.divisor);
+      this.land(side);
+      return 450;
+    });
+  }
+
   /** Projects laid down (or بلوت called): the target grows and the side takes it. */
   addProject(side: Side, value: number, label: string, from: { x: number; y: number }): void {
     const gen = this.gen;

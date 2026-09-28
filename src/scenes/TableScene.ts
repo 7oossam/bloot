@@ -40,6 +40,8 @@ import {
 import { arabicText, makeButton, playToneFor, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
+import { getStamp, GROW_STARS } from "../roguelike/stamps";
+import { installStampView } from "./stampView";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -244,6 +246,8 @@ export class TableScene extends Phaser.Scene {
   }
 
   create(): void {
+    // الوسوم show on the cards that carry them.
+    installStampView();
     ensureFxTextures(this);
     paintBackdrop(this, { table: true });
     addAmbience(this);
@@ -334,6 +338,7 @@ export class TableScene extends Phaser.Scene {
     c.on("match:complete", (e) => this.onMatchComplete(e));
     c.on("joker:fired", (e) => this.onJokerFired(e));
     c.on("joker:reveal", (e) => this.onJokerReveal(e));
+    c.on("stamp:fired", (e) => this.onStampFired(e));
     c.on("sawa", (e) => this.onSawa(e));
     c.on("loop:chain", (e) => this.onChain(e));
     c.on("hand:dealt", () => this.clearSeals());
@@ -545,6 +550,34 @@ export class TableScene extends Phaser.Scene {
       const at = HAND_ANCHOR[e.seat];
       flare(this, at.x, at.y, 0xffd98a, 0.9);
     });
+  }
+
+  /** المرتدة changed what the other side took in a trick: the meter gives back the difference. */
+  private meterBounce(back: Card, gave: Card): void {
+    const contract = this.controller.getRound().bidding.result;
+    if (!contract) return;
+    const diff = cardPoints(back, contract.mode, contract.trumpSuit) - cardPoints(gave, contract.mode, contract.trumpSuit);
+    if (diff !== 0) this.meter.adjust("them", -diff);
+  }
+
+  /** A وسم did its thing on your card. */
+  private onStampFired(e: { card: Card; stamp: string }): void {
+    const id = cardId(e.card);
+    const name = getStamp(e.stamp)?.name ?? "";
+    const label = `${RANK_NAME_AR[e.card.rank]} ${SUIT_SYMBOL[e.card.suit]}`;
+    if (e.stamp === "grow") {
+      runController.addStampStar(id);
+      const stars = runController.getState().stampStars[id] ?? 0;
+      if (stars >= GROW_STARS) {
+        this.controller.growStamp(id);
+        this.flashNote(`الكبّارة: ${label} صارت أكبر ورقة في شكلها!`);
+        celebrate(this, CENTER_X, CENTER_Y, undefined, 40);
+      } else this.log(`الكبّارة: ${label} ★${stars}/${GROW_STARS}`);
+    } else if (e.stamp === "bait") {
+      this.flashNote(`الطُّعم: لازم يفتحون ${SUIT_NAME_AR[e.card.suit]} ${SUIT_SYMBOL[e.card.suit]}`);
+    } else if (e.stamp === "crescent") {
+      this.log(`${name}: ${label}`);
+    }
   }
 
   /** Which side of the hand meter a seat plays for. */
@@ -1244,6 +1277,8 @@ export class TableScene extends Phaser.Scene {
             ? "الصبّاغ: اختر ورقة تصير سبيت بنفس رقمها"
             : a.kind === "partner"
               ? "المرسال: اختر ورقة لخويّك — ويعطيك أكبر ورقة عنده من شكلها"
+              : a.kind === "bounce"
+                ? `المرتدة: ${RANK_NAME_AR[a.card.rank]} ${SUIT_SYMBOL[a.card.suit]} ترجع لك — اختر ورقة تروح بدالها في الأكلة`
               : a.from !== undefined
                 ? `${a.source ?? ""}: اختر ورقة تعطيها لـ${SEAT_LABEL_AR[a.from]} — وتاخذ أكبر حكم عنده`
               : a.suit
@@ -1321,6 +1356,9 @@ export class TableScene extends Phaser.Scene {
     } else if (e.kind === "swap") {
       note = `${e.source ? `${e.source}: ` : ""}أعطيت ${label(e.gave)} لـ${SEAT_LABEL_AR[e.otherSeat]} وسحبت ${label(e.got)}`;
       if (e.source) this.showCutSwap(e.otherSeat, e.got);
+    } else if (e.kind === "bounce") {
+      note = `المرتدة: رجعت ${label(e.back)} لك، وراحت ${label(e.gave)} بدالها`;
+      this.meterBounce(e.back, e.gave);
     } else {
       note = `الختم: انختم ${label(e.card)} عند ${SEAT_LABEL_AR[e.seat]}`;
       this.showSeal(e.seat, e.card);
@@ -1328,7 +1366,7 @@ export class TableScene extends Phaser.Scene {
     this.log(note);
     this.flashNote(note);
 
-    if (e.seat === HUMAN_SEAT || e.kind === "swap") this.redrawHumanHand(e.kind === "transform" ? e.to : e.kind === "swap" ? e.got : undefined);
+    if (e.seat === HUMAN_SEAT || e.kind === "swap") this.redrawHumanHand(e.kind === "transform" ? e.to : e.kind === "swap" ? e.got : e.kind === "bounce" ? e.back : undefined);
     this.refreshReveals();
     this.refreshMemory();
   }
@@ -1660,6 +1698,8 @@ export class TableScene extends Phaser.Scene {
       const anchor = HAND_ANCHOR[e.seat];
       const view = new CardView(this, anchor.x, anchor.y, e.card, true, TRICK_CARD_SIZE);
       this.trickViews[e.seat] = view;
+      // Your stamp on someone else's card does nothing: its seal shows faded.
+      view.setStampActive(false);
       this.sealPlayed(e.card, view);
       view.setAngle(e.seat === 1 ? -25 : e.seat === 3 ? 25 : 0).setScale(0.7);
       arcTo(this, view, dest, { duration: CARD_MOVE_TWEEN_MS + 70, scale: 1, angle: this.restingAngle(), land: true });
