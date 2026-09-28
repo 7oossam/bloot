@@ -174,6 +174,8 @@ export class TableScene extends Phaser.Scene {
   private signalTexts: Phaser.GameObjects.Text[] = [];
   /** Which of each opponent's cards the spy joker is showing this hand. */
   private spied: Partial<Record<Seat, string[]>> = {};
+  /** Cards عين النبّالة turned face up this hand (ids), by seat. */
+  private opened: Partial<Record<Seat, string[]>> = {};
   private actionPrompt?: Phaser.GameObjects.Text;
   private actionSkip?: ButtonHandle;
   /** Each owned joker's icon in the row above the table, by id. */
@@ -225,6 +227,7 @@ export class TableScene extends Phaser.Scene {
     this.signalTexts = [];
     this.handsPlayed = 0;
     this.spied = {};
+    this.opened = {};
     this.actionPrompt = undefined;
     this.actionSkip = undefined;
     this.jokerIcons = new Map();
@@ -330,6 +333,7 @@ export class TableScene extends Phaser.Scene {
     c.on("hand:complete", (e) => this.onHandComplete(e));
     c.on("match:complete", (e) => this.onMatchComplete(e));
     c.on("joker:fired", (e) => this.onJokerFired(e));
+    c.on("joker:reveal", (e) => this.onJokerReveal(e));
     c.on("sawa", (e) => this.onSawa(e));
     c.on("loop:chain", (e) => this.onChain(e));
     c.on("hand:dealt", () => this.clearSeals());
@@ -357,7 +361,8 @@ export class TableScene extends Phaser.Scene {
     for (const v of this.revealViews) v.destroy();
     this.revealViews = [];
     const mods = this.nodeData.modifiers;
-    if (!mods.spyCards && !mods.revealPartner) return;
+    const opened = Object.values(this.opened).some((ids) => ids && ids.length > 0);
+    if (!mods.spyCards && !mods.revealPartner && !opened) return;
     const hands = this.controller?.getRound()?.hands;
     if (!hands) return;
 
@@ -373,17 +378,21 @@ export class TableScene extends Phaser.Scene {
     }
 
     const spyCount = mods.spyCards ?? 0;
-    if (spyCount > 0) {
+    if (spyCount > 0 || opened) {
       for (const seat of [1, 3] as Seat[]) {
         const hand = hands[seat];
         if (hand.length === 0) continue;
         // Keep showing the same cards while they're still held; top up from the rest.
-        const shown = (this.spied[seat] ?? []).filter((id) => hand.some((c) => cardId(c) === id));
-        const rest = hand.map(cardId).filter((id) => !shown.includes(id));
-        while (shown.length < Math.min(spyCount, hand.length) && rest.length > 0) {
-          shown.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+        const held = (id: string) => hand.some((c) => cardId(c) === id);
+        const spied = (this.spied[seat] ?? []).filter(held);
+        const rest = hand.map(cardId).filter((id) => !spied.includes(id));
+        while (spied.length < Math.min(spyCount, hand.length) && rest.length > 0) {
+          spied.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
         }
-        this.spied[seat] = shown;
+        this.spied[seat] = spied;
+        // …plus whatever عين النبّالة has opened this hand.
+        const shown = [...new Set([...spied, ...(this.opened[seat] ?? []).filter(held)])];
+        if (shown.length === 0) continue;
         const anchor = HAND_ANCHOR[seat];
         shown.forEach((id, i) => {
           const card = hand.find((c) => cardId(c) === id)!;
@@ -524,6 +533,18 @@ export class TableScene extends Phaser.Scene {
       this.pulseJokers(e.label, amount);
     }
     if (amount) this.log(`${e.label}: ${amount}`);
+  }
+
+  /** عين النبّالة: an opponent's cards turn face up by their seat, with a thread from the joker. */
+  private onJokerReveal(e: { seat: Seat; cards: Card[]; label: string }): void {
+    this.opened[e.seat] = [...(this.opened[e.seat] ?? []), ...e.cards.map(cardId)];
+    this.pulseJokers(e.label);
+    this.log(`${e.label}: ${e.cards.map((c) => `${RANK_NAME_AR[c.rank]} ${SUIT_SYMBOL[c.suit]}`).join("، ")} (${SEAT_LABEL_AR[e.seat]})`);
+    this.time.delayedCall(250, () => {
+      this.refreshReveals();
+      const at = HAND_ANCHOR[e.seat];
+      flare(this, at.x, at.y, 0xffd98a, 0.9);
+    });
   }
 
   /** Which side of the hand meter a seat plays for. */
@@ -844,6 +865,7 @@ export class TableScene extends Phaser.Scene {
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.placeDealerChip(e.dealer);
     this.spied = {};
+    this.opened = {};
     this.refreshReveals();
     this.refreshMemory();
     this.updateScoreHud();
@@ -1225,7 +1247,7 @@ export class TableScene extends Phaser.Scene {
               : a.from !== undefined
                 ? `${a.source ?? ""}: اختر ورقة تعطيها لـ${SEAT_LABEL_AR[a.from]} — وتاخذ أكبر حكم عنده`
               : a.suit
-                ? `اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
+                ? `${a.source ? `${a.source}: ` : ""}اختر ورقة تعطيها للخصم مقابل ${a.best ? "أكبر " : ""}${SUIT_NAME_AR[a.suit]} عنده`
                 : `اختر ورقة تعطيها للخصم مقابل ورقة من يده${a.preferTrump ? " (حكم إن وُجد)" : ""}`;
     this.actionPrompt?.destroy();
     this.actionPrompt = arabicText(this, CENTER_X, HAND_ANCHOR[0].y - 190, text, {
@@ -2053,7 +2075,7 @@ export class TableScene extends Phaser.Scene {
       screenFlash(this, 0xffe6b0, 0.4, 600);
       celebrate(this, CENTER_X, CENTER_Y - 260, undefined, 80);
     }
-    const { shieldUsed, goldEarned } = runController.resolveMatchNode(won);
+    const { shieldUsed, goldEarned, vow } = runController.resolveMatchNode(won, this.controller.getMatchStats());
     const runState = runController.getState();
 
     const title = (won ? "فزتم بالعقدة!" : "خسرتم العقدة") + (e.qahwa ? " — قهوة" : "");
@@ -2075,6 +2097,12 @@ export class TableScene extends Phaser.Scene {
     panel.add(arabicText(this, 0, -70, `أنتم ${e.matchScore[0]} — الخصم ${e.matchScore[1]}`, { fontSize: "27px" }));
     panel.add(arabicText(this, 0, -10, rewardLine, { fontSize: "25px", color: "#ffd54a" }));
 
+    // العهد: kept (a تحفة of your character's), or how far this match got you.
+    if (vow && !runState.over) {
+      const line = vow.gift ? `وفيت بالعهد: جاتك «${vow.gift}»` : `العهد: ${vow.count} من ${vow.need} ${vow.label}${won ? "" : " (لازم تفوز)"}`;
+      panel.add(arabicText(this, 0, 48, line, { fontSize: "24px", color: vow.gift ? "#5ad469" : "#e9dcc3", wordWrap: { width: panelW - 60 } }));
+      if (vow.gift) celebrate(this, CENTER_X, CENTER_Y + 48, undefined, 40);
+    }
     if (runState.over) {
       const runTitle = runState.won ? "طلع الفجر وأنتم غالبين!" : "طلع الفجر عليكم";
       panel.add(arabicText(this, 0, 48, runTitle, { fontSize: "29px", color: runState.won ? "#5ad469" : "#d45a5a" }));

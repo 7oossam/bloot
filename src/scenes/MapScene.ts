@@ -462,7 +462,7 @@ export class MapScene extends Phaser.Scene {
       card.add(this.pt(tx, -60, def.name, { fontSize: "30px", color: CSS.crimson }));
       card.add(this.pt(tx, 0, def.gift, { fontSize: "28px", wordWrap: { width: tw } }));
       card.add(
-        this.pt(tx, 55, def.price ? `الثمن: ${def.price}` : "بدون ثمن", {
+        this.pt(tx, 55, def.note ?? (def.price ? `الثمن: ${def.price}` : "بدون ثمن"), {
           fontSize: "25px",
           color: def.price ? "#8c5a1c" : "#3e4a2a",
           wordWrap: { width: tw },

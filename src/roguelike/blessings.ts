@@ -12,6 +12,8 @@ export interface BlessingDef {
   gift: string;
   /** What it costs, if anything. */
   price?: string;
+  /** A line shown instead of the price (an عهد has none, but it grows). */
+  note?: string;
   /** Only offered to this character (src/roguelike/characters.ts), as الراوي's third choice. */
   character?: string;
 }
@@ -24,15 +26,15 @@ export const BLESSINGS: BlessingDef[] = [
   { id: "projects", name: "البنّاي", icon: "brick-wall", gift: "مشاريعكم تنحسب ×2", price: "ما تقدرون تشترون صن" },
   { id: "catch", name: "الرزق", icon: "wheat", gift: "ريالات الصكّات ×1.5", price: "الجوايز بعد المباراة خيارين بدل ثلاث" },
   { id: "school", name: "عدّة المجموعة", icon: "toolbox", gift: "ثلاث تحف عادية من مجموعة وحدة", price: "أول مرهون يبدأ قدامك بـ 20" },
-  // الراوي's third offer depends on who you are: two of the character's own تحف.
-  { id: "hara-pocket", name: "جيب الحارة", icon: "marbles", gift: "الحظ الواطي والمنزّل", price: "أول مرهون يبدأ قدامك بـ 10", character: "hara" },
-  { id: "spade-chest", name: "صندوق البحّار", icon: "open-treasure-chest", gift: "الصبّاغ وسارق السبيت", price: "أول مرهون يبدأ قدامك بـ 20", character: "spade" },
+  // الراوي's third offer depends on who you are: an عهد, earned by playing the character's way.
+  { id: "hara-vow", name: "عهد الحارة", icon: "scroll-quill", gift: "فز بصكّة فيها 3 أكلات لكم بسبعة أو ثمانية: تجيك تحفة حارة", note: "كل مرة توفي فيها، العدد يزيد 2", character: "hara" },
+  { id: "spade-vow", name: "عهد البحّار", icon: "scroll-quill", gift: "فز بصكّة فيها 5 أكلات لكم بالسبيت: تجيك تحفة سبيت", note: "كل مرة توفي فيها، العدد يزيد 3", character: "spade" },
 ];
 
-/** The تحف a character's blessing hands over, and how far ahead the first opponent starts. */
-export const CHARACTER_GIFTS: Record<string, { jokers: string[]; penalty: number }> = {
-  "hara-pocket": { jokers: ["low-luck", "lowerer"], penalty: 10 },
-  "spade-chest": { jokers: ["dyer", "spade-thief"], penalty: 20 },
+/** A vow: which of the match's counts it watches, how many the first time, and how many more each time after. */
+export const VOWS: Record<string, { stat: "lowTricks" | "spadeTricks"; need: number; step: number; label: string }> = {
+  "hara-vow": { stat: "lowTricks", need: 3, step: 2, label: "أكلات بالصغار" },
+  "spade-vow": { stat: "spadeTricks", need: 5, step: 3, label: "أكلات بالسبيت" },
 };
 
 export function getBlessing(id: string | undefined): BlessingDef | undefined {

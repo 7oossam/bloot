@@ -533,3 +533,63 @@ describe("صاحب الكلمة in a match", () => {
     expect(firsts.every((s) => s === HUMAN_SEAT)).toBe(true);
   });
 });
+
+describe("تحف الشخصيات (راعي السبيت، ولد الحارة)", () => {
+  it("موج السبيت: a trick you take with a spade trades a card of yours for an opponent's best spade", () => {
+    let waves = 0;
+    for (let seed = 1; seed <= 200 && waves < 3; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, personalTrump: "S", extraHokumSuits: ["S"], spadeWave: 1 });
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "swap" || e.source !== "موج السبيت") return;
+        expect(e.got.suit).toBe("S");
+        // It was their best spade (before the trade).
+        const theirs = c.getRound().hands[e.otherSeat].filter((x) => x.suit === "S" && !(x.suit === e.gave.suit && x.rank === e.gave.rank));
+        const { mode, trumpSuit } = c.getRound().bidding.result!;
+        for (const x of theirs) expect(rankStrength(x, mode, trumpSuit)).toBeLessThan(rankStrength(e.got, mode, trumpSuit));
+        waves++;
+      });
+      c.startMatch();
+      const before = waves;
+      autoplay(c, () => waves > before, 1500);
+    }
+    expect(waves).toBeGreaterThan(0);
+  });
+
+  it("عين النبّالة: a trick your side takes with a 7 or 8 shows cards still in an opponent's hand, never the same twice", () => {
+    let reveals = 0;
+    for (let seed = 1; seed <= 100 && reveals < 5; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, trashBeatsAce: true, lowReveal: 2 });
+      const seen = new Set<string>();
+      c.on("hand:dealt", () => seen.clear());
+      c.on("joker:reveal", (e) => {
+        expect(e.seat === 1 || e.seat === 3).toBe(true);
+        for (const card of e.cards) {
+          const id = `${card.rank}${card.suit}`;
+          expect(seen.has(id)).toBe(false);
+          seen.add(id);
+          expect(c.getRound().hands[e.seat].some((x) => x.suit === card.suit && x.rank === card.rank)).toBe(true);
+        }
+        reveals++;
+      });
+      c.startMatch();
+      const before = reveals;
+      autoplay(c, () => reveals > before, 1500);
+    }
+    expect(reveals).toBeGreaterThan(0);
+  });
+
+  it("counts the match's 7/8 and spade tricks for the characters' vows", () => {
+    const c = new GameController(mulberry32(5), { matchTarget: 60 });
+    let low = 0;
+    let spade = 0;
+    c.on("trick:complete", (e) => {
+      if (teamOf(e.winner) !== teamOf(HUMAN_SEAT)) return;
+      const card = e.trick.cards[e.winner]!;
+      if (card.suit === "S") spade++;
+      if (card.rank === "7" || card.rank === "8") low++;
+    });
+    c.startMatch();
+    playMatchToCompletion(c);
+    expect(c.getMatchStats()).toEqual({ lowTricks: low, spadeTricks: spade });
+  });
+});

@@ -5,6 +5,12 @@
 
 ## 1. What We Just Did
 
+### Characters, round 2 (Sept 29, the player's notes)
+- صاحب السبيت → **راعي السبيت**. Its two start تحف became one: **ملك السبيت** now also lets you buy spade hokum in any round (`extraHokumSuits` from `spade-king`); **سبيت دايم is gone** from the catalog (the player asked for the merge).
+- The character blessing (two free تحف for a head start) was too strong. It's now an **عهد** (vow) from الراوي, free: win a match where your side took N tricks the character's way and a تحفة of the character's comes to you (a new one, else a level on one you have); each time it's kept it asks for more. `VOWS` in `blessings.ts` (عهد الحارة: 3 tricks with a 7/8, +2 each time; عهد البحّار: 5 spade tricks, +3), `RunController.checkVow`, match counts from `GameController.getMatchStats()` passed to `resolveMatchNode(won, stats)`; the match-end panel says how far you got or what came.
+- New character تحف: **التسعة الشقية** (rare, حارة: your side's 9s outside the trump beat the Ace too — `TrickRules.trashNine`), **عين النبّالة** (common, حارة: each trick your side takes with a 7/8 turns 1/2 unseen cards of an opponent face up till the hand ends — `joker:reveal` event, shown by the seat like الجاسوس), **البوصلة** (common, سبيت: the spade J or 9 in your first five, both at Lv2 — `RoundOptions.guaranteedTopSpades`), **موج السبيت** (rare, سبيت: the first 1/2 tricks you take with a spade each hand trade a card you pick for an opponent's best spade — a loop with ملك السبيت). All are swaps/reveals/rules — no card is created or burned (the player's rule).
+- Tests: `tests/characters.test.ts`, three new in `tests/game-controller.test.ts`.
+
 ### الشخصيات — the run opens with who you are (Sept 28, the player's design)
 - The player: the strong rule-breakers (ثورة الصغار…) become a **character** you pick at the start (like Slay the Spire), and تحف split in two: the character's own, and general ones (buying, doubling, counting, economy). Start with two characters; **the partner pick is hidden for now** (`partners.ts` stays; `state.partner` is simply never set).
 - `src/roguelike/characters.ts`: **ولد الحارة** (starts with ثورة الصغار; owns the صغار family) and **صاحب السبيت** (starts with ملك السبيت + سبيت دايم; owns the سبيت family). The player chose a fixed spade character — no suit picking ("picking a suit alone changes nothing").

@@ -4,8 +4,9 @@
  * the shop and the spoils only for that character. Every other تحفة is general (buying, doubling,
  * counting, the economy) and turns up for everyone.
  *
- * The player's call (Sept 28): start with two, ولد الحارة and صاحب السبيت; the partner pick is
- * hidden for now.
+ * The player's call (Sept 28): start with two, ولد الحارة and راعي السبيت; the partner pick is
+ * hidden for now. Each has an عهد (a vow) from الراوي instead of free تحف: win a match while
+ * playing the character's way and one of its تحف comes to you.
  */
 import type { Tag } from "./jokers";
 
@@ -34,20 +35,17 @@ export const CHARACTERS: CharacterDef[] = [
     style: "يلعب بالورق اللي يرميه غيره",
     start: [["trash-beats-ace", 1]],
     tags: ["صغار"],
-    blessing: "hara-pocket",
+    blessing: "hara-vow",
   },
   {
     id: "spade",
-    name: "صاحب السبيت",
+    name: "راعي السبيت",
     icon: "spade",
     rule: "تشتري حكم سبيت في أي دورة، وفي الصن السبيت اللي في يدك حكم",
     style: "كل شي عنده يرجع للسبيت",
-    start: [
-      ["spade-king", 1],
-      ["spade-always", 1],
-    ],
+    start: [["spade-king", 1]],
     tags: ["سبيت"],
-    blessing: "spade-chest",
+    blessing: "spade-vow",
   },
 ];
 

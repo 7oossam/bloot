@@ -52,7 +52,7 @@ function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: Tr
   const low =
     rules?.trashBeatsAce !== undefined &&
     teamOf(p.seat) === rules.trashBeatsAce &&
-    (p.card.rank === "7" || p.card.rank === "8") &&
+    (p.card.rank === "7" || p.card.rank === "8" || (!!rules.trashNine && p.card.rank === "9")) &&
     !isTrumpCard(p.card, mode, trumpSuit)
       ? 50
       : 0;

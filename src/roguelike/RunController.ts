@@ -15,7 +15,7 @@ import {
 import { getEvent, type EventDef, type EventRun } from "./events";
 import { getOpponent, type OpponentDef } from "./opponents";
 import { getPartner } from "./partners";
-import { CHARACTER_GIFTS, CROWN_TARGET, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
+import { CROWN_TARGET, VOWS, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
 import { getCharacter, inCharacterPool } from "./characters";
 import type { MatchOptions } from "../game/GameController";
 import { MAX_LIVES, type MapNode, type RunState } from "./types";
@@ -39,6 +39,8 @@ const BUILD_MAKERS = new Set(["wild", "chief", "maestro", "copycat"]);
 export interface MatchOutcome {
   /** A shield took the hit, so no life was lost. */
   shieldUsed: boolean;
+  /** The run's عهد this match: how far you got, and the تحفة it gave if it was kept. */
+  vow?: { count: number; need: number; label: string; gift?: string };
   /** Gold paid for the win: the node's reward plus الراتب. */
   goldEarned: number;
 }
@@ -103,13 +105,6 @@ class RunController {
         commons.filter((d) => d.tags.includes(family)).sort(() => rand() - 0.5).slice(0, 3).forEach((d) => this.grant(d.id));
         s.nextMatchPenalty += SCHOOL_PENALTY;
         break;
-      }
-      default: {
-        const gift = CHARACTER_GIFTS[id];
-        if (gift) {
-          for (const j of gift.jokers) if (!s.jokerIds.includes(j)) this.grant(j);
-          s.nextMatchPenalty += gift.penalty;
-        }
       }
     }
     s.blessings.push(id);
@@ -312,12 +307,13 @@ class RunController {
   }
 
   /** Called once a match/elite/boss node's GameController match finishes. */
-  resolveMatchNode(won: boolean): MatchOutcome {
+  resolveMatchNode(won: boolean, stats?: { lowTricks: number; spadeTricks: number }): MatchOutcome {
     const node = this.state.nodes[this.state.currentIndex];
     this.state.cleared[this.state.currentIndex] = true;
     this.state.nodeWon[this.state.currentIndex] = won;
     let shieldUsed = false;
     let goldEarned = 0;
+    const vow = stats ? this.checkVow(won, stats) : undefined;
 
     if (won) {
       const mult = (this.hasBlessing("catch") ? 1.5 : 1) * (getPartner(this.state.partner)?.goldMultiplier ?? 1);
@@ -339,7 +335,30 @@ class RunController {
         this.state.won = false;
       }
     }
-    return { shieldUsed, goldEarned };
+    return { shieldUsed, goldEarned, vow };
+  }
+
+  /** The run's عهد after a match: kept if you won and your side took enough tricks its way. */
+  private checkVow(won: boolean, stats: { lowTricks: number; spadeTricks: number }): MatchOutcome["vow"] {
+    const s = this.state;
+    const id = s.blessings.find((b) => VOWS[b]);
+    if (!id) return undefined;
+    const v = VOWS[id];
+    const need = v.need + v.step * (s.vowsKept ?? 0);
+    const count = stats[v.stat];
+    if (!won || count < need) return { count, need, label: v.label };
+    s.vowsKept = (s.vowsKept ?? 0) + 1;
+    // One of the character's own تحف you don't have yet — or a level on one you do.
+    const own = new Set(getCharacter(s.character)?.tags ?? []);
+    const mine = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.tags.some((t) => own.has(t)));
+    const rand = mulberry32(s.seed * 29 + s.currentIndex * 13 + (s.vowsKept ?? 0));
+    const fresh = mine.filter((d) => !s.jokerIds.includes(d.id));
+    const grow = mine.filter((d) => s.jokerIds.includes(d.id) && this.levelOf(d.id) < maxLevel(d));
+    const pool = fresh.length ? fresh : grow;
+    if (pool.length === 0) return { count, need, label: v.label };
+    const pick = pool[Math.floor(rand() * pool.length)];
+    this.grant(pick.id);
+    return { count, need, label: v.label, gift: pick.name };
   }
 
   /** Gold picked up mid-match (e.g. from a joker). */

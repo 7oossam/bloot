@@ -141,6 +141,14 @@ export interface MatchOptions {
   // ---- build packages (see the design bible, PART 4)
   /** الحظ الواطي: your first five always hold this many 7s/8s. */
   guaranteedLow?: number;
+  /** البوصلة: this many of the spade Jack and 9 in your first five. */
+  guaranteedTopSpades?: number;
+  /** موج السبيت: this many times a hand, a trick you take with a spade trades a card for an opponent's best spade. */
+  spadeWave?: number;
+  /** التسعة الشقية: your side's 9s outside the trump beat the Ace too (with ثورة الصغار). */
+  trashNine?: boolean;
+  /** عين النبّالة: every trick your side takes with a 7 or 8 shows you this many cards of an opponent's hand. */
+  lowReveal?: number;
   /** المرتّب: one card short of a run this long at the deal, you're dealt the missing card. */
   completeRunTo?: 3 | 4;
   /** المنزّل: once the contract is set, turn this many of your cards into the 8 of their suit. */
@@ -275,6 +283,8 @@ interface EventMap {
   /** A joker link fired: this hand's chain is now `count` long (الحلقة). */
   "loop:chain": { count: number; label: string };
   "joker:fired": JokerFired;
+  /** عين النبّالة: these cards of `seat`'s hand are shown to you until the hand ends. */
+  "joker:reveal": { seat: Seat; cards: Card[]; label: string };
   /** السوا was claimed: `ok` if every card left really does win. */
   sawa: { ok: boolean };
   /** `qahwa` when a قهوة hand decided the match outright. */
@@ -339,6 +349,11 @@ export class GameController extends Emitter<EventMap> {
   private ruffTricks = 0;
   /** القطّاع's swaps used this hand, and how many joker links fired in a row this hand. */
   private ruffSwaps = 0;
+  private spadeWaves = 0;
+  /** Cards عين النبّالة has shown this hand (ids), so it never shows one twice. */
+  private revealed = new Set<string>();
+  /** This match's tricks your side took with a 7/8, and with a spade (for the characters' vows). */
+  private matchStats = { lowTricks: 0, spadeTricks: 0 };
   private chain = 0;
   private ducks = 0;
   private akkaWins = 0;
@@ -487,6 +502,7 @@ export class GameController extends Emitter<EventMap> {
     this.goldEarned = 0;
     this.dealer = 0;
     this.matchLog = [];
+    this.matchStats = { lowTricks: 0, spadeTricks: 0 };
     this.matchId = Date.now().toString(36);
     this.dealHand();
   }
@@ -497,6 +513,8 @@ export class GameController extends Emitter<EventMap> {
     this.sunAceTricks = 0;
     this.ruffTricks = 0;
     this.ruffSwaps = 0;
+    this.spadeWaves = 0;
+    this.revealed = new Set();
     this.chain = 0;
     this.ducks = 0;
     this.akkaWins = 0;
@@ -514,12 +532,13 @@ export class GameController extends Emitter<EventMap> {
     this.sawaClaim = undefined;
     this.playLog = [];
     const o = this.options;
-    const supplied = !!(o.guaranteedJacks || o.guaranteedLow || o.completeRunTo);
+    const supplied = !!(o.guaranteedJacks || o.guaranteedLow || o.completeRunTo || o.guaranteedTopSpades);
     this.round = new Round(this.dealer, this.rand, {
       lastTrickBonus: this.lastTrickBonus,
       guaranteeJackFor: supplied ? HUMAN_SEAT : undefined,
       guaranteedJacks: o.guaranteedJacks ?? 0,
       guaranteedLow: o.guaranteedLow,
+      guaranteedTopSpades: o.guaranteedTopSpades,
       completeRunTo: o.completeRunTo,
       lockedHokumTeams: this.options.lockedHokum ? [teamOf(HUMAN_SEAT)] : [],
       // 7-2: sun is doubled only by a side at 100 or under against a side past 100 — the real
@@ -546,7 +565,7 @@ export class GameController extends Emitter<EventMap> {
     if (o.shortSira || o.lowFours || o.phantomProjects) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours, phantomProjects: o.phantomProjects } };
     if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }
-    if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; }
+    if (o.trashBeatsAce) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.trashBeatsAce = us; rules.trickRules.trashNine = !!o.trashNine; }
     if (o.lastCardTop) rules.lastCardTop = HUMAN_SEAT;
     if (o.freeSunDouble) rules.freeSunDoubleFor = us;
     if (o.noSun) rules.noSunFor = us;
@@ -772,7 +791,8 @@ export class GameController extends Emitter<EventMap> {
       ? pool.reduce((a, b) => (rankStrength(b, mode, trump) > rankStrength(a, mode, trump) ? b : a))
       : pool[Math.floor(this.rand() * pool.length)];
     this.round.swapCards(HUMAN_SEAT, card, other, got);
-    this.emit("hand:changed", { kind: "swap", seat: HUMAN_SEAT, gave: card, got, otherSeat: other });
+    this.emit("hand:changed", { kind: "swap", seat: HUMAN_SEAT, gave: card, got, otherSeat: other, source: action.source });
+    if (action.source) this.linkChain(action.source);
   }
 
   getPendingAction(): PendingAction | undefined {
@@ -829,7 +849,10 @@ export class GameController extends Emitter<EventMap> {
       this.jackTricks++;
       if (o.jackTrickBonus) this.emit("joker:fired", { label: "أكلات الأولاد", points: o.jackTrickBonus });
     }
+    if (ours && card.suit === "S") this.matchStats.spadeTricks++;
     if (ours && (card.rank === "7" || card.rank === "8")) {
+      this.matchStats.lowTricks++;
+      if (o.lowReveal) this.revealFromOpponent(o.lowReveal);
       this.lowTricks++;
       if (o.lowTrickBonus) this.emit("joker:fired", { label: "ثأر الصغار", points: o.lowTrickBonus });
     }
@@ -901,9 +924,36 @@ export class GameController extends Emitter<EventMap> {
         this.pendingActions.push({ kind: "swap", preferTrump: true, best: true, from, source: "القطّاع" });
       }
     }
+    // موج السبيت: a trick you take with a spade trades a card of your choice for an opponent's best spade.
+    if (o.spadeWave && byMe && card.suit === "S" && this.spadeWaves < o.spadeWave) {
+      const holders = ([1, 3] as Seat[]).filter((s) => this.round.hands[s].some((c) => c.suit === "S"));
+      if (holders.length > 0 && this.round.hands[HUMAN_SEAT].length > 0) {
+        this.spadeWaves++;
+        this.pendingActions.push({ kind: "swap", preferTrump: false, suit: "S", best: true, source: "موج السبيت" });
+      }
+    }
     if (o.jackHunt && (isTrumpJack || (o.jackHunt.nineToo && isTrumpNine)) && (byMe || o.jackHunt.partnerToo)) {
       this.pendingActions.push({ kind: "swap", preferTrump: o.jackHunt.preferTrump });
     }
+  }
+
+  /** عين النبّالة: shows you `count` unseen cards of one opponent's hand (the one holding more of them). */
+  private revealFromOpponent(count: number): void {
+    const hidden = (s: Seat) => this.round.hands[s].filter((c) => !this.revealed.has(cardId(c)));
+    const seats = ([1, 3] as Seat[]).filter((s) => hidden(s).length > 0);
+    if (seats.length === 0) return;
+    const seat = seats.reduce((a, b) => (hidden(b).length > hidden(a).length ? b : a));
+    const pool = hidden(seat);
+    const cards: Card[] = [];
+    while (cards.length < count && pool.length > 0) cards.push(pool.splice(Math.floor(this.rand() * pool.length), 1)[0]);
+    for (const c of cards) this.revealed.add(cardId(c));
+    this.emit("joker:reveal", { seat, cards, label: "عين النبّالة" });
+    this.linkChain("عين النبّالة");
+  }
+
+  /** What your side did this match, for the characters' vows (عهد). */
+  getMatchStats(): { lowTricks: number; spadeTricks: number } {
+    return { ...this.matchStats };
   }
 
   /** One more link in this hand's chain of joker effects. */

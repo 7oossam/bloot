@@ -35,6 +35,8 @@ export interface RoundOptions {
   guaranteedJacks?: number;
   /** الحظ الواطي: this many 7s/8s in `guaranteeJackFor`'s first five. */
   guaranteedLow?: number;
+  /** البوصلة: this many of the spade Jack and 9 in `guaranteeJackFor`'s first five. */
+  guaranteedTopSpades?: number;
   /** المرتّب: at the deal, one card short of a run of this length → that seat gets the card. */
   completeRunTo?: 3 | 4;
   /** الجريء: this team may double a sun contract whatever the 100-point rule says. */
@@ -192,6 +194,10 @@ export class Round {
       const jacks = options.guaranteedJacks ?? (options.guaranteedLow || options.completeRunTo ? 0 : 1);
       if (jacks) giveCards(this.initial, supplied, rand, jacks, isJack);
       if (options.guaranteedLow) giveCards(this.initial, supplied, rand, options.guaranteedLow, isLow, (c) => jacks > 0 && isJack(c));
+      if (options.guaranteedTopSpades) {
+        const topSpade = (c: Card) => c.suit === "S" && (c.rank === "J" || c.rank === "9");
+        giveCards(this.initial, supplied, rand, options.guaranteedTopSpades, topSpade, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
+      }
       if (options.completeRunTo) {
         completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
       }

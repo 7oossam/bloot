@@ -11,7 +11,7 @@ describe("الشخصيات", () => {
     runController.chooseCharacter("spade");
     const s = runController.getState();
     expect(s.character).toBe("spade");
-    expect(s.jokerIds).toEqual(expect.arrayContaining(["spade-king", "spade-always"]));
+    expect(s.jokerIds).toEqual(["spade-king"]);
     expect(runController.isStarter("spade-king")).toBe(true);
     expect(runController.sellValue("spade-king")).toBe(0);
   });
@@ -28,12 +28,29 @@ describe("الشخصيات", () => {
     }
   });
 
-  it("the character's blessing hands over its own تحف", () => {
+  it("العهد: a won match played the character's way brings one of its تحف, and asks for more next time", () => {
     runController.startNewRun(3);
     runController.chooseCharacter("hara");
     runController.takeBlessing(2);
-    expect(runController.getState().jokerIds).toEqual(expect.arrayContaining(["trash-beats-ace", "low-luck", "lowerer"]));
-    expect(runController.getState().nextMatchPenalty).toBe(10);
+    const s = runController.getState();
+    expect(s.jokerIds).toEqual(["trash-beats-ace"]); // nothing up front
+    const fight = () => {
+      const node = runController.getAvailableNodes().find((n) => n.type !== "shop" && n.type !== "diwaniya")!;
+      runController.enterNode(node.id);
+    };
+    fight();
+    // Not enough 7/8 tricks: no gift, and it says how far you got.
+    expect(runController.resolveMatchNode(true, { lowTricks: 2, spadeTricks: 0 }).vow).toEqual({ count: 2, need: 3, label: "أكلات بالصغار" });
+    runController.skipReward();
+    fight();
+    const kept = runController.resolveMatchNode(true, { lowTricks: 3, spadeTricks: 0 }).vow!;
+    expect(kept.gift).toBeDefined();
+    expect(s.jokerIds).toHaveLength(2);
+    expect(inCharacterPool(getJokerDef(s.jokerIds[1])!.tags, "spade")).toBe(false); // it's a حارة تحفة
+    runController.skipReward();
+    fight();
+    // The next time asks for two more.
+    expect(runController.resolveMatchNode(true, { lowTricks: 4, spadeTricks: 0 }).vow!.need).toBe(5);
   });
 
   it("never offers another character's تحف, in shops or spoils", () => {
@@ -71,5 +88,33 @@ describe("الشخصيات", () => {
     expect(inCharacterPool(getJokerDef("dyer")!.tags, "hara")).toBe(false);
     expect(inCharacterPool(getJokerDef("breaker")!.tags, "hara")).toBe(true);
     expect(inCharacterPool(getJokerDef("breaker")!.tags, "spade")).toBe(true);
+  });
+});
+
+describe("تحف الشخصيات الجديدة", () => {
+  it("التسعة الشقية: with ثورة الصغار your side's 9 takes the Ace of its suit (outside the trump)", async () => {
+    const { resolveTrick } = await import("../src/engine/trick");
+    const trick = {
+      leader: 1 as const,
+      order: [1, 2, 3, 0] as const,
+      cards: { 1: { suit: "H", rank: "A" }, 2: { suit: "H", rank: "9" }, 3: { suit: "H", rank: "K" }, 0: { suit: "H", rank: "7" } },
+      rules: { trashBeatsAce: 0 as const },
+    };
+    // Without it, the 7 takes it (ثورة الصغار) — played last, over the 9 that can't.
+    expect(resolveTrick({ ...trick, order: [...trick.order] } as never, "sun")).toBe(0);
+    const nines = { ...trick, order: [1, 2, 3] as const, cards: { 1: trick.cards[1], 2: trick.cards[2], 3: trick.cards[3] } };
+    expect(resolveTrick({ ...nines, order: [...nines.order], rules: { trashBeatsAce: 0 } } as never, "sun")).toBe(1);
+    expect(resolveTrick({ ...nines, order: [...nines.order], rules: { trashBeatsAce: 0, trashNine: true } } as never, "sun")).toBe(2);
+  });
+
+  it("البوصلة: your first five hold the spade Jack or 9 (both at level 2)", async () => {
+    const { Round } = await import("../src/engine/round");
+    const { mulberry32 } = await import("../src/engine/rng");
+    for (let seed = 1; seed <= 30; seed++) {
+      const round = new Round(0, mulberry32(seed), { guaranteeJackFor: 0, guaranteedJacks: 0, guaranteedTopSpades: 2 });
+      const top = round.hands[0].filter((c) => c.suit === "S" && (c.rank === "J" || c.rank === "9"));
+      const onGround = round.groundCard.suit === "S" && (round.groundCard.rank === "J" || round.groundCard.rank === "9");
+      expect(top.length).toBeGreaterThanOrEqual(onGround ? 1 : 2);
+    }
   });
 });

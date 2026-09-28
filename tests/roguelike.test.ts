@@ -249,7 +249,7 @@ describe("joker levels and synergies", () => {
     // الحلة 3: you always lead.
     expect(matchOptionsFromJokers(["first-strike", "akka-king", "oracle"]).alwaysLead).toBe(true);
     // السبيت 3: your spades are trumps.
-    expect(matchOptionsFromJokers(["spade-always", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
+    expect(matchOptionsFromJokers(["compass", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
     // الدفاع 3: nobody doubles you.
     expect(matchOptionsFromJokers(["trap", "qahwaji", "loud-voice"]).noDoubleAgainst).toBe(true);
   });
@@ -257,7 +257,7 @@ describe("joker levels and synergies", () => {
   it("second tiers boost the family's style", () => {
     expect(matchOptionsFromJokers(["ducker", "last-card"]).lastTrickBonus).toBe(20); // الأرض +10
     expect(matchOptionsFromJokers(["first-strike", "akka-king"]).firstTrickBonus).toBe(4 + 3);
-    expect(matchOptionsFromJokers(["spade-treasure", "spade-always"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
+    expect(matchOptionsFromJokers(["spade-treasure", "compass"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
     expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).hokumSynergyBonus).toBe(4);
   });
 
@@ -380,7 +380,12 @@ describe("play-changing jokers turn into their rules", () => {
     expect(matchOptionsFromJokers(["akka-king"]).akkaTrickBonus).toBe(3);
     expect(matchOptionsFromJokers(["spade-king"]).personalTrump).toBe("S");
     expect(matchOptionsFromJokers(["spade-thief"], { "spade-thief": 3 }).spadeThief).toEqual({ best: true, twice: true });
-    expect(matchOptionsFromJokers(["spade-always"]).extraHokumSuits).toEqual(["S"]);
+    // ملك السبيت took in سبيت دايم: spades can be bought in any round.
+    expect(matchOptionsFromJokers(["spade-king"]).extraHokumSuits).toEqual(["S"]);
+    expect(matchOptionsFromJokers(["compass"], { compass: 2 }).guaranteedTopSpades).toBe(2);
+    expect(matchOptionsFromJokers(["spade-wave"]).spadeWave).toBe(1);
+    expect(matchOptionsFromJokers(["naughty-nine"]).trashNine).toBe(true);
+    expect(matchOptionsFromJokers(["slingshot-eye"], { "slingshot-eye": 2 }).lowReveal).toBe(2);
     expect(matchOptionsFromJokers(["spade-treasure"]).suitTrickBonus).toEqual({ suit: "S", points: 2 });
   });
 });

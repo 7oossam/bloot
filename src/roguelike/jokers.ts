@@ -49,6 +49,27 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["صغار"],
   }),
   joker({
+    id: "naughty-nine",
+    name: "التسعة الشقية",
+    icon: "rolling-dices",
+    levels: ["تسعاتكم كمان (من غير الحكم) تاكل الإكة في شكلها — مع ثورة الصغار."],
+    cost: 24,
+    rarity: "rare",
+    tags: ["صغار"],
+  }),
+  joker({
+    id: "slingshot-eye",
+    name: "عين النبّالة",
+    icon: "eyeball",
+    levels: [
+      "كل أكلة تاكلها بسبعة أو ثمانية: تنكشف لك ورقة من يد خصم لين آخر اليد.",
+      "ورقتين من يد خصم.",
+    ],
+    cost: 12,
+    rarity: "common",
+    tags: ["صغار"],
+  }),
+  joker({
     id: "low-luck",
     name: "الحظ الواطي",
     icon: "marbles",
@@ -341,7 +362,9 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     id: "spade-king",
     name: "ملك السبيت",
     icon: "crown",
-    levels: ["السبيت اللي في يدك يعتبر حكم — حتى لو اللعب صن (بس الحكم الحقيقي أقوى منه)."],
+    // راعي السبيت's rule (it took in سبيت دايم, per the player): buy spades any round, and your
+    // spades count as trump even in sun.
+    levels: ["تشتري حكم سبيت في أي دورة، والسبيت اللي في يدك يعتبر حكم — حتى لو اللعب صن (بس الحكم الحقيقي أقوى منه)."],
     cost: 42,
     rarity: "legendary",
     tags: ["سبيت"],
@@ -360,12 +383,24 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["سبيت", "سرقة"],
   }),
   joker({
-    id: "spade-always",
-    name: "سبيت دايم",
-    icon: "spade",
-    levels: ["تقدر تشتري حكم سبيت في أي دورة، مهما كانت ورقة الأرض."],
+    id: "compass",
+    name: "البوصلة",
+    icon: "compass",
+    levels: ["دايم يجيك ولد السبيت أو تسعته في أول خمس أوراق.", "دايم يجيك الاثنين."],
     cost: 12,
     rarity: "common",
+    tags: ["سبيت"],
+  }),
+  joker({
+    id: "spade-wave",
+    name: "موج السبيت",
+    icon: "fishing-net",
+    levels: [
+      "أول ما تاكل بسبيت في اليد: بدّل ورقة تختارها من يدك بأكبر سبيت عند خصم.",
+      "أول مرتين تاكل فيها بسبيت.",
+    ],
+    cost: 24,
+    rarity: "rare",
     tags: ["سبيت"],
   }),
   joker({
@@ -843,6 +878,9 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   // ---- الصغار
   const lowTier = tier("صغار");
   if (lv("trash-beats-ace") || lowTier >= 2) o.trashBeatsAce = true;
+  if (lv("naughty-nine")) o.trashNine = true;
+  const sling = lv("slingshot-eye");
+  if (sling) o.lowReveal = sling;
   const low = pick("low-luck", [1, 2, 3]);
   if (low) o.guaranteedLow = low;
   const lower = pick("lowerer", [1, 2]);
@@ -905,7 +943,7 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   if (bare) o.bareHokumMultiplier = bare;
   const suits = new Set<Suit>();
   if (lv("free-hokum") || hokumTier >= 2) for (const x of ["S", "H", "D", "C"] as Suit[]) suits.add(x);
-  if (lv("spade-always")) suits.add("S");
+  if (lv("spade-king")) suits.add("S");
   if (suits.size) o.extraHokumSuits = [...suits];
   if (lv("locked-hokum")) {
     o.lockedHokum = true;
@@ -946,6 +984,10 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
   // ---- السبيت
   const spadeTier = tier("سبيت");
   if (lv("spade-king") || spadeTier >= 2) o.personalTrump = "S";
+  const compass = lv("compass");
+  if (compass) o.guaranteedTopSpades = compass;
+  const wave = lv("spade-wave");
+  if (wave) o.spadeWave = wave;
   const thief = lv("spade-thief");
   if (thief) o.spadeThief = { best: thief >= 2, twice: thief >= 3 };
   const dye = pick("dyer", [1, 2]);

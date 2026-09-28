@@ -62,6 +62,8 @@ export interface RunState {
   blessings: string[];
   /** Who you are this run (src/roguelike/characters.ts); chosen first, before الراوي. */
   character?: string;
+  /** How many times this run's عهد has been kept (each time asks for more). */
+  vowsKept?: number;
   /** Who sits across from you this run (src/roguelike/partners.ts); hidden for now. */
   partner?: string;
   cleared: boolean[]; // parallel to nodes: true once that node is resolved
