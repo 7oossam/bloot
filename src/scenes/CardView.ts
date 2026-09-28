@@ -3,6 +3,7 @@ import type { Card } from "../engine/types";
 import { SUIT_COLOR_HEX, SUIT_SYMBOL } from "./cardArt";
 import { cardBackKey, cardFaceKey, cardHaloKey, cardShadowKey } from "./fx";
 import { CARD_BACK_ART, cardArtKey } from "./ui";
+import { INK, addIcon } from "./icons";
 
 /** Base card size, in the 860x1800 authoring space. */
 export const CARD_W = 132;
@@ -20,7 +21,14 @@ const CARD_FONT = "Tajawal, Arial, Helvetica, sans-serif";
  * card.
  */
 export class CardView extends Phaser.GameObjects.Container {
+  /**
+   * الوسوم: which stamps a card carries (set by the table from the run). A face-up card shows
+   * them as small gold seals in its lower corner.
+   */
+  static stampsFor?: (card: Card) => { icons: string[]; stars: number; grown: boolean } | undefined;
+
   readonly card: Card;
+  private badges?: Phaser.GameObjects.Container;
   readonly displayW: number;
   readonly displayH: number;
   private faceUp: boolean;
@@ -53,6 +61,7 @@ export class CardView extends Phaser.GameObjects.Container {
     this.add([this.shadow, this.halo, this.paper, this.frame, this.shade]);
     this.setSize(w, h);
     this.redraw();
+    this.drawStamps();
     scene.add.existing(this);
 
     this.on("pointerover", () => this.lift(true));
@@ -62,6 +71,56 @@ export class CardView extends Phaser.GameObjects.Container {
   setFaceUp(faceUp: boolean): void {
     this.faceUp = faceUp;
     this.redraw();
+    this.drawStamps();
+  }
+
+  /** A stamp works only in your hand: anywhere else its seal shows faded. */
+  setStampActive(on: boolean): void {
+    this.badges?.setAlpha(on ? 1 : 0.4);
+  }
+
+  /** Makes a stamp's seal pulse (it just did something). */
+  pulseStamps(): void {
+    if (!this.badges) return;
+    this.scene.tweens.add({ targets: this.badges, scale: 1.5, duration: 160, yoyo: true, ease: "Quad.Out" });
+  }
+
+  private drawStamps(): void {
+    this.badges?.destroy();
+    this.badges = undefined;
+    const info = this.faceUp ? CardView.stampsFor?.(this.card) : undefined;
+    if (!info || info.icons.length === 0) return;
+    const s = this.sizeScale;
+    const r = 17 * s;
+    const parts: Phaser.GameObjects.GameObject[] = [];
+    info.icons.forEach((icon, i) => {
+      // The lower-left corner: the face's indexes sit top-left and bottom-right.
+      const x = -this.displayW / 2 + r + 5 * s + i * (r * 2 + 3 * s);
+      const y = this.displayH / 2 - r - 5 * s;
+      const g = this.scene.add.graphics();
+      g.fillStyle(info.grown && icon === "wheat" ? 0xe3a33b : 0xf0cb7a, 1);
+      g.fillCircle(x, y, r);
+      g.lineStyle(2 * s, 0x3a2620, 0.9);
+      g.strokeCircle(x, y, r);
+      parts.push(g, addIcon(this.scene, x, y, icon, r * 1.35, INK));
+    });
+    if (info.stars > 0 && !info.grown) {
+      // الكبّارة's progress: stars so far out of three.
+      const t = this.scene.add
+        .text(-this.displayW / 2 + 6 * s, this.displayH / 2 - r * 2 - 18 * s, `${info.stars}/3`, {
+          fontFamily: CARD_FONT,
+          fontSize: `${Math.round(22 * s)}px`,
+          color: "#ffd98a",
+          fontStyle: "bold",
+          stroke: "#3a2620",
+          strokeThickness: 4 * s,
+        })
+        .setOrigin(0, 0.5);
+      parts.push(t);
+    }
+    this.badges = this.scene.add.container(0, 0, parts);
+    this.add(this.badges);
+    this.bringToTop(this.shade);
   }
 
   setHighlighted(on: boolean): void {

@@ -70,6 +70,27 @@ Tahreeb is the advanced meta-game of discarding to signal your partner.
 
 4. **Never Ship a Lonely Joker:** Every joker ships as part of a package. See PART 4.
 
+5. **Baloot sanity check before proposing ANY effect** (the player caught several ideas that don't
+   survive a real table: «آخر الكلام» on the last trick, «الضربة الأولى» with الحلة, «المكيدة»,
+   «النداء»). Walk the idea through these, in words, before showing it:
+   - **Who leads next?** The trick's winner leads the next trick. "Win this and play last next
+     time" is impossible without handing the lead away.
+   - **Where is the card now?** A played card is on the table, gone from the hand — an effect
+     can't seal, return or move "the card they cut with".
+   - **Must follow / must trump:** you follow the led suit; void in hokum you must trump (and
+     overtrump an opponent) unless your partner is winning; in sun there are no trumps (a
+     "can't be ruffed" effect is dead in sun). Replacing a LED card after others answered it
+     breaks the trick.
+   - **Does a good player do this anyway?** Playing your biggest card behind the partner's lead,
+     giving the 10 to his Ace, leading the trump 10 for a partner who bought… an effect that
+     forces normal play is no effect.
+   - **Sun and hokum both:** say what it does in each, or which one it's for.
+   - **Last trick:** everyone holds one card — no choice is left there.
+   - **Shared deck:** nothing created, burned or copied (the player's rule); swaps, seals,
+     reveals, order and rank changes only.
+   - **The AI:** can the computer players (partner included) understand and play around it?
+   When unsure how the table plays something, check `docs/baloot-guide.md` or ask the player.
+
 ---
 
 ## PART 4: The Build Package Law (never ship a lonely joker)
@@ -215,12 +236,15 @@ Only العارفين (a foreseen play-out) makes doubling a threat — and ال
 are its counters, which is why the player wanted them kept. Also rejected: "you can't buy
 sun" (≈0) and "they always lead" (≈0). Re-measure any new rule the same way before shipping it.
 
-### The map branches (src/roguelike/mapgen.ts)
-Like Slay the Spire: 9 rows, 2–3 nodes a row in 3 lanes, each linked to the node above and
-diagonally one way per row (so links never cross). Row 0 is all matches, elites from row 3,
-shops from row 3 (rare), the row before the boss is all shops, then the boss. A match's
-target and gold grow with its row (41 + 10×row, 20 + 3×row). You choose your route: more
-fights for more rewards, a ديوانية for a gamble, an elite for rarer spoils.
+### Three maps a night (src/roguelike/mapgen.ts)
+Like Slay the Spire's acts: الحارة → الأندلس → قصر المعزّب, each **6 rows** (a match row,
+three mixed rows, a shop row, the boss) — about 11 / 13 / 15 hands a map, so a whole night is
+roughly what one old map took. 2–3 nodes a row in 3 lanes, linked up and diagonally one way per
+row (links never cross). Elites and shops from row 2; every map has at least one elite and two
+ديوانيات. Targets come from `ACTS` (and `scripts/pace-sim.ts` measures hands per target).
+Beating the boss of maps 1–2: three legendaries to choose from, then الراوي's gift for the road
+(hours, a character rare, gold, or shields). **Pacing rule:** a map should stay near 15 minutes
+— check the hands per path whenever targets or rows change.
 
 ### السوا is for everyone
 The سوا button shows whenever you lead; either way the rest plays itself out. Right keeps the
@@ -233,10 +257,19 @@ Like Slay the Spire's relics there's no limit on how many jokers you hold. The r
 and the chips in the shop shrink to fit. (The جيب زيادة upgrade is gone.)
 
 ### الديوانية (src/roguelike/events.ts)
-Map nodes with a short scene and a choice:
-safe, a gamble, or a price now for something later. The events are فنجال المعزّب، الرهان،
-الشايب الخبير، البسطة، الورق الملعون and الضيف الثقيل. A choice you can't afford is greyed out
-with the reason, and every event has at least one choice that's always open.
+Map nodes with a short scene and a choice. Every event has a **kind**, shown on its panel so the
+player knows the door before knocking: ضيافة (rest), سوق (trade), رهان (gamble), وسم (stamps),
+حكاية (a story with a later price), حكايتك (the character's own — the first ديوانية of every
+map). **No free lunches:** each choice costs gold, an hour of the night (never the last one),
+a head start for the next opponents, or a gamble. Each map has its own pool (`acts`). A choice
+you can't afford is greyed out with the reason, and every event has a choice that's always open.
+
+### Table-verb تحف (the STS-relic layer)
+تحف that give the player a new **verb at the table**, not a number: الفزعة (you and your partner
+each throw a 7/8 → the trick is yours), الصفر (they buy, you take nothing → your كبوت), آخر
+الكلام (pass your turn mid-trick, play last), البيعة (sell your side's contract after the
+deal). Each passed the Baloot sanity check with the player; ideas still waiting: الطوفان،
+الانتقاء، النقض.
 
 ### بركات الحوت (src/roguelike/blessings.ts)
 At the start of the map the whale offers three **blessings** — one free, two stronger ones
@@ -255,11 +288,19 @@ sold. The player's taste: no blessing that costs a life, and no shop discount.
 
 It appears at the start of the map only (never in the middle).
 
+### الوسوم (src/roguelike/stamps.ts) — the build that stays
+The reward of a plain won match: stamps on cards of the shared deck, kept all night, working only
+in YOUR hand (never the opponents' or the partner's). A card holds two. The eight: المرتدة،
+الكبّارة، المسافرة، الهلال، الحارسة، الطُّعم، الملكية، الغطّاسة. تحف come only from the big مجالس
+(3 to pick, one rare+ at least), the boss and the shop. Three layers: stamps build your cards,
+تحف bend the rules, ضيافة (not built) is a one-off save.
+
 ### الشخصيات (src/roguelike/characters.ts) — who you are
 The run opens with picking a character (the partner pick is hidden for now). Each starts with its
 rule-breaker and owns a family whose تحف only it is offered; every other تحفة is general. الراوي's
-third offer is the character's own. ولد الحارة: ثورة الصغار (owns الصغار). صاحب السبيت: ملك السبيت +
-سبيت دايم (owns السبيت). A character's start تحف can't be sold.
+third offer is the character's عهد: win a match played its way and one of its تحف comes (the bar rises
+each time). ولد الحارة: ثورة الصغار (owns الصغار: + التسعة الشقية، عين النبّالة). راعي السبيت: ملك السبيت,
+which also buys spades any round (owns السبيت: + البوصلة، موج السبيت). A character's start تحف can't be sold.
 
 ### شخصيات الخوي (src/roguelike/partners.ts) — hidden for now
 The run opens with picking who sits across from you (before الحوت), like picking a

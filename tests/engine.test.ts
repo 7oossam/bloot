@@ -9,7 +9,7 @@ import { roundNonBuyer, scoreHand, toGamePoints } from "../src/engine/scoring";
 import { Round } from "../src/engine/round";
 import { mulberry32 } from "../src/engine/rng";
 import { legalDoubles, raiserTeam, startDoubling, submitDouble, sunDoubleAllowed } from "../src/engine/doubling";
-import type { Bid, Card, Seat, Trick } from "../src/engine/types";
+import type { Bid, Card, Seat, Suit, Trick, TrickRules } from "../src/engine/types";
 
 describe("deck", () => {
   it("has 32 unique cards", () => {
@@ -1021,5 +1021,94 @@ describe("صاحب الكلمة: a set first bidder", () => {
     for (let i = 0; i < 4; i++) s = submitBid(s, { seat: s.turnSeat, call: "pass" });
     expect(s.round).toBe(2);
     expect(s.turnSeat).toBe(2);
+  });
+});
+
+describe("الوسوم (stamps) in the engine", () => {
+  const c = (id: string) => ({ suit: id.slice(-1) as Suit, rank: id.slice(0, -1) as Card["rank"] });
+  const trickOf = (leader: Seat, plays: Array<[Seat, string]>, rules?: TrickRules): Trick => ({
+    leader,
+    order: plays.map(([s]) => s),
+    cards: Object.fromEntries(plays.map(([s, id]) => [s, c(id)])),
+    rules,
+  });
+
+  it("الملكية: a stamped card is a trump for its holder only — in sun, and under a real trump in hokum", () => {
+    const royal: TrickRules = { stamps: { seat: 0, royal: ["D7"] } };
+    // Sun: hearts led, your stamped 7♦ takes the Ace.
+    expect(resolveTrick(trickOf(1, [[1, "AH"], [2, "KH"], [3, "10H"], [0, "7D"]], royal), "sun")).toBe(0);
+    // The same card in someone else's hand is just a 7.
+    expect(resolveTrick(trickOf(0, [[0, "AH"], [1, "7D"], [2, "KH"], [3, "10H"]], { stamps: { seat: 0, royal: ["D7"] } }), "sun")).toBe(0);
+    // Hokum ♠: a real trump still beats it.
+    expect(resolveTrick(trickOf(1, [[1, "AH"], [2, "7S"], [3, "10H"], [0, "7D"]], royal), "hokum", "S")).toBe(2);
+  });
+
+  it("الحارسة: in hokum nobody may cut your guarded lead, and a trump on it can't win", () => {
+    const rules: TrickRules = { stamps: { seat: 0, guard: ["HK"] } };
+    const open = trickOf(0, [[0, "KH"]], rules);
+    // Seat 1 is void in hearts and holds trumps: normally forced to cut, now free.
+    const hand = [c("7S"), c("JS"), c("8D")];
+    expect(legalMoves(hand, open, "hokum", "S", 1)).toHaveLength(3);
+    expect(resolveTrick(trickOf(0, [[0, "KH"], [1, "JS"], [2, "7H"], [3, "8H"]], rules), "hokum", "S")).toBe(0);
+    // Led by anyone else it's an ordinary card.
+    expect(resolveTrick(trickOf(2, [[2, "KH"], [3, "JS"], [0, "7H"], [1, "8H"]], rules), "hokum", "S")).toBe(3);
+  });
+
+  it("الغطّاسة: its holder may play it whatever the led suit", () => {
+    const rules: TrickRules = { stamps: { seat: 0, diver: ["SA"] } };
+    const hand = [c("7H"), c("AS"), c("9D")];
+    const led = trickOf(1, [[1, "10H"]], rules);
+    expect(legalMoves(hand, led, "sun", undefined, 0).map((x) => x.rank + x.suit).sort()).toEqual(["7H", "AS"]);
+    expect(legalMoves(hand, led, "sun", undefined, 2)).toHaveLength(1);
+  });
+
+  it("الكبّارة grown: the stamped card is the top of its suit for its holder", () => {
+    const rules: TrickRules = { stamps: { seat: 0, top: ["C7"] } };
+    expect(resolveTrick(trickOf(1, [[1, "AC"], [2, "10C"], [3, "KC"], [0, "7C"]], rules), "sun")).toBe(0);
+  });
+
+  it("الطُّعم: the next leader must lead the bait's suit if they hold it", () => {
+    const next = trickOf(1, [], { forcedLead: "D" });
+    expect(legalMoves([c("AH"), c("7D"), c("KD")], next, "sun", undefined, 1).map((x) => x.suit)).toEqual(["D", "D"]);
+    expect(legalMoves([c("AH"), c("KS")], next, "sun", undefined, 1)).toHaveLength(2);
+  });
+
+  it("المرتدة: a lost trick's card comes back and another takes its place; the trick keeps its winner", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 200 && checked < 5; seed++) {
+      const round = new Round(0, mulberry32(seed));
+      while (round.phase === "bidding") {
+        const seat = round.bidding.turnSeat;
+        const buy = round.legalBids().find((b) => b.call !== "pass");
+        round.bid({ seat, ...(buy ?? { call: "pass" }) } as Bid);
+      }
+      if (round.phase !== "playing") continue;
+      while (round.tricks.length === 0) {
+        const seat = round.turnSeat!;
+        round.playCard(seat, round.legalMovesFor(seat)[0]);
+      }
+      const trick = round.tricks[0];
+      if (trick.winner === 0) continue;
+      const mine = trick.cards[0]!;
+      const replacement = round.hands[0][0];
+      const back = round.bounceBack(0, 0, replacement);
+      expect(back).toEqual(mine);
+      expect(round.hands[0]).toContainEqual(mine);
+      expect(round.hands[0]).not.toContainEqual(replacement);
+      expect(round.tricks[0].cards[0]).toEqual(replacement);
+      expect(round.tricks[0].winner).toBe(trick.winner);
+      expect(round.hands[0]).toHaveLength(7);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("المسافرة: stamped cards are dealt into their holder's first five", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const round = new Round(0, mulberry32(seed), { travelCards: { seat: 0, ids: ["HA", "C7"] } });
+      const ids = round.hands[0].map(cardId);
+      const ground = cardId(round.groundCard);
+      for (const id of ["HA", "C7"]) if (id !== ground) expect(ids).toContain(id);
+    }
   });
 });

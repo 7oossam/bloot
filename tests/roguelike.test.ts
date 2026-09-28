@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { generateMap, pathTo } from "../src/roguelike/mapgen";
+import { ACTS, generateMap, pathTo } from "../src/roguelike/mapgen";
 import { runController } from "../src/roguelike/RunController";
 import {
   activeSynergies,
@@ -11,7 +11,7 @@ import {
   sellPrice,
   UPGRADE_CATALOG,
 } from "../src/roguelike/jokers";
-import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES } from "../src/roguelike/types";
+import { REROLL_BASE_COST, REROLL_STEP, STARTING_GOLD, STARTING_LIVES, type RunState } from "../src/roguelike/types";
 
 describe("generateMap", () => {
   it("ends with a boss node and starts with a match node", () => {
@@ -82,19 +82,49 @@ describe("RunController", () => {
     expect(runController.getState().won).toBe(false);
   });
 
-  it("winning the boss node ends the run as a win", () => {
+  it("the night is three maps: each boss leads to the next, the third ends the run as a win", () => {
+    const acts: number[] = [];
     let node = runController.getAvailableNode();
     while (node) {
       runController.enterNode(node.id);
       if (node.type === "shop") {
         runController.leaveShopNode();
       } else {
+        const act = runController.getState().act;
         runController.resolveMatchNode(true);
+        const pending = runController.getState().pendingRewards;
+        if (node.type === "boss" && pending) {
+          // Three legendaries (or rares when they run out), and the next map after them.
+          expect(pending.boss).toBe(true);
+          expect(pending.items).toHaveLength(3);
+          acts.push(act);
+        }
+        if (pending) runController.skipReward();
       }
       node = runController.getAvailableNode();
     }
+    expect(acts).toEqual([0, 1]);
+    expect(runController.getState().act).toBe(ACTS.length - 1);
     expect(runController.getState().over).toBe(true);
     expect(runController.getState().won).toBe(true);
+  });
+
+  it("a new map: fresh nodes, an hour back, and الراوي's three gifts for it", () => {
+    const s = runController.getState() as RunState;
+    s.lives = 1;
+    runController.advanceAct();
+    expect(s.act).toBe(1);
+    expect(s.nodes.every((n) => n.id.startsWith("a1-"))).toBe(true);
+    expect(s.currentIndex).toBe(-1);
+    expect(s.lives).toBe(2);
+    expect(s.blessing).toHaveLength(3);
+    const gold = s.gold;
+    const at = s.blessing!.indexOf("act-gold");
+    if (at >= 0) {
+      runController.takeBlessing(at);
+      expect(s.gold).toBe(gold + 60);
+      expect(s.blessings).not.toContain("act-gold");
+    }
   });
 
   it("buyJoker respects affordability, duplicates, and the joker cap", () => {
@@ -249,7 +279,7 @@ describe("joker levels and synergies", () => {
     // الحلة 3: you always lead.
     expect(matchOptionsFromJokers(["first-strike", "akka-king", "oracle"]).alwaysLead).toBe(true);
     // السبيت 3: your spades are trumps.
-    expect(matchOptionsFromJokers(["spade-always", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
+    expect(matchOptionsFromJokers(["compass", "spade-treasure", "spade-thief"]).personalTrump).toBe("S");
     // الدفاع 3: nobody doubles you.
     expect(matchOptionsFromJokers(["trap", "qahwaji", "loud-voice"]).noDoubleAgainst).toBe(true);
   });
@@ -257,7 +287,7 @@ describe("joker levels and synergies", () => {
   it("second tiers boost the family's style", () => {
     expect(matchOptionsFromJokers(["ducker", "last-card"]).lastTrickBonus).toBe(20); // الأرض +10
     expect(matchOptionsFromJokers(["first-strike", "akka-king"]).firstTrickBonus).toBe(4 + 3);
-    expect(matchOptionsFromJokers(["spade-treasure", "spade-always"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
+    expect(matchOptionsFromJokers(["spade-treasure", "compass"]).suitTrickBonus).toEqual({ suit: "S", points: 3 });
     expect(matchOptionsFromJokers(["bare-hokum", "cutter"]).hokumSynergyBonus).toBe(4);
   });
 
@@ -380,7 +410,12 @@ describe("play-changing jokers turn into their rules", () => {
     expect(matchOptionsFromJokers(["akka-king"]).akkaTrickBonus).toBe(3);
     expect(matchOptionsFromJokers(["spade-king"]).personalTrump).toBe("S");
     expect(matchOptionsFromJokers(["spade-thief"], { "spade-thief": 3 }).spadeThief).toEqual({ best: true, twice: true });
-    expect(matchOptionsFromJokers(["spade-always"]).extraHokumSuits).toEqual(["S"]);
+    // ملك السبيت took in سبيت دايم: spades can be bought in any round.
+    expect(matchOptionsFromJokers(["spade-king"]).extraHokumSuits).toEqual(["S"]);
+    expect(matchOptionsFromJokers(["compass"], { compass: 2 }).guaranteedTopSpades).toBe(2);
+    expect(matchOptionsFromJokers(["spade-wave"]).spadeWave).toBe(1);
+    expect(matchOptionsFromJokers(["naughty-nine"]).trashNine).toBe(true);
+    expect(matchOptionsFromJokers(["slingshot-eye"], { "slingshot-eye": 2 }).lowReveal).toBe(2);
     expect(matchOptionsFromJokers(["spade-treasure"]).suitTrickBonus).toEqual({ suit: "S", points: 2 });
   });
 });
@@ -426,15 +461,16 @@ describe("غنائم الصكة — rewards after every match won", () => {
     return runController.resolveMatchNode(true);
   };
 
-  it("a won match offers three free spoils; a lost one offers none", () => {
+  it("a won match offers three stamps (not تحف); a lost one offers none", () => {
     winNext();
     const r = runController.getState().pendingRewards!;
-    expect(r.items).toHaveLength(3);
-    expect(new Set(r.items).size).toBe(3);
-    const id = r.items.find((x) => !runController.whyNotReward(x))!;
+    expect(r.items).toHaveLength(0);
+    expect(r.stamps).toHaveLength(3);
+    expect(new Set(r.stamps).size).toBe(3);
     const gold = runController.getState().gold;
-    runController.takeReward(id);
+    runController.applyStamp(r.stamps![0], "HA");
     expect(runController.getState().gold).toBe(gold); // free
+    expect(runController.getState().stamps.HA).toEqual([r.stamps![0]]);
     expect(runController.getState().pendingRewards).toBeUndefined();
     const node = runController.getAvailableNode()!;
     runController.enterNode(node.id);
@@ -449,28 +485,57 @@ describe("غنائم الصكة — rewards after every match won", () => {
     expect(runController.getState().gold).toBe(gold + 8);
   });
 
-  it("offers lean towards your build: jokers sharing your families show up far more", () => {
-    // Share of spoils that are حكم jokers, over the same seeds, with and without a حكم build.
+  it("the مجلس's offers lean towards your build: jokers sharing your families show up far more", () => {
+    // Share of an elite's spoils that are حكم jokers, over the same seeds, with and without a حكم build.
     const hokumShare = (withBuild: boolean) => {
       let aligned = 0, total = 0;
-      for (let seed = 1; seed <= 200; seed++) {
+      for (let seed = 1; seed <= 120; seed++) {
         runController.startNewRun(seed);
         runController.addGold(200);
         if (withBuild) {
           runController.buyJoker("bare-hokum");
           runController.buyJoker("cutter");
         }
-        winNext();
+        const nodes = runController.getState().nodes;
+        const elite = nodes.find((n) => n.type === "elite");
+        if (!elite) continue;
+        for (const node of pathTo(nodes, elite.id)!) {
+          runController.enterNode(node.id);
+          if (node.type === "shop") { runController.leaveShopNode(); continue; }
+          if (node.type === "diwaniya") { runController.chooseEventOption([0, 1, 2, 3].find((i) => !runController.whyNotEventOption(i))!); continue; }
+          runController.resolveMatchNode(true);
+          if (node.type === "elite") break;
+          runController.skipReward();
+        }
         for (const id of runController.getState().pendingRewards!.items) {
-          const def = getJokerDef(id)!;
           total++;
-          if (def.kind === "joker" && def.tags.includes("حكم")) aligned++;
+          if (getJokerDef(id)!.tags.includes("حكم")) aligned++;
         }
       }
       return aligned / total;
     };
     // Compared against a run with no build, so adding jokers to the catalog doesn't move the bar.
     expect(hokumShare(true)).toBeGreaterThan(1.5 * hokumShare(false));
+  });
+
+  it("every مجلس offers تحف only, at least one of them rare or legendary", () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      runController.startNewRun(seed);
+      const nodes = runController.getState().nodes;
+      const elite = nodes.find((n) => n.type === "elite");
+      if (!elite) continue;
+      for (const node of pathTo(nodes, elite.id)!) {
+        runController.enterNode(node.id);
+        if (node.type === "shop") { runController.leaveShopNode(); continue; }
+        if (node.type === "diwaniya") { runController.chooseEventOption([0, 1, 2, 3].find((i) => !runController.whyNotEventOption(i))!); continue; }
+        runController.resolveMatchNode(true);
+        if (node.type === "elite") break;
+        runController.skipReward();
+      }
+      const items = runController.getState().pendingRewards!.items;
+      expect(items.every((id) => getJokerDef(id)!.kind === "joker")).toBe(true);
+      expect(items.some((id) => getJokerDef(id)!.rarity !== "common")).toBe(true);
+    }
   });
 
   it("the elite's spoils are rarer, and the boss ends the run without any", () => {

@@ -1,6 +1,6 @@
 import { cardId, isTrumpCard, rankStrength } from "./cards";
 import type { Card, Mode, Seat, Suit, Trick, TrickRules } from "./types";
-import { nextSeat, teamOf } from "./types";
+import { teamOf } from "./types";
 
 interface Played {
   seat: Seat;
@@ -11,13 +11,26 @@ function playedInOrder(trick: Trick): Played[] {
   return trick.order.map((seat) => ({ seat, card: trick.cards[seat]! }));
 }
 
+/** Whose turn it is in an unfinished trick: clockwise from the leader, a deferred seat last (آخر الكلام). */
+export function turnOf(trick: Trick): Seat {
+  const seats = [0, 1, 2, 3].map((k) => ((trick.leader + k) % 4) as Seat);
+  const order = trick.deferred === undefined ? seats : [...seats.filter((s) => s !== trick.deferred), trick.deferred];
+  return order.find((s) => !trick.order.includes(s)) ?? trick.leader;
+}
+
+const isLowCard = (c: Card | undefined) => !!c && (c.rank === "7" || c.rank === "8");
+
 /** Resolves the winner among whatever cards have been played so far in the trick. */
 export function currentWinner(trick: Trick, mode: Mode, trumpSuit?: Suit): Seat {
+  // الفزعة: you and your partner both throw a small card — the trick is yours.
+  const f = trick.rules?.faz3a;
+  if (f !== undefined && isLowCard(trick.cards[f]) && isLowCard(trick.cards[((f + 2) % 4) as Seat])) return f;
   const played = playedInOrder(trick);
   const ledSuit = played[0].card.suit;
+  const guarded = isGuarded(trick, mode, trumpSuit);
   let best = played[0];
   for (const p of played.slice(1)) {
-    if (isBetter(p, best, ledSuit, mode, trumpSuit, trick.rules)) best = p;
+    if (isBetter(p, best, ledSuit, mode, trumpSuit, trick.rules, guarded)) best = p;
   }
   return best.seat;
 }
@@ -26,11 +39,28 @@ export function currentWinner(trick: Trick, mode: Mode, trumpSuit?: Suit): Seat 
  * How strong a played card is in this trick: a real trump beats a joker's "personal trump"
  * (ملك السبيت), which beats the led suit; anything else can't win.
  */
-function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
-  if (isTrumpCard(p.card, mode, trumpSuit)) return 3;
+function tier(p: Played, ledSuit: Suit, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules, guarded = false): number {
+  // الحارسة: a guarded lead can't be cut — a trump on it is just a card thrown away.
+  if (isTrumpCard(p.card, mode, trumpSuit)) return guarded ? (p.card.suit === ledSuit ? 1 : 0) : 3;
   const pt = rules?.personalTrump;
   if (pt && pt.seat === p.seat && pt.suit === p.card.suit) return 2;
+  // الملكية: a stamped card counts as a trump for its holder, under a real one.
+  if (hasStamp(rules, "royal", p)) return 2;
   return p.card.suit === ledSuit ? 1 : 0;
+}
+
+/** Whether `p` was played by the stamps' seat and carries that stamp. */
+function hasStamp(rules: TrickRules | undefined, kind: "royal" | "guard" | "diver" | "top", p: Played): boolean {
+  const st = rules?.stamps;
+  return !!st && st.seat === p.seat && !!st[kind]?.includes(cardId(p.card));
+}
+
+/** الحارسة: the trick was led by the stamps' seat with a guarded card, in hokum. */
+function isGuarded(trick: Trick, mode: Mode, trumpSuit: Suit | undefined): boolean {
+  if (mode !== "hokum" || trick.order.length === 0) return false;
+  const lead = trick.order[0];
+  const card = trick.cards[lead]!;
+  return !isTrumpCard(card, mode, trumpSuit) && hasStamp(trick.rules, "guard", { seat: lead, card });
 }
 
 /** الختم: a sealed card sits under every other card of its suit. */
@@ -45,14 +75,14 @@ export function sealedStrength(card: Card, mode: Mode, trumpSuit: Suit | undefin
 
 function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: TrickRules): number {
   if (isSealed(p.card, rules)) return -1;
-  // الورقة الأخيرة: that seat's card counts as the top of its suit.
-  const top = rules?.topCard === p.seat ? 100 : 0;
+  // الورقة الأخيرة: that seat's card counts as the top of its suit (and so does a grown الكبّارة).
+  const top = rules?.topCard === p.seat || hasStamp(rules, "top", p) ? 100 : 0;
   // ثورة الصغار: only the joker holder's team, and only outside the trump suit (a trump 7 over the
   // trump Jack would make every hokum a walkover).
   const low =
     rules?.trashBeatsAce !== undefined &&
     teamOf(p.seat) === rules.trashBeatsAce &&
-    (p.card.rank === "7" || p.card.rank === "8") &&
+    (p.card.rank === "7" || p.card.rank === "8" || (!!rules.trashNine && p.card.rank === "9")) &&
     !isTrumpCard(p.card, mode, trumpSuit)
       ? 50
       : 0;
@@ -64,9 +94,9 @@ function strength(p: Played, mode: Mode, trumpSuit: Suit | undefined, rules?: Tr
   return (jack ?? rankStrength(p.card, mode, trumpSuit)) + top + low;
 }
 
-function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules): boolean {
-  const a = tier(candidate, ledSuit, mode, trumpSuit, rules);
-  const b = tier(current, ledSuit, mode, trumpSuit, rules);
+function isBetter(candidate: Played, current: Played, ledSuit: Suit, mode: Mode, trumpSuit?: Suit, rules?: TrickRules, guarded = false): boolean {
+  const a = tier(candidate, ledSuit, mode, trumpSuit, rules, guarded);
+  const b = tier(current, ledSuit, mode, trumpSuit, rules, guarded);
   if (a !== b) return a > b;
   if (a === 0) return false;
   // Equal cards (a duplicated Jack): the one played first keeps it.
@@ -83,8 +113,8 @@ export function wouldWinAgainstCurrent(card: Card, trick: Trick, mode: Mode, tru
   if (trick.order.length === 0) return true; // leading always "wins" so far
   const ledSuit = trick.cards[trick.order[0]]!.suit;
   const winnerSeat = currentWinner(trick, mode, trumpSuit);
-  const seat = nextSeat(trick.order[trick.order.length - 1]);
-  return isBetter({ seat, card }, { seat: winnerSeat, card: trick.cards[winnerSeat]! }, ledSuit, mode, trumpSuit, trick.rules);
+  const seat = turnOf(trick);
+  return isBetter({ seat, card }, { seat: winnerSeat, card: trick.cards[winnerSeat]! }, ledSuit, mode, trumpSuit, trick.rules, isGuarded(trick, mode, trumpSuit));
 }
 
 /**
@@ -106,6 +136,15 @@ export function legalMoves(
   seat: Seat,
   closed = false,
 ): Card[] {
+  const legal = baseLegalMoves(hand, trick, mode, trumpSuit, seat, closed);
+  // الغطّاسة: the stamps' seat may play a stamped card whatever the led suit.
+  const st = trick.rules?.stamps;
+  if (trick.order.length === 0 || !st?.diver?.length || st.seat !== seat) return legal;
+  const extra = hand.filter((c) => st.diver!.includes(cardId(c)) && !legal.some((l) => cardId(l) === cardId(c)));
+  return extra.length ? [...legal, ...extra] : legal;
+}
+
+function baseLegalMoves(hand: Card[], trick: Trick, mode: Mode, trumpSuit: Suit | undefined, seat: Seat, closed: boolean): Card[] {
   if (trick.order.length === 0) {
     let lead = hand; // leading: anything goes, but…
     // مقفل (a closed دبل): no leading a trump while holding anything else.
@@ -117,6 +156,12 @@ export function legalMoves(
     if (trick.rules?.rival?.noAceLead !== undefined && teamOf(seat) === trick.rules.rival.noAceLead) {
       const noAce = lead.filter((c) => c.rank !== "A" && c.rank !== "10");
       if (noAce.length > 0) lead = noAce;
+    }
+    // الطُّعم: whoever took the bait leads its suit, if they hold any.
+    const forced = trick.rules?.forcedLead;
+    if (forced) {
+      const inSuit = lead.filter((c) => c.suit === forced);
+      if (inSuit.length > 0) lead = inSuit;
     }
     return lead;
   }
@@ -136,6 +181,8 @@ export function legalMoves(
   }
 
   if (mode === "sun") return hand;
+  // الحارسة: nobody may cut a guarded lead, so a void player just throws something.
+  if (isGuarded(trick, mode, trumpSuit)) return hand;
 
   const trumps = hand.filter((c) => isTrumpCard(c, mode, trumpSuit));
   if (trumps.length === 0) return hand;

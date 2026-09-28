@@ -1,3 +1,4 @@
+import type { StampId } from "./stamps";
 export type NodeType = "match" | "elite" | "shop" | "boss" | "diwaniya";
 
 export interface MapNode {
@@ -19,6 +20,10 @@ export interface MapNode {
 
 export interface RunState {
   seed: number;
+  /** Which of the night's three maps you're on (0–2; src/roguelike/mapgen.ts ACTS). */
+  act: number;
+  /** A new map just opened (its name), for the map screen to announce once. */
+  actIntro?: string;
   nodes: MapNode[]; // linear order, floor 0 first
   currentIndex: number; // index into nodes of the node the player is standing at (-1 = not started)
   lives: number;
@@ -47,7 +52,11 @@ export interface RunState {
   /** Run-long counters some jokers grow (الحصالة). */
   jokerCounters: Record<string, number>;
   /** The spoils waiting after a won match: pick one of `items`, or skip for `skipGold`. */
-  pendingRewards?: { items: string[]; skipGold: number; elite: boolean };
+  pendingRewards?: { items: string[]; skipGold: number; elite: boolean; stamps?: StampId[]; boss?: boolean; title?: string };
+  /** الوسوم on the shared deck's cards, by card id (src/roguelike/stamps.ts). */
+  stamps: Record<string, StampId[]>;
+  /** الكبّارة: stars earned by each stamped card (tricks you took with it). */
+  stampStars: Record<string, number>;
   /** Gold the treasury joker paid on entering the current shop, for the shop to show. */
   lastInterest?: number;
   /** Each one absorbs the life a lost match would cost. */
@@ -62,6 +71,8 @@ export interface RunState {
   blessings: string[];
   /** Who you are this run (src/roguelike/characters.ts); chosen first, before الراوي. */
   character?: string;
+  /** How many times this run's عهد has been kept (each time asks for more). */
+  vowsKept?: number;
   /** Who sits across from you this run (src/roguelike/partners.ts); hidden for now. */
   partner?: string;
   cleared: boolean[]; // parallel to nodes: true once that node is resolved

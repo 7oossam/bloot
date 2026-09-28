@@ -16,6 +16,8 @@ export interface HandExtras {
   double?: { level: DoubleLevel; raiserTeam: Team; closed: boolean };
   /** An opponent rule: الأرض (the last-trick bonus) goes to this team whoever takes it. */
   groundTo?: Team;
+  /** الصفر: this team, not buying, took no trick at all — it scores the كبوت instead. */
+  zeroFor?: Team;
 }
 
 /**
@@ -86,7 +88,9 @@ export function scoreHand(
   let winner: Team | undefined;
   const double = extras.double && extras.double.level > 1 ? extras.double : undefined;
 
-  const kabootTeam = ([0, 1] as Team[]).find((t) => tricksWon[t] === tricks.length && tricks.length === 8);
+  // الصفر: a clean sheet against the buyer turns their كبوت into yours.
+  const zero = extras.zeroFor !== undefined && extras.zeroFor !== declarerTeam && tricksWon[extras.zeroFor] === 0 && tricks.length === 8;
+  const kabootTeam = zero ? extras.zeroFor : ([0, 1] as Team[]).find((t) => tricksWon[t] === tricks.length && tricks.length === 8);
   if (kabootTeam !== undefined) {
     kaboot = kabootTeam;
     buyer = kabootTeam === declarerTeam ? "won" : "lost";

@@ -1,6 +1,6 @@
 import { type BiddingState, legalCalls, startBidding, submitBid } from "./bidding";
 import { dealInitial, finalizeDeal, type InitialDeal } from "./deck";
-import { legalMoves, resolveTrick } from "./trick";
+import { legalMoves, resolveTrick, turnOf } from "./trick";
 import { scoreHand } from "./scoring";
 import { cardId } from "./cards";
 import { SEQUENCE_ORDER } from "./projects";
@@ -35,6 +35,10 @@ export interface RoundOptions {
   guaranteedJacks?: number;
   /** الحظ الواطي: this many 7s/8s in `guaranteeJackFor`'s first five. */
   guaranteedLow?: number;
+  /** المسافرة (a stamp): these cards (ids) are dealt into this seat's first five, wherever they'd have gone. */
+  travelCards?: { seat: Seat; ids: string[] };
+  /** البوصلة: this many of the spade Jack and 9 in `guaranteeJackFor`'s first five. */
+  guaranteedTopSpades?: number;
   /** المرتّب: at the deal, one card short of a run of this length → that seat gets the card. */
   completeRunTo?: 3 | 4;
   /** الجريء: this team may double a sun contract whatever the 100-point rule says. */
@@ -68,6 +72,8 @@ export interface RoundOptions {
   hokumSeat?: Seat;
   /** This team may not buy sun (nor call أشكل, which buys it). */
   noSunFor?: Team;
+  /** الصفر: if the other side buys and this team takes no trick, it scores a كبوت. */
+  zeroFor?: Team;
   /** الجفرة (a partner): this seat's first five always hold this many Aces (from the shared deck). */
   luckyAces?: { seat: Seat; count: number };
 }
@@ -192,9 +198,23 @@ export class Round {
       const jacks = options.guaranteedJacks ?? (options.guaranteedLow || options.completeRunTo ? 0 : 1);
       if (jacks) giveCards(this.initial, supplied, rand, jacks, isJack);
       if (options.guaranteedLow) giveCards(this.initial, supplied, rand, options.guaranteedLow, isLow, (c) => jacks > 0 && isJack(c));
+      if (options.guaranteedTopSpades) {
+        const topSpade = (c: Card) => c.suit === "S" && (c.rank === "J" || c.rank === "9");
+        giveCards(this.initial, supplied, rand, options.guaranteedTopSpades, topSpade, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
+      }
       if (options.completeRunTo) {
         completeRun(this.initial, supplied, rand, options.completeRunTo, (c) => (jacks > 0 && isJack(c)) || (!!options.guaranteedLow && isLow(c)));
       }
+    }
+    if (options.travelCards?.ids.length) {
+      const { seat, ids } = options.travelCards;
+      // Never at the cost of what a joker already guaranteed.
+      const kept = (c: Card) =>
+        ids.includes(cardId(c)) ||
+        (!!options.guaranteedLow && (c.rank === "7" || c.rank === "8")) ||
+        (!!options.guaranteedJacks && c.rank === "J") ||
+        (!!options.guaranteedTopSpades && c.suit === "S" && (c.rank === "J" || c.rank === "9"));
+      for (const id of ids) giveCards(this.initial, seat, rand, 1, (c) => cardId(c) === id, kept);
     }
     if (options.luckyAces) {
       giveCards(this.initial, options.luckyAces.seat, rand, options.luckyAces.count, (c) => c.rank === "A");
@@ -314,6 +334,29 @@ export class Round {
     return !!this.options.trickRules?.sealed?.includes(cardId(card));
   }
 
+  /**
+   * المرتدة (a stamp): after a finished trick, `seat`'s card in it goes back to their hand and
+   * `replacement` from their hand takes its place. The trick keeps its winner — you lost it
+   * anyway; you just choose what you lose.
+   */
+  bounceBack(trickIndex: number, seat: Seat, replacement: Card): Card {
+    const trick = this.tricks[trickIndex];
+    const old = trick?.cards[seat];
+    if (!old) throw new Error(`bounceBack: seat ${seat} has no card in trick ${trickIndex}`);
+    const hand = this.hands[seat];
+    const i = hand.findIndex((c) => cardId(c) === cardId(replacement));
+    if (i === -1) throw new Error(`bounceBack: ${cardId(replacement)} not in hand`);
+    hand[i] = { ...old };
+    trick.cards[seat] = { ...replacement };
+    return old;
+  }
+
+  /** الطُّعم: the trick about to be led must be led in `suit` (if the leader holds any). */
+  forceLead(suit: Suit): void {
+    if (!this.currentTrick || this.currentTrick.order.length > 0) return;
+    this.currentTrick.rules = { ...this.currentTrick.rules, forcedLead: suit };
+  }
+
   /** Exchanges one card between two seats' hands. */
   swapCards(seatA: Seat, cardA: Card, seatB: Seat, cardB: Card): void {
     const a = this.hands[seatA].findIndex((c) => cardId(c) === cardId(cardA));
@@ -326,8 +369,37 @@ export class Round {
   /** The seat whose turn it is to play, or undefined once the hand is complete. */
   get turnSeat(): Seat | undefined {
     if (this.phase !== "playing" || !this.currentTrick) return undefined;
-    const { leader, order } = this.currentTrick;
-    return order.length === 0 ? leader : nextSeat(order[order.length - 1]);
+    return turnOf(this.currentTrick);
+  }
+
+  /**
+   * آخر الكلام: `seat`, whose turn it is (not leading, and not last already), passes — the
+   * players after it go first and it plays the trick's last card.
+   */
+  canDefer(seat: Seat): boolean {
+    const t = this.currentTrick;
+    return !!t && this.turnSeat === seat && t.deferred === undefined && t.order.length >= 1 && t.order.length <= 2;
+  }
+
+  deferTurn(seat: Seat): void {
+    if (!this.canDefer(seat)) throw new Error(`Seat ${seat} can't pass its turn now`);
+    this.currentTrick!.deferred = seat;
+  }
+
+  /**
+   * البيعة: after the full deal and before the first card, the buying side hands its contract to
+   * `toSeat` on the other side — the same مشترى, but now they have to make it. Not on a doubled
+   * hand (the دبل was called on the old buyer).
+   */
+  canSellContract(seat: Seat): boolean {
+    const r = this.bidding.result;
+    const doubled = !!this.doubling && this.doubling.level > 1;
+    return this.phase === "playing" && !!r && r.declarerTeam === teamOf(seat) && this.tricks.length === 0 && !this.currentTrick?.order.length && !doubled;
+  }
+
+  sellContract(seat: Seat, toSeat: Seat): void {
+    if (!this.canSellContract(seat) || teamOf(toSeat) === teamOf(seat)) throw new Error("Can't sell the contract now");
+    this.bidding = { ...this.bidding, result: { ...this.bidding.result!, declarer: toSeat, declarerTeam: teamOf(toSeat) } };
   }
 
   legalMovesFor(seat: Seat): Card[] {
@@ -373,6 +445,7 @@ export class Round {
           projects: this.projects,
           baloot,
           groundTo: this.options.groundTo,
+          zeroFor: this.options.zeroFor,
           double:
             this.doubling && this.doubling.level > 1
               ? { level: this.doubling.level, raiserTeam: raiserTeam(this.doubling), closed: this.doubling.closed }

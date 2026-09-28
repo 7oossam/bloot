@@ -533,3 +533,138 @@ describe("صاحب الكلمة in a match", () => {
     expect(firsts.every((s) => s === HUMAN_SEAT)).toBe(true);
   });
 });
+
+describe("تحف الشخصيات (راعي السبيت، ولد الحارة)", () => {
+  it("موج السبيت: a trick you take with a spade trades a card of yours for an opponent's best spade", () => {
+    let waves = 0;
+    for (let seed = 1; seed <= 200 && waves < 3; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, personalTrump: "S", extraHokumSuits: ["S"], spadeWave: 1 });
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "swap" || e.source !== "موج السبيت") return;
+        expect(e.got.suit).toBe("S");
+        // It was their best spade (before the trade).
+        const theirs = c.getRound().hands[e.otherSeat].filter((x) => x.suit === "S" && !(x.suit === e.gave.suit && x.rank === e.gave.rank));
+        const { mode, trumpSuit } = c.getRound().bidding.result!;
+        for (const x of theirs) expect(rankStrength(x, mode, trumpSuit)).toBeLessThan(rankStrength(e.got, mode, trumpSuit));
+        waves++;
+      });
+      c.startMatch();
+      const before = waves;
+      autoplay(c, () => waves > before, 1500);
+    }
+    expect(waves).toBeGreaterThan(0);
+  });
+
+  it("عين النبّالة: a trick your side takes with a 7 or 8 shows cards still in an opponent's hand, never the same twice", () => {
+    let reveals = 0;
+    for (let seed = 1; seed <= 100 && reveals < 5; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, trashBeatsAce: true, lowReveal: 2 });
+      const seen = new Set<string>();
+      c.on("hand:dealt", () => seen.clear());
+      c.on("joker:reveal", (e) => {
+        expect(e.seat === 1 || e.seat === 3).toBe(true);
+        for (const card of e.cards) {
+          const id = `${card.rank}${card.suit}`;
+          expect(seen.has(id)).toBe(false);
+          seen.add(id);
+          expect(c.getRound().hands[e.seat].some((x) => x.suit === card.suit && x.rank === card.rank)).toBe(true);
+        }
+        reveals++;
+      });
+      c.startMatch();
+      const before = reveals;
+      autoplay(c, () => reveals > before, 1500);
+    }
+    expect(reveals).toBeGreaterThan(0);
+  });
+
+  it("counts the match's 7/8 and spade tricks for the characters' vows", () => {
+    const c = new GameController(mulberry32(5), { matchTarget: 60 });
+    let low = 0;
+    let spade = 0;
+    c.on("trick:complete", (e) => {
+      if (teamOf(e.winner) !== teamOf(HUMAN_SEAT)) return;
+      const card = e.trick.cards[e.winner]!;
+      if (card.suit === "S") spade++;
+      if (card.rank === "7" || card.rank === "8") low++;
+    });
+    c.startMatch();
+    playMatchToCompletion(c);
+    expect(c.getMatchStats()).toEqual({ lowTricks: low, spadeTricks: spade });
+  });
+});
+
+describe("الوسوم at the table", () => {
+  const none = { bounce: [], grow: [], travel: [], crescent: [], guard: [], bait: [], royal: [], diver: [], top: [] };
+  const allCards = ["S", "H", "D", "C"].flatMap((s) => ["7", "8", "9", "10", "J", "Q", "K", "A"].map((r) => s + r));
+
+  it("المرتدة: a stamped card you lose comes back to your hand, once a hand, and the trick keeps its winner", () => {
+    let bounces = 0;
+    for (let seed = 1; seed <= 60 && bounces < 3; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, stamps: { ...none, bounce: allCards } });
+      const seen = new Set<string>();
+      c.on("hand:dealt", () => seen.clear());
+      c.on("hand:changed", (e) => {
+        if (e.kind !== "bounce") return;
+        const round = c.getRound();
+        expect(round.hands[HUMAN_SEAT]).toContainEqual(e.back);
+        const trick = round.tricks[e.trickIndex];
+        expect(trick.cards[HUMAN_SEAT]).toEqual(e.gave);
+        expect(teamOf(trick.winner!)).not.toBe(teamOf(HUMAN_SEAT));
+        const id = e.back.suit + e.back.rank;
+        expect(seen.has(id)).toBe(false);
+        seen.add(id);
+        bounces++;
+      });
+      c.startMatch();
+      const before = bounces;
+      autoplay(c, () => bounces > before, 1500);
+    }
+    expect(bounces).toBeGreaterThan(0);
+  });
+
+  it("الطُّعم: whoever took your bait leads its suit next, if they hold it", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 80 && checked < 5; seed++) {
+      const c = new GameController(mulberry32(seed), { matchTarget: 999, stamps: { ...none, bait: allCards } });
+      let bait: { suit: string; leader: number } | undefined;
+      c.on("stamp:fired", (e) => {
+        if (e.stamp !== "bait") return;
+        const t = c.getRound().currentTrick!;
+        bait = { suit: e.card.suit, leader: t.leader };
+      });
+      c.on("play:card", (e) => {
+        if (!bait || e.seat !== bait.leader) return;
+        const had = true;
+        if (had) {
+          // The lead is the bait's suit whenever the leader could.
+          const trick = c.getRound().currentTrick;
+          if (trick && trick.order.length === 1) {
+            if (e.card.suit !== bait.suit) {
+              const hand = c.getRound().hands[e.seat];
+              expect(hand.some((x) => x.suit === bait!.suit)).toBe(false);
+            }
+            checked++;
+          }
+        }
+        bait = undefined;
+      });
+      c.startMatch();
+      const before = checked;
+      autoplay(c, () => checked > before, 1500);
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("الهلال pays gold on a trick you take with it; الكبّارة reports a star", () => {
+    let gold = 0;
+    let stars = 0;
+    const c = new GameController(mulberry32(3), { matchTarget: 999, stamps: { ...none, crescent: allCards, grow: allCards } });
+    c.on("gold:earned", (e) => e.reason === "الهلال" && (gold += e.amount));
+    c.on("stamp:fired", (e) => e.stamp === "grow" && stars++);
+    c.startMatch();
+    autoplay(c, () => stars >= 3, 3000);
+    expect(stars).toBeGreaterThan(0);
+    expect(gold).toBe(2 * stars);
+  });
+});

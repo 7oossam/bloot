@@ -54,6 +54,18 @@ export interface TrickRules {
   topCard?: Seat;
   /** This team's 7s and 8s outside the trump suit beat the rest of their suit (ثورة الصغار). The deck is shared, so it never helps the other side. */
   trashBeatsAce?: Team;
+  /** التسعة الشقية: with trashBeatsAce, that team's 9s outside the trump suit beat the Ace too. */
+  trashNine?: boolean;
+  /**
+   * الوسوم (stamps): card ids with a stamp's rule. They work only in `seat`'s hand — a stamped
+   * card anywhere else is an ordinary card (the player's rule: not even the partner's).
+   * royal: counts as a trump for that seat (under a real trump). guard: led by that seat in
+   * hokum, nobody may cut it. diver: that seat may play it whatever the led suit. top: a grown
+   * الكبّارة — the top card of its suit.
+   */
+  stamps?: { seat: Seat; royal?: string[]; guard?: string[]; diver?: string[]; top?: string[] };
+  /** الطُّعم: this trick's leader must lead this suit if they hold any. */
+  forcedLead?: Suit;
   /** Opponent rules (see src/roguelike/opponents.ts). */
   rival?: {
     /** This team's trump Jack drops below the trump 9 (خاطفين الولد)… */
@@ -68,7 +80,11 @@ export interface TrickRules {
    * trump, but plays as the weakest one — below the trump 7. The card itself never changes.
    */
   sealed?: string[];
-
+  /**
+   * الفزعة: if this seat and its partner both play a 7 or an 8 in the trick, this seat takes it —
+   * over anything, a trump included.
+   */
+  faz3a?: Seat;
 }
 
 export interface Trick {
@@ -76,6 +92,8 @@ export interface Trick {
   cards: Partial<Record<Seat, Card>>;
   order: Seat[]; // seats in the order they played, for resolving ties/precedence
   winner?: Seat;
+  /** آخر الكلام: this seat passed its turn and plays last in the trick. */
+  deferred?: Seat;
   rules?: TrickRules;
 }
 
