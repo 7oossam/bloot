@@ -21,6 +21,9 @@ export function arabicText(
         align: "center",
         // A soft dark halo keeps text readable over the lit sky and the table.
         shadow: { offsetX: 0, offsetY: 2, color: "rgba(20,10,8,0.65)", blur: 6, fill: true },
+        // Room at the ends: the browser can paint a right-to-left line a little wider than
+        // Phaser measured it, and the first letters (or the last) got cut off («سوا» as «سو»).
+        padding: { left: 12, right: 12 },
         ...style,
         fontSize: readableSize(style.fontSize),
       })

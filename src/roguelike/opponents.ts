@@ -26,6 +26,10 @@ export interface RivalOptions {
   headStart?: number;
   /** Your strongest joker sits this match out (applied when the match is set up). */
   disableJoker?: boolean;
+  /** Their hokum can't be taken over as sun. */
+  lockedHokum?: boolean;
+  /** Nobody on your side may double their contracts. */
+  noDouble?: boolean;
 }
 
 export type OpponentTier = "match" | "elite" | "boss";
@@ -94,7 +98,34 @@ export const OPPONENTS: OpponentDef[] = [
     hits: "لا تشتري إلا وأنت ضامن — والحكم المقفول يحميك منهم",
     rules: { doubleKnown: true },
   },
-  // ---- elites
+  {
+    id: "hokum-lockers",
+    name: "ماسكين الحكم",
+    icon: "padlock",
+    tier: "match",
+    rule: "إذا اشتروا حكم، محد يقدر ياخذه منهم صن",
+    hits: "يتعب اللي يستنى حكمهم عشان يقلبه صن",
+    rules: { lockedHokum: true },
+  },
+  {
+    id: "shielded",
+    name: "أهل الدرع",
+    icon: "shield",
+    tier: "match",
+    rule: "ما تقدرون تدبلون على شراهم",
+    hits: "يتعب بناء الدبل والدفاع",
+    rules: { noDouble: true },
+  },
+  {
+    id: "early-birds",
+    name: "المبكّرين",
+    icon: "sunrise",
+    tier: "match",
+    rule: "يبدؤون الصكّة قدامكم بـ 10",
+    hits: "كل يد تفرق من أولها",
+    rules: { headStart: 10 },
+  },
+  // ---- elites: two rules at once, harder than a match — and their spoils are تحف
   {
     id: "hokum-folk",
     name: "أهل الحكم",
@@ -112,6 +143,33 @@ export const OPPONENTS: OpponentDef[] = [
     rule: "أي يد تشترونها وتخسرونها تنحسب لهم دبل",
     hits: "لا تشتري إلا وأنت ضامن",
     rules: { lossDoubled: true },
+  },
+  {
+    id: "forgetful-ground",
+    name: "أهل الغيبة",
+    icon: "ghost",
+    tier: "elite",
+    rule: "مشاريعكم ما تنحسب (البلوت ينحسب)، وعشرة الأرض لهم دايم",
+    hits: "يتعب المشاريع والأرض مع بعض",
+    rules: { cancelProjects: true, groundTheirs: true },
+  },
+  {
+    id: "great-knowers",
+    name: "كبار الفراسة",
+    icon: "eyeball",
+    tier: "elite",
+    rule: "يدبلون على كل يد تشترونها وأنتم خسرانين، ويبدؤون قدامكم بـ 10",
+    hits: "لا تشتري إلا وأنت ضامن، ومن أول يد",
+    rules: { doubleKnown: true, headStart: 10 },
+  },
+  {
+    id: "granada-nobles",
+    name: "أعيان غرناطة",
+    icon: "key",
+    tier: "elite",
+    rule: "ولد الحكم حقكم أضعف ورقة حكم، وما تبدون أكلة بإكة ولا عشرة",
+    hits: "يتعب الولد والإكك",
+    rules: { weakJack: "bottom", noAceLead: true },
   },
   // ---- bosses
   {

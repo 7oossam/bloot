@@ -6,6 +6,7 @@ import { CHARACTERS, getCharacter } from "../roguelike/characters";
 import type { MapNode, RunState } from "../roguelike/types";
 import { ACTS } from "../roguelike/mapgen";
 import { EVENT_KINDS } from "../roguelike/events";
+import { getCurse } from "../roguelike/curses";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience } from "./fx";
@@ -18,7 +19,7 @@ const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "طرقة",
+  diwaniya: "سالفة",
 };
 
 /** Each kind of stop gets an engraved ink symbol drawn in its medallion (no emoji). */
@@ -141,6 +142,7 @@ export class MapScene extends Phaser.Scene {
     const shields = state.shields > 0 ? `   ·   درع ${state.shields}` : "";
     const boost = state.nextMatchBoost ? `   ·   دفعة +${state.nextMatchBoost}` : "";
     const character = getCharacter(state.character);
+    const curses = (state.curses ?? []).map((c) => getCurse(c)?.name).filter(Boolean);
     this.hudText.setText(`${character ? `${character.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ${state.gold} ريال${shields}${boost}`);
 
     // Your وصايا, then your تحف with their level in stars.
@@ -157,7 +159,10 @@ export class MapScene extends Phaser.Scene {
       .filter((x) => x.tier)
       .map((x) => `${x.tag} ${x.count} ✓`)
       .join("   ");
-    this.hudGroups.setText(synergies ? `المجموعات: ${synergies}` : "");
+    // النحس in crimson words under your تحف (lift one at the دكّان or with الراقي).
+    const lines = [synergies ? `المجموعات: ${synergies}` : "", curses.length ? `نحس: ${curses.join("، ")}` : ""].filter(Boolean);
+    this.hudGroups.setText(lines.join("\n"));
+    this.hudGroups.setColor(curses.length && !synergies ? CSS.crimson : CSS.inkSoft);
   }
 
   /** The branching map, bottom row first: links, then nodes (the ones you can walk into pulse). */
@@ -334,7 +339,11 @@ export class MapScene extends Phaser.Scene {
     const off = def.rules.disableJoker ? runController.strongestJoker() : undefined;
     const offDef = off ? getJokerDef(off) : undefined;
     if (offDef) panel.add(this.pt(0, 125, `يتعطّل: ${offDef.name}`, { fontSize: "24px", color: CSS.crimson, ...wrap }));
-    panel.add(makeButton(this, 0, 235, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
+    // What winning is worth: a stamp from a plain match, تحف from a مجلس كبير or a boss.
+    const last = node.type === "boss" && runController.getState().act >= ACTS.length - 1;
+    const prize = last ? "الباب الأخير" : node.type === "match" ? `وسم لورقة و${node.reward} ريال` : node.type === "elite" ? `ثلاث تحف تختار منها و${node.reward} ريال` : `ثلاث تحف أسطورية و${node.reward} ريال`;
+    panel.add(this.pt(0, 170, `الجائزة: ${prize}`, { fontSize: "25px", color: "#8c5a1c", ...wrap }));
+    panel.add(makeButton(this, 0, 250, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
   }
 
   /** الديوانية: the scene, its choices, then what happened. */
@@ -353,7 +362,7 @@ export class MapScene extends Phaser.Scene {
     const kind = EVENT_KINDS[event.kind];
     panel.add(this.pt(0, top + 55, kind.label, { fontSize: "26px", color: kind.color }));
     panel.add(goldRule(this, 0, top + 95, 360));
-    panel.add(this.pt(0, top + 160, `طرقة — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, top + 160, event.name, { fontSize: "34px", color: CSS.crimson }));
     panel.add(this.pt(0, top + 240, event.text, { fontSize: "26px", ...wrap }));
     event.options.forEach((option, i) => {
       const reason = runController.whyNotEventOption(i);

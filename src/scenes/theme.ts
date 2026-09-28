@@ -129,6 +129,7 @@ export function inkText(scene: Phaser.Scene, x: number, y: number, text: string,
         fontFamily: HEAD_FONT,
         color: CSS.ink,
         align: "center",
+        padding: { left: 12, right: 12 },
         ...style,
         fontSize: readableSize(style.fontSize),
       })
@@ -138,6 +139,13 @@ export function inkText(scene: Phaser.Scene, x: number, y: number, text: string,
 }
 
 /** Shrinks a label to fit a column, so a long one never runs past its card. */
+/** Shrinks a text to fit a box (a long description on a card), never growing it. */
+export function fitBox<T extends Phaser.GameObjects.Text>(t: T, width: number, height: number): T {
+  const k = Math.min(1, width / t.width, height / t.height);
+  if (k < 1) t.setScale(k);
+  return t;
+}
+
 export function fitWidth<T extends Phaser.GameObjects.Text>(t: T, width: number): T {
   if (t.width > width) t.setScale(width / t.width);
   return t;

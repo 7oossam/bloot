@@ -99,6 +99,8 @@ export interface MatchOptions {
   gamblerMultiplier?: number;
   /** ...and costs this much gold every hand you lose. */
   lossGoldCost?: number;
+  /** الدَّين (a نحس): riyals lost with every hand your side loses. */
+  curseDebt?: number;
   /** Gold per game point of projects your team scores (×this). */
   projectGold?: number;
   /** Gold for every hand your team wins (the ذهب synergy at 4). */
@@ -622,6 +624,10 @@ export class GameController extends Emitter<EventMap> {
       };
     }
     if (r?.groundTheirs) rules.groundTo = them;
+    // ماسكين الحكم: their hokum can't be taken as sun (alongside a joker that locks yours).
+    if (r?.lockedHokum) rules.lockedHokumTeams = [...(o.lockedHokum ? [us] : []), them];
+    // أهل الدرع: nobody doubles their contracts.
+    if (r?.noDouble) rules.noDoubleAgainst = [...(rules.noDoubleAgainst ?? []), them];
     if (r?.cancelProjects) rules.cancelProjectsOf = us;
     // The one on your right: you still get a say (sun, or over their hokum) before the hand is theirs.
     if (r?.hokumHands) rules.hokumSeat = nextSeat(HUMAN_SEAT);
@@ -1306,6 +1312,7 @@ export class GameController extends Emitter<EventMap> {
     }
     if (o.lossGold && gained[us] < gained[them]) this.emit("gold:earned", { amount: o.lossGold, reason: "الصبر مفتاح" });
     if (o.lossGoldCost && gained[us] < gained[them]) this.emit("gold:earned", { amount: -o.lossGoldCost, reason: "المقامر" });
+    if (o.curseDebt && gained[us] < gained[them]) this.emit("gold:earned", { amount: -o.curseDebt, reason: "الدَّين" });
     // ---- build packages: flat points first, multipliers last (the bible, PART 1.3)
     if (o.lowTrickBonus && this.lowTricks > 0) {
       gained[us] += o.lowTrickBonus * this.lowTricks;

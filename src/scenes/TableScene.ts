@@ -42,6 +42,7 @@ import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
 import { getStamp, GROW_STARS } from "../roguelike/stamps";
 import { installStampView } from "./stampView";
+import { fitWidth } from "./theme";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -90,7 +91,7 @@ const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "طرقة",
+  diwaniya: "سالفة",
 };
 
 export interface TableSceneData {
@@ -901,7 +902,7 @@ export class TableScene extends Phaser.Scene {
     }).setAlpha(0);
     this.tweens.add({ targets: this.groundLabel, alpha: 1, delay: t, duration: DEAL_FLY_MS });
 
-    this.meter.idle(`الشرا على ${SUIT_SYMBOL[e.groundCard.suit]} ${SUIT_NAME_AR[e.groundCard.suit]} — مين بيشتري؟`);
+    this.meter.idle(`الأرض ${SUIT_SYMBOL[e.groundCard.suit]} — مين بيشتري؟`);
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.placeDealerChip(e.dealer);
     this.spied = {};
@@ -967,11 +968,15 @@ export class TableScene extends Phaser.Scene {
   /** A prompt line plus a row (or two) of buttons for the human's decision. */
   private showChoices(prompt: string, items: Array<{ label: string; onClick: () => void }>): void {
     this.clearBidButtons();
-    this.bidPrompt = arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 86, prompt, {
-      fontSize: "28px",
-      color: "#ffd54a",
-      wordWrap: { width: WIDTH - 120, useAdvancedWrap: true },
-    }).setDepth(6);
+    // Inside the table's frame, a line or two above the buttons.
+    this.bidPrompt = fitWidth(
+      arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 96, prompt, {
+        fontSize: "28px",
+        color: "#ffd54a",
+        wordWrap: { width: WIDTH - 260, useAdvancedWrap: true },
+      }),
+      WIDTH - 200,
+    ).setDepth(6);
 
     const perRow = items.length <= 3 ? items.length : Math.ceil(items.length / 2);
     const spacingX = 200;

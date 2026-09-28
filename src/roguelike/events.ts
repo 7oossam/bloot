@@ -1,15 +1,16 @@
 /**
- * الديوانية (on the map: طرقة): a node with a short scene and a choice. Every choice costs
- * something or risks something — no free lunches — and each event is one of a few kinds, shown
- * on its panel so you know what sort of door you're knocking on:
- *   ضيافة (rest: hours of the night back), سوق (a trade), رهان (a gamble), وسم (stamps on your
- *   cards), حكاية (a story with a price later), and your character's own.
- * Each map deals its own pool (`acts`); one ديوانية per map is your character's.
+ * السوالف (on the map: سالفة): a stop with a short scene and a choice. The player's rule: not all
+ * of them are gifts. Some are good, some are bad (a بلاء: pick the lesser loss), some cost
+ * something other than money (an hour of the night, a نحس, your next match starting behind,
+ * a تحفة), and some are a mix — a good thing with a bad one tied to it.
+ * Each is one of a few kinds, shown on its panel:
+ *   ضيافة (rest), سوق (trade), رهان (gamble), وسم (stamps), حكاية (a story with a price),
+ *   بلاء (something bad happens), and حكايتك (your character's own).
+ * Each map deals its own pool (`acts`); the first سالفة of every map is your character's.
  */
-
 import type { StampId } from "./stamps";
 
-export type EventKind = "rest" | "trade" | "gamble" | "stamp" | "story" | "own";
+export type EventKind = "rest" | "trade" | "gamble" | "stamp" | "story" | "bad" | "own";
 
 /** The kinds as the panel shows them. */
 export const EVENT_KINDS: Record<EventKind, { label: string; color: string }> = {
@@ -18,6 +19,7 @@ export const EVENT_KINDS: Record<EventKind, { label: string; color: string }> = 
   gamble: { label: "رهان", color: "#9b1c1c" },
   stamp: { label: "وسم", color: "#1f4a4d" },
   story: { label: "حكاية", color: "#5a3a6b" },
+  bad: { label: "بلاء", color: "#6b1010" },
   own: { label: "حكايتك", color: "#9b6a12" },
 };
 
@@ -53,6 +55,11 @@ export interface EventRun {
   stampCard(stamp: StampId, cardId: string): boolean;
   /** +1 star on every الكبّارة card; how many it reached. */
   growAll(): number;
+  /** A نحس you don't have (its name), or undefined if you have them all. */
+  addCurse(): string | undefined;
+  /** Lifts your oldest نحس; its name, or undefined if you have none. */
+  removeCurse(): string | undefined;
+  curseCount(): number;
 }
 
 export interface EventOption {
@@ -98,7 +105,7 @@ export const EVENTS: EventDef[] = [
     acts: [0, 1],
     name: "فنجال المعزّب",
     icon: "coffee-cup",
-    text: "المعزّب يصب لك قهوة ويسولف معك عن أيام أول",
+    text: "المعزّب يصب لك قهوة ويسولف معك عن أيام أول — ويعرف جدّك",
     options: [
       {
         label: "اجلس وتقهوى (+1 ساعة)",
@@ -108,7 +115,11 @@ export const EVENTS: EventDef[] = [
           return "ساعات ليلك كاملة، فعطاك 15 ريال بداله";
         },
       },
-      { label: "هز الفنجال وامش (+20 ريال)", apply: (run) => (run.addGold(20), "+20 ريال") },
+      {
+        label: "اسأله عن جدّك (ترقية تحفة، بس ينحسب عليك: الخصم الجاي يبدأ بـ 10)",
+        blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك تحفة تترقى"),
+        apply: (run) => (run.penalizeNext(10), `ترقّت: ${run.upgradeRandomJoker()} — وطوّلت السالفة، فالخصم الجاي يبدأ بـ 10`),
+      },
     ],
   },
   {
@@ -131,6 +142,18 @@ export const EVENTS: EventDef[] = [
           return `خسرت الرهان: −${BET} ريال`;
         },
       },
+      {
+        label: "راهن بساعة من ليلك (يا تحفة نادرة، يا تروح الساعة)",
+        blocked: lastHour,
+        apply: (run, rand) => {
+          if (rand() < 0.5) {
+            const name = run.grantRandomJoker("rare");
+            if (name) return `كسبت! ${name}`;
+          }
+          run.loseLife();
+          return "خسرت: راحت عليك ساعة";
+        },
+      },
       { label: "ما أراهن", apply: () => "تركته وجلست تتقهوى" },
     ],
   },
@@ -147,7 +170,48 @@ export const EVENTS: EventDef[] = [
         blocked: noGold(GUEST_PRICE),
         apply: (run) => (run.addGold(-GUEST_PRICE), run.addShield(), "انبسط وعطاك درع"),
       },
-      { label: "اعتذر منه (الخصم الجاي يبدأ بـ 5)", apply: (run) => (run.penalizeNext(5), "زعل وراح يشجع خصمك: يبدؤون الصكّة الجاية بـ 5") },
+      {
+        label: "اعتذر منه (يلحقك نحس)",
+        apply: (run) => {
+          const name = run.addCurse();
+          return name ? `زعل وراح يتكلم فيك: صار عليك «${name}»` : "زعل… بس ما بقى نحس ما جاك";
+        },
+      },
+    ],
+  },
+  {
+    id: "thief",
+    kind: "bad",
+    acts: [0, 1],
+    name: "حرامي الزقاق",
+    icon: "fox-head",
+    text: "واحد طلع لك من الظلام ويده في جيبك",
+    options: [
+      {
+        label: "خله ياخذ نص ريالاتك",
+        apply: (run) => {
+          const half = Math.floor(run.gold() / 2);
+          run.addGold(-half);
+          return half ? `أخذ ${half} ريال وهرب` : "جيبك فاضي — ضحك ومشى";
+        },
+      },
+      {
+        label: "الحقه (تروح عليك ساعة)",
+        blocked: lastHour,
+        apply: (run, rand) => {
+          run.loseLife();
+          if (rand() < 0.5) {
+            run.addGold(20);
+            return "لحقته ورجّع اللي معه: +20 ريال، بس راحت ساعة";
+          }
+          return "فلت منك، وراحت عليك ساعة";
+        },
+      },
+      {
+        label: "عطه أرخص تحفة عندك",
+        blocked: (run) => (run.cheapestJoker() ? undefined : "ما عندك تحفة"),
+        apply: (run) => `أخذ ${run.sellCheapest(0)!.name} ومشى`,
+      },
     ],
   },
   {
@@ -168,6 +232,30 @@ export const EVENTS: EventDef[] = [
         apply: (run) => (run.offerStamps(2, "الوشّام: اختر وسم"), run.penalizeNext(10), "وسمها لك… وراح يخبر خصمك"),
       },
       { label: "امش", apply: () => "مشيت" },
+    ],
+  },
+  {
+    id: "healer",
+    kind: "rest",
+    acts: [0, 1, 2],
+    name: "الراقي",
+    icon: "scroll-unfurled",
+    text: "شايب يقرا على اللي عليه نحس، ويقول: «ما أبي منك شي… إلا شوي»",
+    options: [
+      {
+        label: "اقرا علي (يروح نحس، −20 ريال)",
+        blocked: (run) => (run.curseCount() === 0 ? "ما عليك نحس" : noGold(20)(run)),
+        apply: (run) => (run.addGold(-20), `راح عنك «${run.removeCurse()}»`),
+      },
+      {
+        label: "اقرا علي ببلاش (يروح نحس، وتروح ساعة)",
+        blocked: (run) => (run.curseCount() === 0 ? "ما عليك نحس" : lastHour(run)),
+        apply: (run) => (run.loseLife(), `راح عنك «${run.removeCurse()}» — وطوّل، راحت ساعة`),
+      },
+      {
+        label: "ادع لي بس (+1 ساعة)",
+        apply: (run) => (run.addLife() ? "دعا لك وارتحت: +1 ساعة" : "دعا لك… وساعاتك كاملة"),
+      },
     ],
   },
   // ------------------------------------------------------------------ الأندلس
@@ -262,16 +350,42 @@ export const EVENTS: EventDef[] = [
     text: "لقيت ورق قديم في زاوية الزقاق، يقولون ملعون",
     options: [
       {
-        label: "خذه (تحفة أسطورية، وتخسر ساعة من ليلك)",
-        blocked: lastHour,
+        label: "خذه كله (تحفة أسطورية، ويلحقك نحس)",
         apply: (run) => {
           const name = run.grantRandomJoker("legendary");
           if (!name) return "الورق اختفى";
+          const curse = run.addCurse();
+          return curse ? `أخذت ${name}… وصار عليك «${curse}»` : `أخذت ${name}`;
+        },
+      },
+      {
+        label: "خذ نصه (تحفة نادرة، وتروح ساعة)",
+        blocked: lastHour,
+        apply: (run) => {
+          const name = run.grantRandomJoker("rare");
+          if (!name) return "النص الثاني اختفى";
           run.loseLife();
-          return `أخذت ${name}… وراحت عليك ساعة`;
+          return `أخذت ${name}، وراحت ساعة`;
         },
       },
       { label: "خله مكانه", apply: () => "تركته، واللعنة معه" },
+    ],
+  },
+  {
+    id: "dust",
+    kind: "bad",
+    acts: [1, 2],
+    name: "الغبرة",
+    icon: "sands-of-time",
+    text: "غبرة سدّت الزقاق، وما تشوف قدامك",
+    options: [
+      { label: "انتظر لين تهدأ (تروح ساعة)", blocked: lastHour, apply: (run) => (run.loseLife(), "هدأت… بعد ساعة") },
+      { label: "امشِ فيها (الخصم الجاي يبدأ بـ 15)", apply: (run) => (run.penalizeNext(15), "وصلت مغبّر، والخصم الجاي يبدأ بـ 15") },
+      {
+        label: "احتمِ في دكّان (−25 ريال)",
+        blocked: noGold(25),
+        apply: (run) => (run.addGold(-25), "صاحب الدكّان ما خلّاك تطلع إلا بـ 25 ريال"),
+      },
     ],
   },
   // ------------------------------------------------------------------ قصر المعزّب
@@ -322,6 +436,32 @@ export const EVENTS: EventDef[] = [
         },
       },
       { label: "ما أراهن", apply: () => "ابتسم وقال: عاقل" },
+    ],
+  },
+  {
+    id: "mirror",
+    kind: "story",
+    acts: [2],
+    name: "مراية القصر",
+    icon: "spectre",
+    text: "مراية طويلة في ممر القصر، وفيها أنت… بس أكبر بأربعين سنة",
+    options: [
+      {
+        label: "كلّمه (ترقية تحفتين، ويلحقك نحس)",
+        blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك تحفة تترقى"),
+        apply: (run) => {
+          const a = run.upgradeRandomJoker();
+          const b = run.canUpgrade() ? run.upgradeRandomJoker() : undefined;
+          const curse = run.addCurse();
+          return `ترقّت: ${[a, b].filter(Boolean).join(" و")}${curse ? ` — وصار عليك «${curse}»` : ""}`;
+        },
+      },
+      {
+        label: "اكسرها (تروح ساعة، ويروح عنك نحس)",
+        blocked: (run) => (run.curseCount() === 0 ? "ما عليك نحس" : lastHour(run)),
+        apply: (run) => (run.loseLife(), `انكسرت، وراح «${run.removeCurse()}» — وراحت ساعة`),
+      },
+      { label: "لا تطالع وامش", apply: () => "مشيت وعيونك في الأرض" },
     ],
   },
   // ------------------------------------------------------------------ حكايتك (one per map)

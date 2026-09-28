@@ -5,10 +5,11 @@ import type { MapNode, NodeType, RunState } from "./types";
 import { REROLL_BASE_COST, REROLL_STEP, SHOP_JOKER_SLOTS, STARTING_GOLD, STARTING_LIVES } from "./types";
 
 /**
- * الليلة ثلاث خرائط (acts), like Slay the Spire's: الحارة، الأندلس، قصر المعزّب. Each is short —
- * 6 rows, a boss on top — so the whole night takes about as long as the old single map did.
- * Targets were set from scripts/pace-sim.ts (hands a match takes: to 31 ≈ 2, 41 ≈ 3, 61 ≈ 4,
- * 81 ≈ 5.5, 101 ≈ 7): about 11 hands in the first map, 14 in the second, 16 in the third.
+ * الليلة ثلاث خرائط (acts), like Slay the Spire's: الحارة، الأندلس، قصر المعزّب. Each is 8 rows,
+ * a shop row and the boss on top. The player's two data points: one 9-row map took ~45 minutes
+ * (too long), then 6-row maps made the whole night ~15 minutes (too short). Now, measured with
+ * scripts/pace-sim.ts (hands a match takes: to 41 ≈ 3, 61 ≈ 4, 81 ≈ 5.5, 101 ≈ 7, 121 ≈ 8.4):
+ * about 19 hands in the first map, 23 in the second, 27 in the third — a night of ~30 minutes.
  */
 export interface ActDef {
   name: string;
@@ -25,24 +26,29 @@ export interface ActDef {
 }
 
 export const ACTS: ActDef[] = [
-  { name: "الحارة", intro: "الأبواب انفتحت في جدران الحي، والمغرب واقف في أول ديوانية", matchTarget: 31, eliteTarget: 41, bossTarget: 61, matchReward: 18, eliteReward: 40, bossReward: 60, boss: "front-runners" },
-  { name: "الأندلس", intro: "معك المفتاح الأول. الباب الثاني يفتح على ظهر أندلسي ما يمشي فيه الوقت، وأهل غرناطة ماسكين مفاتيح بيوتهم", matchTarget: 41, eliteTarget: 51, bossTarget: 71, matchReward: 24, eliteReward: 50, bossReward: 70, boss: "disabler" },
-  { name: "قصر المعزّب", intro: "مفتاحين في جيبك. قصر المعزّب عند الشروق، وورا آخر باب جدّك جالس على الطاولة", matchTarget: 41, eliteTarget: 61, bossTarget: 91, matchReward: 30, eliteReward: 60, bossReward: 0, boss: "abu-qahwa" },
+  { name: "الحارة", intro: "الأبواب انفتحت في جدران الحي، والمغرب واقف في أول ديوانية", matchTarget: 41, eliteTarget: 61, bossTarget: 81, matchReward: 18, eliteReward: 40, bossReward: 60, boss: "front-runners" },
+  { name: "الأندلس", intro: "معك المفتاح الأول. الباب الثاني يفتح على ظهر أندلسي ما يمشي فيه الوقت، وأهل غرناطة ماسكين مفاتيح بيوتهم", matchTarget: 51, eliteTarget: 71, bossTarget: 101, matchReward: 22, eliteReward: 50, bossReward: 70, boss: "disabler" },
+  { name: "قصر المعزّب", intro: "مفتاحين في جيبك. قصر المعزّب عند الشروق، وورا آخر باب جدّك جالس على الطاولة", matchTarget: 61, eliteTarget: 81, bossTarget: 121, matchReward: 26, eliteReward: 60, bossReward: 0, boss: "abu-qahwa" },
 ];
 
 /** Rows of a map, bottom (0) to top: the last is the boss, the one before it a shop. */
-export const MAP_ROWS = 6;
+export const MAP_ROWS = 8;
 /** Columns a row's nodes can sit in. */
 export const MAP_LANES = 3;
 /** Elites and shops (besides the shop row) only from this row up. */
 const ELITE_FROM = 2;
 const SHOP_FROM = 2;
 
+/** A plain match's target: the map's, and 10 more in the upper half of the map. */
+function matchTargetAt(def: ActDef, row: number): number {
+  return def.matchTarget + (row >= MAP_ROWS / 2 ? 10 : 0);
+}
+
 /** What a middle-row node is, weighted (STS-like): mostly fights, a ديوانية or a shop now and then. */
 function pickType(row: number, rand: () => number): NodeType {
   const weights: Array<[NodeType, number]> = [
     ["match", 45],
-    ["diwaniya", 30],
+    ["diwaniya", 22],
     // No shop right under the shop row before the boss.
     ["shop", row >= SHOP_FROM && row !== MAP_ROWS - 3 ? 10 : 0],
     ["elite", row >= ELITE_FROM ? 18 : 0],
@@ -75,6 +81,7 @@ export function generateMap(seed: number): RunState {
     jokerCounters: {},
     stamps: {},
     stampStars: {},
+    curses: [],
     nodeWon: nodes.map(() => false),
     shields: 0,
     shopStock: [],
@@ -101,7 +108,7 @@ export function generateAct(seed: number, act: number): MapNode[] {
       lanes.map((col) => {
         const type: NodeType = boss ? "boss" : row === 0 ? "match" : row === MAP_ROWS - 2 ? "shop" : pickType(row, rand);
         const node: MapNode = { id: `a${act}-n-${row}-${col}`, type, floor: row, col, next: [], reward: 0 };
-        if (type === "match") Object.assign(node, { matchTarget: def.matchTarget + (row >= 3 ? 10 : 0), reward: def.matchReward + row * 2 });
+        if (type === "match") Object.assign(node, { matchTarget: matchTargetAt(def, row), reward: def.matchReward + row * 2 });
         if (type === "elite") Object.assign(node, { matchTarget: def.eliteTarget, reward: def.eliteReward });
         if (type === "boss") Object.assign(node, { matchTarget: def.bossTarget, reward: def.bossReward });
         return node;
@@ -121,10 +128,10 @@ export function generateAct(seed: number, act: number): MapNode[] {
       pick.reward = type === "elite" ? def.eliteReward : 0;
     }
   };
-  ensure("elite", 1, ELITE_FROM);
-  ensure("diwaniya", 2, 1);
+  ensure("elite", 2, ELITE_FROM);
+  ensure("diwaniya", 3, 1);
   for (const row of rows.slice(1, MAP_ROWS - 2)) {
-    if (row.every((n) => n.type === "diwaniya")) Object.assign(row[0], { type: "match", matchTarget: def.matchTarget + (row[0].floor >= 3 ? 10 : 0), reward: def.matchReward + row[0].floor * 2 });
+    if (row.every((n) => n.type === "diwaniya")) Object.assign(row[0], { type: "match", matchTarget: matchTargetAt(def, row[0].floor), reward: def.matchReward + row[0].floor * 2 });
   }
   // The links between each row and the next.
   for (let row = 0; row < MAP_ROWS - 1; row++) {
