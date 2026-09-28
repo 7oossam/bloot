@@ -65,8 +65,9 @@ class RunController {
    */
   giveTestKit(kit: string): void {
     const kits: Record<string, Array<[string, number]>> = {
-      // الحلقة: القطّاع cuts and trades for their best trump, الختم seals the next one, الحكم الحر buys hokum in any suit.
-      cut: [["cutter", 2], ["burn", 1], ["free-hokum", 1]],
+      // الحلقة: القطّاع cuts and trades for their best trump, الختم seals the next one, الحكم الحر buys
+      // hokum in any suit, and صاحب الكلمة lets you speak first — your hokum can't be taken as sun.
+      cut: [["cutter", 2], ["burn", 1], ["free-hokum", 1], ["first-word", 2]],
     };
     const items = kits[kit];
     if (!items) return;

@@ -50,6 +50,8 @@ export interface RoundOptions {
   extraHokum?: { seat: Seat; suits: Suit[] };
   /** صاحب الحلة: this seat always leads the first trick. */
   firstLeader?: Seat;
+  /** صاحب الكلمة: this seat always speaks first in the bidding. */
+  firstBidder?: Seat;
   /** Per-seat project rules (نص سرا، الأربع الصغار). */
   projectRules?: Partial<Record<Seat, ProjectRules>>;
   /** Nobody may double this team's contract (الحكم المقفول). */
@@ -201,7 +203,7 @@ export class Round {
       const suit = this.initial.stock[0].suit;
       giveCards(this.initial, options.hokumSeat, rand, 2, (c) => c.suit === suit && (c.rank === "J" || c.rank === "9"));
     }
-    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum);
+    this.bidding = startBidding(dealer, this.initial.stock[0], options.lockedHokumTeams ?? [], options.extraHokum, options.firstBidder);
     if (options.noSunFor !== undefined) this.bidding = { ...this.bidding, noSunTeams: [options.noSunFor] };
     this.hands = {
       0: [...this.initial.hands[0]],

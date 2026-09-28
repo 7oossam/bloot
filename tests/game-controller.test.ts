@@ -516,3 +516,20 @@ describe("play-changing jokers in a match", () => {
     expect(paid).toBeGreaterThan(0);
   });
 });
+
+describe("صاحب الكلمة in a match", () => {
+  it("you speak first in every hand, whoever deals", () => {
+    const c = new GameController(mulberry32(5), { matchTarget: 999, firstBidder: true });
+    const firsts: number[] = [];
+    let fresh = false;
+    c.on("hand:dealt", () => (fresh = true));
+    c.on("bidding:bid", (e) => {
+      if (fresh) firsts.push(e.bid.seat);
+      fresh = false;
+    });
+    c.startMatch();
+    autoplay(c, () => firsts.length >= 6, 4000);
+    expect(firsts.length).toBeGreaterThanOrEqual(6);
+    expect(firsts.every((s) => s === HUMAN_SEAT)).toBe(true);
+  });
+});

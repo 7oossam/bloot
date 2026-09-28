@@ -208,6 +208,18 @@ export const JOKER_CATALOG: ShopItemDef[] = [
     tags: ["حكم", "دفاع"],
   }),
   joker({
+    id: "first-word",
+    name: "صاحب الكلمة",
+    icon: "talk",
+    levels: [
+      "أنت أول من يتكلم في الشراء — كل دورة، مهما كان الموزع.",
+      "وإذا اشتريتوا حكم، محد ياخذه منكم صن.",
+    ],
+    cost: 24,
+    rarity: "rare",
+    tags: ["حكم"],
+  }),
+  joker({
     id: "cutter",
     name: "القطّاع",
     icon: "scissors",
@@ -899,6 +911,9 @@ function baseOptions(jokerIds: string[], levels: Record<string, number>, _ctx: R
     o.lockedHokum = true;
     o.noDoubleAgainst = true;
   }
+  const word = lv("first-word");
+  if (word) o.firstBidder = true;
+  if (word >= 2) o.lockedHokum = true;
   const cut = pick("cutter", [1, 2, 8]);
   if (cut) o.ruffSwap = cut;
 

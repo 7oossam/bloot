@@ -996,3 +996,30 @@ describe("الختم: a sealed card", () => {
     expect(legalMoves(hand, trick, "hokum", "H", 2)).toEqual([{ suit: "H", rank: "7" }]);
   });
 });
+
+describe("صاحب الكلمة: a set first bidder", () => {
+  const ground = { suit: "H", rank: "8" } as const;
+  it("speaks first in both rounds, and every seat still gets a turn before the round ends", () => {
+    // Dealer 1 would normally start with seat 2; seat 0 speaks first instead.
+    let s = startBidding(1, ground, [], undefined, 0);
+    expect(s.turnSeat).toBe(0);
+    const order: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      order.push(s.turnSeat);
+      s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    }
+    expect(order).toEqual([0, 1, 2, 3]);
+    expect(s.round).toBe(2);
+    expect(s.turnSeat).toBe(0);
+    for (let i = 0; i < 4; i++) s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    expect(s.redeal).toBe(true);
+  });
+
+  it("changes nothing when unset: the dealer's right starts and the dealer closes the round", () => {
+    let s = startBidding(1, ground);
+    expect(s.turnSeat).toBe(2);
+    for (let i = 0; i < 4; i++) s = submitBid(s, { seat: s.turnSeat, call: "pass" });
+    expect(s.round).toBe(2);
+    expect(s.turnSeat).toBe(2);
+  });
+});
