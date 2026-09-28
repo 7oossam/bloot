@@ -221,12 +221,14 @@ export class ShopScene extends Phaser.Scene {
     panel.add([shade, g]);
     panel.add(addIcon(this, 0, -100, def.icon, 80, INK));
     panel.add(inkText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
-    panel.add(inkText(this, 0, 20, `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
+    const starter = runController.isStarter(id);
+    panel.add(inkText(this, 0, 20, starter ? "تحفة شخصيتك — ما تنباع" : `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
     const close = () => {
       panel.destroy();
       this.dialog = undefined;
     };
     const sell = makeButton(this, 140, 110, "بيع", () => {
+      if (starter) return;
       runController.sellJoker(id);
       close();
       this.toast(`+${value} ريال`);
@@ -234,6 +236,7 @@ export class ShopScene extends Phaser.Scene {
     }, { width: 220, height: 76, plate: "paper" });
     const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
     panel.add([sell.container, keep.container]);
+    if (starter) sell.container.setVisible(false).disableInteractive();
     // The row's order matters to النسخة (it copies the joker on its right).
     if (runController.getState().jokerIds.indexOf(id) > 0) {
       const move = makeButton(this, 0, 205, "حرّكها يمين", () => {

@@ -15,7 +15,8 @@ import {
 import { getEvent, type EventDef, type EventRun } from "./events";
 import { getOpponent, type OpponentDef } from "./opponents";
 import { getPartner } from "./partners";
-import { CROWN_TARGET, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
+import { CHARACTER_GIFTS, CROWN_TARGET, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
+import { getCharacter, inCharacterPool } from "./characters";
 import type { MatchOptions } from "../game/GameController";
 import { MAX_LIVES, type MapNode, type RunState } from "./types";
 
@@ -81,7 +82,7 @@ class RunController {
     const id = s.blessing?.[index];
     if (!id) throw new Error(`No blessing ${index}`);
     const rand = mulberry32(s.seed * 23 + 5);
-    const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker" && !s.jokerIds.includes(d.id));
+    const jokers = JOKER_CATALOG.filter((d) => d.kind === "joker" && !s.jokerIds.includes(d.id) && this.inPool(d));
     switch (id) {
       case "heart":
         s.lives = Math.min(MAX_LIVES, s.lives + 1);
@@ -103,9 +104,34 @@ class RunController {
         s.nextMatchPenalty += SCHOOL_PENALTY;
         break;
       }
+      default: {
+        const gift = CHARACTER_GIFTS[id];
+        if (gift) {
+          for (const j of gift.jokers) if (!s.jokerIds.includes(j)) this.grant(j);
+          s.nextMatchPenalty += gift.penalty;
+        }
+      }
     }
     s.blessings.push(id);
     s.blessing = undefined;
+  }
+
+  /**
+   * Picks who you are this run: you start holding the character's rule-breaker, and الراوي's
+   * offer is rolled again so its third choice is the character's own.
+   */
+  chooseCharacter(id: string): void {
+    const def = getCharacter(id);
+    if (!def) throw new Error(`No character ${id}`);
+    const s = this.state;
+    s.character = id;
+    for (const [jokerId, level] of def.start) for (let i = this.levelOf(jokerId); i < level; i++) this.grant(jokerId);
+    if (s.blessing) s.blessing = rollBlessings(mulberry32(s.seed * 7 + 13), id);
+  }
+
+  /** Whether a joker can turn up for this run's character (its own, or a general one). */
+  private inPool(def: ShopItemDef): boolean {
+    return def.kind !== "joker" || inCharacterPool(def.tags, this.state.character);
   }
 
   /** Picks who sits across from you this run (before الحوت). */
@@ -226,7 +252,7 @@ class RunController {
     const s = this.state;
     const rand = mulberry32(s.seed * 17 + s.currentIndex * 7 + s.jokerIds.length);
     const cheapest = () => {
-      const owned = s.jokerIds.map((id) => ({ id, value: this.sellValue(id) })).sort((a, b) => a.value - b.value);
+      const owned = s.jokerIds.filter((id) => !this.isStarter(id)).map((id) => ({ id, value: this.sellValue(id) })).sort((a, b) => a.value - b.value);
       return owned[0];
     };
     return {
@@ -237,7 +263,7 @@ class RunController {
       boostNext: (points) => void (s.nextMatchBoost += points),
       penalizeNext: (points) => void (s.nextMatchPenalty += points),
       grantRandomJoker: (rarity) => {
-        const pool = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.rarity === rarity && !s.jokerIds.includes(d.id));
+        const pool = JOKER_CATALOG.filter((d) => d.kind === "joker" && d.rarity === rarity && !s.jokerIds.includes(d.id) && this.inPool(d));
         if (pool.length === 0) return undefined;
         const pick = pool[Math.floor(rand() * pool.length)];
         this.grant(pick.id);
@@ -453,7 +479,7 @@ class RunController {
     const rarity = REWARD_RARITY[elite ? "elite" : "match"];
     const ownedTags = new Set(s.jokerIds.flatMap((id) => getJokerDef(id)?.tags ?? []));
     const weight = (def: ShopItemDef): number => {
-      if (this.whyNotReward(def.id)) return 0;
+      if (this.whyNotReward(def.id) || !this.inPool(def)) return 0;
       let w = def.kind === "joker" ? rarity[def.rarity] : def.kind === "upgrade" ? 14 : 10;
       if (def.kind === "joker") {
         if (this.levelOf(def.id) > 0) w *= 2;
@@ -494,8 +520,14 @@ class RunController {
     }
   }
 
-  /** What selling an owned joker would pay. */
+  /** A joker the run's character starts with: it is the character, so it can't be sold. */
+  isStarter(jokerId: string): boolean {
+    return !!getCharacter(this.state.character)?.start.some(([id]) => id === jokerId);
+  }
+
+  /** What selling an owned joker would pay (nothing for the character's own rule). */
   sellValue(jokerId: string): number {
+    if (this.isStarter(jokerId)) return 0;
     const def = getJokerDef(jokerId);
     const lvl = this.levelOf(jokerId);
     return def && lvl > 0 && def.kind === "joker" ? sellPrice(def, lvl) : 0;
@@ -541,7 +573,7 @@ class RunController {
    */
   private rollShop(): void {
     const rand = mulberry32(this.state.seed + this.state.currentIndex * 7919 + ++this.shopRolls * 104729);
-    const pool = JOKER_CATALOG.filter((j) => this.levelOf(j.id) < maxLevel(j));
+    const pool = JOKER_CATALOG.filter((j) => this.levelOf(j.id) < maxLevel(j) && this.inPool(j));
     const picks: string[] = [];
     while (picks.length < this.state.shopSlots && pool.length > 0) {
       const total = pool.reduce((sum, j) => sum + RARITY_WEIGHT[j.rarity], 0);

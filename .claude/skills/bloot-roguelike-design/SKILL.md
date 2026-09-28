@@ -255,7 +255,13 @@ sold. The player's taste: no blessing that costs a life, and no shop discount.
 
 It appears at the start of the map only (never in the middle).
 
-### شخصيات الخوي (src/roguelike/partners.ts)
+### الشخصيات (src/roguelike/characters.ts) — who you are
+The run opens with picking a character (the partner pick is hidden for now). Each starts with its
+rule-breaker and owns a family whose تحف only it is offered; every other تحفة is general. الراوي's
+third offer is the character's own. ولد الحارة: ثورة الصغار (owns الصغار). صاحب السبيت: ملك السبيت +
+سبيت دايم (owns السبيت). A character's start تحف can't be sold.
+
+### شخصيات الخوي (src/roguelike/partners.ts) — hidden for now
 The run opens with picking who sits across from you (before الحوت), like picking a
 character in Slay the Spire. Each has a perk and a quirk; the table shows their name.
 
