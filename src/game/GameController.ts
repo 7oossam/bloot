@@ -59,6 +59,8 @@ export interface MatchOptions {
   trashBeatsAce?: boolean;
   /** 3-of-a-kind projects count as 4-of-a-kind, and 3-card Sira counts as 4-card. */
   phantomProjects?: boolean;
+  /** صاحب الكلمة: you always speak first in the bidding. */
+  firstBidder?: boolean;
   /** Winning a trick with the trump Jack lets you swap a card with a random opponent card. */
   jackHunt?: { preferTrump: boolean; nineToo: boolean; partnerToo: boolean };
   /**
@@ -540,6 +542,7 @@ export class GameController extends Emitter<EventMap> {
     const rules: Partial<RoundOptions> = {};
     if (o.extraHokumSuits?.length) rules.extraHokum = { seat: HUMAN_SEAT, suits: o.extraHokumSuits };
     if (o.alwaysLead) rules.firstLeader = HUMAN_SEAT;
+    if (o.firstBidder) rules.firstBidder = HUMAN_SEAT;
     if (o.shortSira || o.lowFours || o.phantomProjects) rules.projectRules = { [HUMAN_SEAT]: { shortSira: o.shortSira, lowFours: o.lowFours, phantomProjects: o.phantomProjects } };
     if (o.noDoubleAgainst) rules.noDoubleAgainst = [us];
     if (o.personalTrump) { rules.trickRules = rules.trickRules ?? {}; rules.trickRules.personalTrump = { seat: HUMAN_SEAT, suit: o.personalTrump }; }

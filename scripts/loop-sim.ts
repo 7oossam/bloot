@@ -7,7 +7,7 @@ import { rankStrength } from "../src/engine/cards";
 import type { Card } from "../src/engine/types";
 
 const HANDS = Number(process.argv[2] ?? 400);
-const kit: MatchOptions = { ruffSwap: 2, seal: { bothOpponents: false, partnerToo: false }, extraHokumSuits: ["S", "H", "D", "C"] };
+const kit: MatchOptions = { ruffSwap: 2, seal: { bothOpponents: false, partnerToo: false }, extraHokumSuits: ["S", "H", "D", "C"], ...(process.env.WORD === "1" ? { firstBidder: true, lockedHokum: true } : {}) };
 
 /** القطّاع's pick: give away a lone side card (it makes a void, so the next cut comes), else the weakest side card. */
 function giveAway(hand: Card[], trump?: string): Card {

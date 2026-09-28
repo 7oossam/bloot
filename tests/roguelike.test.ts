@@ -267,6 +267,14 @@ describe("joker levels and synergies", () => {
     expect(o.guaranteedJacks).toBe(1);
   });
 
+  it("صاحب الكلمة: you speak first, and at level 2 your hokum can't be taken as sun", () => {
+    expect(matchOptionsFromJokers(["first-word"]).firstBidder).toBe(true);
+    expect(matchOptionsFromJokers(["first-word"]).lockedHokum).toBeUndefined();
+    expect(matchOptionsFromJokers(["first-word"], { "first-word": 2 }).lockedHokum).toBe(true);
+    // Unlike الحكم المقفول, it doesn't stop anyone doubling you.
+    expect(matchOptionsFromJokers(["first-word"], { "first-word": 2 }).noDoubleAgainst).toBeUndefined();
+  });
+
   it("the سرقة synergy lets the hunt and the seal fire on your partner's Jack", () => {
     const o = matchOptionsFromJokers(["jack-hunt", "burn"]);
     expect(o.jackHunt?.partnerToo).toBe(true);

@@ -29,6 +29,11 @@ export interface BiddingState {
   extraHokum?: { seat: Seat; suits: Suit[] };
   /** These teams may not buy sun (a blessing's price, see src/roguelike/blessings.ts). */
   noSunTeams?: Team[];
+  /**
+   * Who speaks first in each round (صاحب الكلمة). Normally the dealer's right; the round ends
+   * when the seat before it passes.
+   */
+  firstSeat?: Seat;
 }
 
 /** A legal call a seat may make right now, for building AI/UI choices. */
@@ -71,12 +76,14 @@ export function startBidding(
   groundCard: Card,
   lockedHokumTeams: Team[] = [],
   extraHokum?: BiddingState["extraHokum"],
+  firstSeat?: Seat,
 ): BiddingState {
   return {
     dealer,
     groundCard,
     round: 1,
-    turnSeat: nextSeat(dealer),
+    turnSeat: firstSeat ?? nextSeat(dealer),
+    firstSeat,
     history: [],
     lockedHokumTeams,
     extraHokum,
@@ -222,10 +229,11 @@ export function submitBid(state: BiddingState, bid: Bid): BiddingState {
     };
   }
 
-  // pass
-  if (bid.seat === state.dealer) {
+  // pass — the round is over once the last seat to speak (normally the dealer) passes.
+  const first = state.firstSeat ?? nextSeat(state.dealer);
+  if (nextSeat(bid.seat) === first) {
     if (state.round === 1) {
-      return { ...state, history, round: 2, turnSeat: nextSeat(state.dealer) };
+      return { ...state, history, round: 2, turnSeat: first };
     }
     return { ...state, history, redeal: true };
   }
