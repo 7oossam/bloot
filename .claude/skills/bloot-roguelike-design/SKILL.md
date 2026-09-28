@@ -70,6 +70,27 @@ Tahreeb is the advanced meta-game of discarding to signal your partner.
 
 4. **Never Ship a Lonely Joker:** Every joker ships as part of a package. See PART 4.
 
+5. **Baloot sanity check before proposing ANY effect** (the player caught several ideas that don't
+   survive a real table: «آخر الكلام» on the last trick, «الضربة الأولى» with الحلة, «المكيدة»,
+   «النداء»). Walk the idea through these, in words, before showing it:
+   - **Who leads next?** The trick's winner leads the next trick. "Win this and play last next
+     time" is impossible without handing the lead away.
+   - **Where is the card now?** A played card is on the table, gone from the hand — an effect
+     can't seal, return or move "the card they cut with".
+   - **Must follow / must trump:** you follow the led suit; void in hokum you must trump (and
+     overtrump an opponent) unless your partner is winning; in sun there are no trumps (a
+     "can't be ruffed" effect is dead in sun). Replacing a LED card after others answered it
+     breaks the trick.
+   - **Does a good player do this anyway?** Playing your biggest card behind the partner's lead,
+     giving the 10 to his Ace, leading the trump 10 for a partner who bought… an effect that
+     forces normal play is no effect.
+   - **Sun and hokum both:** say what it does in each, or which one it's for.
+   - **Last trick:** everyone holds one card — no choice is left there.
+   - **Shared deck:** nothing created, burned or copied (the player's rule); swaps, seals,
+     reveals, order and rank changes only.
+   - **The AI:** can the computer players (partner included) understand and play around it?
+   When unsure how the table plays something, check `docs/baloot-guide.md` or ask the player.
+
 ---
 
 ## PART 4: The Build Package Law (never ship a lonely joker)
