@@ -1,6 +1,6 @@
 /**
  * النحس: the other side of the night's deals — a curse sits in your row like a تحفة but works
- * against you, until you pay to lift it (at the دكّان, or الراقي's سالفة). Some سوالف give you
+ * against you, until you pay to lift it (at the دكّان, or الراقي's باب غريب). Some أبواب غريبة give you
  * something good and a نحس with it; that's the price that isn't money.
  */
 export interface CurseDef {

@@ -3,6 +3,7 @@ import { INK, addIcon } from "./icons";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
 import { getCurse, UNCURSE_PRICE } from "../roguelike/curses";
+import { showJokerInfo } from "./infoPopup";
 import { HEIGHT, WIDTH } from "./layout";
 import { makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience } from "./fx";
@@ -161,6 +162,8 @@ export class ShopScene extends Phaser.Scene {
     setBoxHitArea(card, cardW, cardH);
     card.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.02, duration: 150 }));
     card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 150 }));
+    // Tap the card (not its button) for the whole explanation.
+    card.on("pointerdown", () => (def.kind === "joker" ? showJokerInfo(this, id, Math.max(1, owned)) : showJokerInfo(this, id)));
 
     // Layout: buy button on the left (RTL reading ends there), icon on the right, text between.
     const buttonW = 160;
@@ -176,8 +179,8 @@ export class ShopScene extends Phaser.Scene {
     card.add(fitWidth(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }), 120));
 
     // Tags ride on the title, which starts with Arabic, so right-to-left layout keeps them in order.
-    const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
-    const title = isUpgrade ? `${def.name}${tags}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : `${def.name}${tags}`;
+    // Just the name (the groups next to it confused more than they told — they're in the ⓘ card).
+    const title = isUpgrade ? `${def.name}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : def.name;
     card.add(inkText(this, textX, -80, title, { fontSize: "29px", color: isUpgrade ? "#1f4a4d" : CSS.ink }));
     // Between the title and the price; a long one (الورقة الشبح) shrinks to fit.
     card.add(
@@ -231,14 +234,17 @@ export class ShopScene extends Phaser.Scene {
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.55).setInteractive();
     const g = this.add.graphics();
     g.fillStyle(PAL.paper, 1);
-    g.fillRoundedRect(-w / 2, -170, w, 420, 26);
+    g.fillRoundedRect(-w / 2, -330, w, 620, 26);
     g.lineStyle(4, PAL.gold, 1);
-    g.strokeRoundedRect(-w / 2, -170, w, 420, 26);
+    g.strokeRoundedRect(-w / 2, -330, w, 620, 26);
     panel.add([shade, g]);
-    panel.add(addIcon(this, 0, -100, def.icon, 80, INK));
-    panel.add(inkText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
+    // What it does first (tap a تحفة anywhere and you read it), then selling.
+    const level = runController.levelOf(id);
+    panel.add(addIcon(this, 0, -255, def.icon, 80, INK));
+    panel.add(inkText(this, 0, -185, def.name, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(fitBox(inkText(this, 0, -95, def.levels[Math.min(level, def.levels.length) - 1], { fontSize: "26px", wordWrap: { width: w - 90 } }), w - 60, 140));
     const starter = runController.isStarter(id);
-    panel.add(inkText(this, 0, 20, starter ? "تحفة شخصيتك — ما تنباع" : `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
+    panel.add(inkText(this, 0, 20, starter ? "تحفة شخصيتك — ما تنباع" : `تبيعها؟ مستوى ${level} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
     const close = () => {
       panel.destroy();
       this.dialog = undefined;
@@ -250,7 +256,7 @@ export class ShopScene extends Phaser.Scene {
       this.toast(`+${value} ريال`);
       this.refresh();
     }, { width: 220, height: 76, plate: "paper" });
-    const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
+    const keep = makeButton(this, -140, 110, starter ? "تمام" : "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
     panel.add([sell.container, keep.container]);
     if (starter) sell.container.setVisible(false).disableInteractive();
     // The row's order matters to النسخة (it copies the joker on its right).

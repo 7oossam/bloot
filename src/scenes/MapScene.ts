@@ -7,6 +7,7 @@ import type { MapNode, RunState } from "../roguelike/types";
 import { ACTS } from "../roguelike/mapgen";
 import { EVENT_KINDS } from "../roguelike/events";
 import { getCurse } from "../roguelike/curses";
+import { showAllStamps, showBlessingInfo, showCurseInfo, showJokerInfo } from "./infoPopup";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience } from "./fx";
@@ -19,7 +20,7 @@ const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "سالفة",
+  diwaniya: "باب غريب",
 };
 
 /** Each kind of stop gets an engraved ink symbol drawn in its medallion (no emoji). */
@@ -92,7 +93,7 @@ const BOTTOM_MARGIN = 130;
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
 export class MapScene extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
-  private hudGroups!: Phaser.GameObjects.Text;
+  private hudLine?: Phaser.GameObjects.Container;
   private hudRow?: Phaser.GameObjects.Container;
   private nodeLayer!: Phaser.GameObjects.Container;
   private overlay?: Phaser.GameObjects.Container;
@@ -114,7 +115,6 @@ export class MapScene extends Phaser.Scene {
     this.add.existing(goldRule(this, WIDTH / 2, 118, 320));
     // Three lines: where you stand, your تحف as a row of icons, and your complete sets.
     this.hudText = this.pt(WIDTH / 2, 164, "", { fontSize: "24px", wordWrap: { width: WIDTH - 90 } });
-    this.hudGroups = this.pt(WIDTH / 2, 262, "", { fontSize: "22px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 90 } });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
   }
@@ -151,18 +151,42 @@ export class MapScene extends Phaser.Scene {
       ...state.blessings.map((id) => ({ icon: getBlessing(id)?.icon ?? "", mark: "" })),
       ...state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "", mark: "★".repeat(Math.max(0, (state.jokerLevels[id] ?? 1) - 1)) })),
     ];
+    // Tap any of them for what it does.
+    const tap = (i: number) =>
+      i < state.blessings.length ? showBlessingInfo(this, state.blessings[i]) : showJokerInfo(this, state.jokerIds[i - state.blessings.length], state.jokerLevels[state.jokerIds[i - state.blessings.length]] ?? 1);
     this.hudRow = items.length
-      ? iconRow(this, WIDTH / 2, 214, items, { size: Math.min(46, (WIDTH - 120) / items.length - 12), color: INK })
+      ? iconRow(this, WIDTH / 2, 214, items, { size: Math.min(46, (WIDTH - 120) / items.length - 12), color: INK, onTap: tap })
       : this.add.container(WIDTH / 2, 214, [this.pt(0, 0, "ما عندك تحف للحين", { fontSize: "22px", color: CSS.inkSoft })]);
 
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier)
       .map((x) => `${x.tag} ${x.count} ✓`)
       .join("   ");
-    // النحس in crimson words under your تحف (lift one at the دكّان or with الراقي).
-    const lines = [synergies ? `المجموعات: ${synergies}` : "", curses.length ? `نحس: ${curses.join("، ")}` : ""].filter(Boolean);
-    this.hudGroups.setText(lines.join("\n"));
-    this.hudGroups.setColor(curses.length && !synergies ? CSS.crimson : CSS.inkSoft);
+    // One line under your تحف, each part tappable: your stamps, your نحس (crimson), your
+    // complete groups. One line only — two ran into the boss.
+    this.hudLine?.destroy();
+    const stamped = Object.values(state.stamps ?? {}).filter((ids) => ids.length).length;
+    const parts: Array<{ text: string; color: string; tap?: () => void }> = [];
+    if (stamped) parts.push({ text: `وسومك: ${stamped} ورق`, color: "#1f4a4d", tap: () => showAllStamps(this, state.stamps ?? {}, state.stampStars ?? {}) });
+    if (curses.length) parts.push({ text: `نحس: ${curses.join("، ")}`, color: CSS.crimson, tap: () => showCurseInfo(this, state.curses!) });
+    if (synergies) parts.push({ text: synergies, color: CSS.inkSoft });
+    const line = this.add.container(WIDTH / 2, 258);
+    const texts = parts.map((p) => {
+      const t = this.pt(0, 0, p.text, { fontSize: "22px", color: p.color });
+      if (p.tap) t.setInteractive({ useHandCursor: true }).on("pointerdown", p.tap);
+      return t;
+    });
+    const gap = 36;
+    const total = texts.reduce((n, t) => n + t.width, 0) + gap * Math.max(0, texts.length - 1);
+    // Right to left, like the reading.
+    let x = total / 2;
+    for (const t of texts) {
+      t.setX(x - t.width / 2);
+      x -= t.width + gap;
+      line.add(t);
+    }
+    if (total > WIDTH - 80) line.setScale((WIDTH - 80) / total);
+    this.hudLine = line;
   }
 
   /** The branching map, bottom row first: links, then nodes (the ones you can walk into pulse). */

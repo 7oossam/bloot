@@ -1,12 +1,12 @@
 /**
- * السوالف (on the map: سالفة): a stop with a short scene and a choice. The player's rule: not all
+ * الأبواب الغريبة (on the map: باب غريب): a stop with a short scene and a choice. The player's rule: not all
  * of them are gifts. Some are good, some are bad (a بلاء: pick the lesser loss), some cost
  * something other than money (an hour of the night, a نحس, your next match starting behind,
  * a تحفة), and some are a mix — a good thing with a bad one tied to it.
  * Each is one of a few kinds, shown on its panel:
  *   ضيافة (rest), سوق (trade), رهان (gamble), وسم (stamps), حكاية (a story with a price),
  *   بلاء (something bad happens), and حكايتك (your character's own).
- * Each map deals its own pool (`acts`); the first سالفة of every map is your character's.
+ * Each map deals its own pool (`acts`); the first باب غريب of every map is your character's.
  */
 import type { StampId } from "./stamps";
 
@@ -118,7 +118,7 @@ export const EVENTS: EventDef[] = [
       {
         label: "اسأله عن جدّك (ترقية تحفة، بس ينحسب عليك: الخصم الجاي يبدأ بـ 10)",
         blocked: (run) => (run.canUpgrade() ? undefined : "ما عندك تحفة تترقى"),
-        apply: (run) => (run.penalizeNext(10), `ترقّت: ${run.upgradeRandomJoker()} — وطوّلت السالفة، فالخصم الجاي يبدأ بـ 10`),
+        apply: (run) => (run.penalizeNext(10), `ترقّت: ${run.upgradeRandomJoker()} — وطوّلت السوالف، فالخصم الجاي يبدأ بـ 10`),
       },
     ],
   },

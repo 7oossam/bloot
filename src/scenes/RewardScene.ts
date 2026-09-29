@@ -1,3 +1,4 @@
+import { showJokerInfo } from "./infoPopup";
 import Phaser from "phaser";
 import { INK, addIcon, iconRow } from "./icons";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
@@ -69,6 +70,7 @@ export class RewardScene extends Phaser.Scene {
       iconRow(this, WIDTH / 2, 236, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "", mark: "★".repeat(Math.max(0, runController.levelOf(id) - 1)) })), {
         size: Math.min(46, (WIDTH - 120) / state.jokerIds.length - 12),
         color: INK,
+        onTap: (i) => showJokerInfo(this, state.jokerIds[i], runController.levelOf(state.jokerIds[i])),
       });
     } else inkText(this, WIDTH / 2, 236, "صفّك فاضي — اختر أول قطعة في بناءك", { fontSize: "28px" });
     const synergies = activeSynergies(state.jokerIds)
@@ -119,8 +121,8 @@ export class RewardScene extends Phaser.Scene {
 
     const textX = -50;
     const textW = cardW - 260;
-    const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
-    const title = levelUp ? `${def.name}  ${"★".repeat(owned)} ← ${"★".repeat(owned + 1)}` : `${def.name}${tags}`;
+    // Just the name: the groups confused more than they told (tap a تحفة for its group).
+    const title = levelUp ? `${def.name}  ${"★".repeat(owned)} ← ${"★".repeat(owned + 1)}` : def.name;
     card.add(inkText(this, textX, -120, title, { fontSize: "31px", color: levelUp ? "#1f4a4d" : CSS.ink }));
     card.add(
       inkText(this, textX, -50, (levelUp ? "ترقية: " : "") + def.levels[Math.min(owned, maxLevel(def) - 1)], {

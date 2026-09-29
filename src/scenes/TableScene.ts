@@ -91,7 +91,7 @@ const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "سالفة",
+  diwaniya: "باب غريب",
 };
 
 export interface TableSceneData {
@@ -189,6 +189,8 @@ export class TableScene extends Phaser.Scene {
   private manualOrder: string[] = [];
   private memoryPanel?: Phaser.GameObjects.Container;
   private sawaButton?: ButtonHandle;
+  /** What a picked-up card's stamps do. */
+  private stampTip?: Phaser.GameObjects.Container;
   /** آخر الكلام's button, on your turn mid-trick. */
   private deferButton?: ButtonHandle;
   /** البيعة's two buttons, before the first card of a hand your side bought. */
@@ -477,6 +479,37 @@ export class TableScene extends Phaser.Scene {
     });
   }
 
+  /** What the picked-up card's stamps do: a strip over your hand, gone after a few seconds. */
+  private showStampTip(card: Card): void {
+    this.stampTip?.destroy();
+    this.stampTip = undefined;
+    const run = runController.getState();
+    const ids = run.stamps?.[cardId(card)] ?? [];
+    if (!ids.length) return;
+    const text = ids
+      .map((s) => {
+        const def = getStamp(s)!;
+        return `«${def.name}»${s === "grow" ? ` ${Math.min(run.stampStars?.[cardId(card)] ?? 0, GROW_STARS)}/${GROW_STARS}` : ""}: ${def.text}`;
+      })
+      .join("\n");
+    const w = WIDTH - 80;
+    const t = arabicText(this, 0, 0, text, { fontSize: "22px", wordWrap: { width: w - 40, useAdvancedWrap: true }, lineSpacing: 4 });
+    const h = t.height + 28;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x3a2620, 0.96);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
+    bg.lineStyle(3, 0xf0cb7a, 1);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
+    const tip = this.add.container(CENTER_X, HAND_ANCHOR[HUMAN_SEAT].y - 230 - h / 2, [bg, t]).setDepth(30);
+    this.stampTip = tip;
+    this.time.delayedCall(4500, () => {
+      if (this.stampTip === tip) {
+        tip.destroy();
+        this.stampTip = undefined;
+      }
+    });
+  }
+
   /** A card under the row saying what a joker does at its current level (tap again to close). */
   private toggleJokerTip(id: string): void {
     const same = this.jokerTip?.getData("id") === id;
@@ -487,9 +520,8 @@ export class TableScene extends Phaser.Scene {
     const box = this.jokerIcons.get(id);
     if (!def || !box) return;
     const level = runController.getState().jokerLevels[id] ?? 1;
-    const lines = [`${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
-    if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
-    if (def.tags.length) lines.push(`المجموعة: ${def.tags.join("، ")}`);
+    // What it does at your level (each level's line is whole on its own).
+    const lines = [`${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[Math.min(level, def.levels.length) - 1]];
     const w = WIDTH - 80;
     const text = arabicText(this, 0, 0, lines.join("\n"), {
       fontSize: "24px",
@@ -1620,6 +1652,8 @@ export class TableScene extends Phaser.Scene {
       this.selectedCardView = view;
       view.y -= 40; // Raise it
       view.setHighlighted(true);
+      // A stamped card says what its stamps do while it's picked up.
+      this.showStampTip(view.card);
       if (navigator.vibrate) navigator.vibrate(5);
       return;
     }
@@ -1734,6 +1768,8 @@ export class TableScene extends Phaser.Scene {
       this.sawaButton = undefined;
       this.deferButton?.destroy();
       this.deferButton = undefined;
+      this.stampTip?.destroy();
+      this.stampTip = undefined;
     }
     this.time.delayedCall(0, () => {
       this.refreshMemory();
