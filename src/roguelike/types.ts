@@ -57,6 +57,8 @@ export interface RunState {
   stamps: Record<string, StampId[]>;
   /** الكبّارة: stars earned by each stamped card (tricks you took with it). */
   stampStars: Record<string, number>;
+  /** النحس held (src/roguelike/curses.ts): they work against you until lifted. */
+  curses?: string[];
   /** Gold the treasury joker paid on entering the current shop, for the shop to show. */
   lastInterest?: number;
   /** Each one absorbs the life a lost match would cost. */

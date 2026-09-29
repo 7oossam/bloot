@@ -3,6 +3,7 @@ import { MapScene } from "./scenes/MapScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { RewardScene } from "./scenes/RewardScene";
 import { TableScene } from "./scenes/TableScene";
+import { StoryScene } from "./scenes/StoryScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { HEIGHT, WIDTH } from "./scenes/layout";
 import { runController } from "./roguelike/RunController";
@@ -26,7 +27,7 @@ function config(type: number): Phaser.Types.Core.GameConfig {
       touch: true,
       mouse: true,
     },
-    scene: [TitleScene, MapScene, TableScene, ShopScene, RewardScene],
+    scene: [TitleScene, StoryScene, MapScene, TableScene, ShopScene, RewardScene],
   };
 }
 

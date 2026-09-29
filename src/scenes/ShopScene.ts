@@ -2,10 +2,12 @@ import Phaser from "phaser";
 import { INK, addIcon } from "./icons";
 import { activeSynergies, getJokerDef, maxLevel, type Rarity } from "../roguelike/jokers";
 import { runController } from "../roguelike/RunController";
+import { getCurse, UNCURSE_PRICE } from "../roguelike/curses";
+import { showJokerInfo } from "./infoPopup";
 import { HEIGHT, WIDTH } from "./layout";
 import { makeButton, preloadUi, setBoxHitArea } from "./ui";
 import { addAmbience } from "./fx";
-import { CSS, PAL, fitWidth, inkText, paintParchment } from "./theme";
+import { CSS, PAL, fitBox, fitWidth, inkText, paintParchment } from "./theme";
 
 const RARITY_STYLE: Record<Rarity, { border: number; label: string; text: string }> = {
   common: { border: PAL.olive, label: "عادي", text: "#3e4a2a" },
@@ -77,8 +79,10 @@ export class ShopScene extends Phaser.Scene {
     this.goldText.setText(`${state.gold} ريال${interest}   ·   ساعات الليل ${state.lives}${shields}${salary}`);
 
     // Your jokers as chips (no cap — like STS relics); tap one to sell it. They shrink to fit.
+    // Your نحس come last, in crimson; tap one to lift it.
     this.ownedLayer.removeAll(true);
-    const ids = state.jokerIds;
+    const curses = state.curses ?? [];
+    const ids = [...state.jokerIds, ...curses.map((c) => `curse:${c}`)];
     const chipW = Math.min(OWNED_CHIP_W, (WIDTH - 40) / Math.max(ids.length, 1) - 10);
     const startX = WIDTH / 2 + ((ids.length - 1) * (chipW + 10)) / 2;
     ids.forEach((id, i) => {
@@ -86,9 +90,17 @@ export class ShopScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(PAL.paper, 1);
       g.fillRoundedRect(-chipW / 2, -36, chipW, 72, 16);
-      g.lineStyle(3, PAL.gold, 1);
+      const curse = id.startsWith("curse:") ? getCurse(id.slice(6)) : undefined;
+      g.lineStyle(3, curse ? PAL.crimson : PAL.gold, 1);
       g.strokeRoundedRect(-chipW / 2, -36, chipW, 72, 16);
       const chip = this.add.container(x, OWNED_Y, [g]);
+      if (curse) {
+        chip.add(addIcon(this, 0, 0, curse.icon, 44, PAL.crimson));
+        setBoxHitArea(chip, chipW, 72);
+        chip.on("pointerdown", () => this.confirmUncurse(curse.id));
+        this.ownedLayer.add(chip);
+        return;
+      }
       const def = getJokerDef(id)!;
       const roomy = chipW >= 100;
       chip.add(addIcon(this, roomy ? -20 : 0, 0, def.icon, 44, INK));
@@ -150,6 +162,8 @@ export class ShopScene extends Phaser.Scene {
     setBoxHitArea(card, cardW, cardH);
     card.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.02, duration: 150 }));
     card.on('pointerout', () => this.tweens.add({ targets: card, scale: 1, duration: 150 }));
+    // Tap the card (not its button) for the whole explanation.
+    card.on("pointerdown", () => (def.kind === "joker" ? showJokerInfo(this, id, Math.max(1, owned)) : showJokerInfo(this, id)));
 
     // Layout: buy button on the left (RTL reading ends there), icon on the right, text between.
     const buttonW = 160;
@@ -165,16 +179,21 @@ export class ShopScene extends Phaser.Scene {
     card.add(fitWidth(inkText(this, iconX, 62, kindLabel, { fontSize: "19px", color: style.text }), 120));
 
     // Tags ride on the title, which starts with Arabic, so right-to-left layout keeps them in order.
-    const tags = def.tags.length ? ` · ${def.tags.join(" · ")}` : "";
-    const title = isUpgrade ? `${def.name}${tags}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : `${def.name}${tags}`;
+    // Just the name (the groups next to it confused more than they told — they're in the ⓘ card).
+    const title = isUpgrade ? `${def.name}  ${levelBadge(owned)} ← ${levelBadge(owned + 1)}` : def.name;
     card.add(inkText(this, textX, -80, title, { fontSize: "29px", color: isUpgrade ? "#1f4a4d" : CSS.ink }));
+    // Between the title and the price; a long one (الورقة الشبح) shrinks to fit.
     card.add(
-      inkText(this, textX, -16, (isUpgrade ? "ترقية: " : "") + description, {
-        fontSize: "21px",
-        color: CSS.inkSoft,
-        align: "center",
-        wordWrap: { width: textW },
-      }),
+      fitBox(
+        inkText(this, textX, -4, (isUpgrade ? "ترقية: " : "") + description, {
+          fontSize: "21px",
+          color: CSS.inkSoft,
+          align: "center",
+          wordWrap: { width: textW },
+        }),
+        textW + 24,
+        112,
+      ),
     );
     card.add(inkText(this, textX, 76, `${price} ريال`, { fontSize: "24px", color: CSS.crimson }));
 
@@ -215,14 +234,17 @@ export class ShopScene extends Phaser.Scene {
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.55).setInteractive();
     const g = this.add.graphics();
     g.fillStyle(PAL.paper, 1);
-    g.fillRoundedRect(-w / 2, -170, w, 420, 26);
+    g.fillRoundedRect(-w / 2, -330, w, 620, 26);
     g.lineStyle(4, PAL.gold, 1);
-    g.strokeRoundedRect(-w / 2, -170, w, 420, 26);
+    g.strokeRoundedRect(-w / 2, -330, w, 620, 26);
     panel.add([shade, g]);
-    panel.add(addIcon(this, 0, -100, def.icon, 80, INK));
-    panel.add(inkText(this, 0, -30, `تبيع ${def.name}؟`, { fontSize: "30px" }));
+    // What it does first (tap a تحفة anywhere and you read it), then selling.
+    const level = runController.levelOf(id);
+    panel.add(addIcon(this, 0, -255, def.icon, 80, INK));
+    panel.add(inkText(this, 0, -185, def.name, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(fitBox(inkText(this, 0, -95, def.levels[Math.min(level, def.levels.length) - 1], { fontSize: "26px", wordWrap: { width: w - 90 } }), w - 60, 140));
     const starter = runController.isStarter(id);
-    panel.add(inkText(this, 0, 20, starter ? "تحفة شخصيتك — ما تنباع" : `مستوى ${runController.levelOf(id)} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
+    panel.add(inkText(this, 0, 20, starter ? "تحفة شخصيتك — ما تنباع" : `تبيعها؟ مستوى ${level} — بـ ${value} ريال`, { fontSize: "26px", color: CSS.crimson }));
     const close = () => {
       panel.destroy();
       this.dialog = undefined;
@@ -234,7 +256,7 @@ export class ShopScene extends Phaser.Scene {
       this.toast(`+${value} ريال`);
       this.refresh();
     }, { width: 220, height: 76, plate: "paper" });
-    const keep = makeButton(this, -140, 110, "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
+    const keep = makeButton(this, -140, 110, starter ? "تمام" : "لا، خلّه", close, { width: 220, height: 76, plate: "navy" });
     panel.add([sell.container, keep.container]);
     if (starter) sell.container.setVisible(false).disableInteractive();
     // The row's order matters to النسخة (it copies the joker on its right).
@@ -246,6 +268,39 @@ export class ShopScene extends Phaser.Scene {
       }, { width: 300, height: 66, plate: "teal" });
       panel.add(move.container);
     }
+    this.dialog = panel;
+  }
+
+  /** النحس: what it does, and lifting it for riyals. */
+  private confirmUncurse(id: string): void {
+    this.dialog?.destroy();
+    const def = getCurse(id)!;
+    const panel = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(40);
+    const w = WIDTH - 120;
+    const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.55).setInteractive();
+    const g = this.add.graphics();
+    g.fillStyle(PAL.paper, 1);
+    g.fillRoundedRect(-w / 2, -170, w, 360, 26);
+    g.lineStyle(4, PAL.crimson, 1);
+    g.strokeRoundedRect(-w / 2, -170, w, 360, 26);
+    panel.add([shade, g]);
+    panel.add(addIcon(this, 0, -100, def.icon, 80, PAL.crimson));
+    panel.add(inkText(this, 0, -30, `نحس: ${def.name}`, { fontSize: "30px", color: CSS.crimson }));
+    panel.add(inkText(this, 0, 20, def.text, { fontSize: "26px", wordWrap: { width: w - 80 } }));
+    const close = () => {
+      panel.destroy();
+      this.dialog = undefined;
+    };
+    const poor = runController.getState().gold < UNCURSE_PRICE;
+    const lift = makeButton(this, 140, 110, `فكّه (${UNCURSE_PRICE} ريال)`, () => {
+      if (poor) return;
+      runController.buyUncurse(id);
+      close();
+      this.toast(`راح عنك «${def.name}»`);
+      this.refresh();
+    }, { width: 260, height: 76, plate: "paper", disabled: poor });
+    const keep = makeButton(this, -150, 110, "بعدين", close, { width: 200, height: 76, plate: "navy" });
+    panel.add([lift.container, keep.container]);
     this.dialog = panel;
   }
 

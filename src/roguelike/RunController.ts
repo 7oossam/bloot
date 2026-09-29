@@ -17,6 +17,7 @@ import { getOpponent, type OpponentDef } from "./opponents";
 import { getPartner } from "./partners";
 import { CROWN_TARGET, VOWS, rollBlessings, SCHOOL_PENALTY, TREASURE_GOLD, WAVE_HEAD_START } from "./blessings";
 import { getCharacter, inCharacterPool } from "./characters";
+import { CURSES, DEBT_PER_LOSS, ENVY_HEAD_START, getCurse, UNCURSE_PRICE } from "./curses";
 import { MAX_STAMPS_PER_CARD, rollStampOffers, stampRules, type StampId, type StampRules } from "./stamps";
 import type { MatchOptions } from "../game/GameController";
 import { MAX_LIVES, type MapNode, type RunState } from "./types";
@@ -167,6 +168,10 @@ class RunController {
       o.partner = partner.options;
       o.partnerLabel = partner.name;
     }
+    // النحس.
+    const curses = this.state.curses ?? [];
+    if (curses.includes("debt")) o.curseDebt = DEBT_PER_LOSS;
+    if (curses.includes("envy")) o.headStart = { ...o.headStart, 1: (o.headStart?.[1] ?? 0) + ENVY_HEAD_START };
     if (this.hasBlessing("wave")) o.headStart = { ...o.headStart, 0: (o.headStart?.[0] ?? 0) + WAVE_HEAD_START };
     if (this.hasBlessing("projects")) {
       o.projectMultiplier = (o.projectMultiplier ?? 1) * 2;
@@ -310,6 +315,9 @@ class RunController {
         for (const c of cards) this.addStampStar(c);
         return cards.length;
       },
+      addCurse: () => this.addCurse(rand),
+      removeCurse: () => this.removeCurse(),
+      curseCount: () => (s.curses ?? []).length,
       canUpgrade: () => this.upgradeable().length > 0,
       upgradeRandomJoker: () => {
         const pool = this.upgradeable();
@@ -632,6 +640,33 @@ class RunController {
     s.stampStars[cardId] = (s.stampStars[cardId] ?? 0) + 1;
   }
 
+  /** A نحس you don't have yet (random); its name, or undefined if you have them all. */
+  addCurse(rand: () => number = mulberry32(this.state.seed * 71 + this.state.currentIndex * 5 + this.state.gold)): string | undefined {
+    const s = this.state;
+    const fresh = CURSES.filter((c) => !(s.curses ?? []).includes(c.id));
+    if (!fresh.length) return undefined;
+    const pick = fresh[Math.floor(rand() * fresh.length)];
+    s.curses = [...(s.curses ?? []), pick.id];
+    return pick.name;
+  }
+
+  /** Lifts a نحس (the given one, or the oldest); its name. */
+  removeCurse(id?: string): string | undefined {
+    const s = this.state;
+    const at = id ? (s.curses ?? []).indexOf(id) : 0;
+    const gone = s.curses?.[at];
+    if (!gone) return undefined;
+    s.curses = s.curses!.filter((_, i) => i !== at);
+    return getCurse(gone)?.name;
+  }
+
+  /** At the دكّان: pay to lift a نحس. */
+  buyUncurse(id: string): void {
+    if (this.state.gold < UNCURSE_PRICE) throw new Error("ريالاتك ما تكفي");
+    if (!this.removeCurse(id)) throw new Error(`No curse ${id}`);
+    this.state.gold -= UNCURSE_PRICE;
+  }
+
   /** Your stamps as the table needs them. */
   stampRules(): StampRules {
     return stampRules(this.state.stamps ?? {}, this.state.stampStars ?? {});
@@ -709,7 +744,9 @@ class RunController {
     const rand = mulberry32(this.state.seed + this.state.currentIndex * 7919 + ++this.shopRolls * 104729);
     const pool = JOKER_CATALOG.filter((j) => this.levelOf(j.id) < maxLevel(j) && this.inPool(j));
     const picks: string[] = [];
-    while (picks.length < this.state.shopSlots && pool.length > 0) {
+    // الكساد (a نحس): one fewer on the shelf.
+    const slots = Math.max(1, this.state.shopSlots - (this.state.curses?.includes("slump") ? 1 : 0));
+    while (picks.length < slots && pool.length > 0) {
       const total = pool.reduce((sum, j) => sum + RARITY_WEIGHT[j.rarity], 0);
       let roll = rand() * total;
       const index = pool.findIndex((j) => (roll -= RARITY_WEIGHT[j.rarity]) < 0);

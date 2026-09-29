@@ -42,6 +42,7 @@ import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
 import { getStamp, GROW_STARS } from "../roguelike/stamps";
 import { installStampView } from "./stampView";
+import { fitWidth } from "./theme";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
 
@@ -90,7 +91,7 @@ const NODE_TYPE_LABEL_AR: Record<NodeType, string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "طرقة",
+  diwaniya: "باب غريب",
 };
 
 export interface TableSceneData {
@@ -188,6 +189,8 @@ export class TableScene extends Phaser.Scene {
   private manualOrder: string[] = [];
   private memoryPanel?: Phaser.GameObjects.Container;
   private sawaButton?: ButtonHandle;
+  /** What a picked-up card's stamps do. */
+  private stampTip?: Phaser.GameObjects.Container;
   /** آخر الكلام's button, on your turn mid-trick. */
   private deferButton?: ButtonHandle;
   /** البيعة's two buttons, before the first card of a hand your side bought. */
@@ -476,6 +479,37 @@ export class TableScene extends Phaser.Scene {
     });
   }
 
+  /** What the picked-up card's stamps do: a strip over your hand, gone after a few seconds. */
+  private showStampTip(card: Card): void {
+    this.stampTip?.destroy();
+    this.stampTip = undefined;
+    const run = runController.getState();
+    const ids = run.stamps?.[cardId(card)] ?? [];
+    if (!ids.length) return;
+    const text = ids
+      .map((s) => {
+        const def = getStamp(s)!;
+        return `«${def.name}»${s === "grow" ? ` ${Math.min(run.stampStars?.[cardId(card)] ?? 0, GROW_STARS)}/${GROW_STARS}` : ""}: ${def.text}`;
+      })
+      .join("\n");
+    const w = WIDTH - 80;
+    const t = arabicText(this, 0, 0, text, { fontSize: "22px", wordWrap: { width: w - 40, useAdvancedWrap: true }, lineSpacing: 4 });
+    const h = t.height + 28;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x3a2620, 0.96);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 16);
+    bg.lineStyle(3, 0xf0cb7a, 1);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 16);
+    const tip = this.add.container(CENTER_X, HAND_ANCHOR[HUMAN_SEAT].y - 230 - h / 2, [bg, t]).setDepth(30);
+    this.stampTip = tip;
+    this.time.delayedCall(4500, () => {
+      if (this.stampTip === tip) {
+        tip.destroy();
+        this.stampTip = undefined;
+      }
+    });
+  }
+
   /** A card under the row saying what a joker does at its current level (tap again to close). */
   private toggleJokerTip(id: string): void {
     const same = this.jokerTip?.getData("id") === id;
@@ -486,9 +520,8 @@ export class TableScene extends Phaser.Scene {
     const box = this.jokerIcons.get(id);
     if (!def || !box) return;
     const level = runController.getState().jokerLevels[id] ?? 1;
-    const lines = [`${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[0]];
-    if (level > 1) lines.push(`المستوى ${level}: ${def.levels[Math.min(level, def.levels.length) - 1]}`);
-    if (def.tags.length) lines.push(`المجموعة: ${def.tags.join("، ")}`);
+    // What it does at your level (each level's line is whole on its own).
+    const lines = [`${def.name}${def.levels.length > 1 ? ` — المستوى ${level}` : ""}`, def.levels[Math.min(level, def.levels.length) - 1]];
     const w = WIDTH - 80;
     const text = arabicText(this, 0, 0, lines.join("\n"), {
       fontSize: "24px",
@@ -901,7 +934,7 @@ export class TableScene extends Phaser.Scene {
     }).setAlpha(0);
     this.tweens.add({ targets: this.groundLabel, alpha: 1, delay: t, duration: DEAL_FLY_MS });
 
-    this.meter.idle(`مزايدة — ورقة الأرض ${SUIT_SYMBOL[e.groundCard.suit]} ${SUIT_NAME_AR[e.groundCard.suit]}`);
+    this.meter.idle(`الأرض ${SUIT_SYMBOL[e.groundCard.suit]} — مين بيشتري؟`);
     this.log(`توزيع جديد — الموزع: ${SEAT_LABEL_AR[e.dealer]}`);
     this.placeDealerChip(e.dealer);
     this.spied = {};
@@ -967,11 +1000,15 @@ export class TableScene extends Phaser.Scene {
   /** A prompt line plus a row (or two) of buttons for the human's decision. */
   private showChoices(prompt: string, items: Array<{ label: string; onClick: () => void }>): void {
     this.clearBidButtons();
-    this.bidPrompt = arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 86, prompt, {
-      fontSize: "28px",
-      color: "#ffd54a",
-      wordWrap: { width: WIDTH - 120, useAdvancedWrap: true },
-    }).setDepth(6);
+    // Inside the table's frame, a line or two above the buttons.
+    this.bidPrompt = fitWidth(
+      arabicText(this, CENTER_X, BID_BUTTON_ROW_Y - 96, prompt, {
+        fontSize: "28px",
+        color: "#ffd54a",
+        wordWrap: { width: WIDTH - 260, useAdvancedWrap: true },
+      }),
+      WIDTH - 200,
+    ).setDepth(6);
 
     const perRow = items.length <= 3 ? items.length : Math.ceil(items.length / 2);
     const spacingX = 200;
@@ -1615,6 +1652,8 @@ export class TableScene extends Phaser.Scene {
       this.selectedCardView = view;
       view.y -= 40; // Raise it
       view.setHighlighted(true);
+      // A stamped card says what its stamps do while it's picked up.
+      this.showStampTip(view.card);
       if (navigator.vibrate) navigator.vibrate(5);
       return;
     }
@@ -1729,6 +1768,8 @@ export class TableScene extends Phaser.Scene {
       this.sawaButton = undefined;
       this.deferButton?.destroy();
       this.deferButton = undefined;
+      this.stampTip?.destroy();
+      this.stampTip = undefined;
     }
     this.time.delayedCall(0, () => {
       this.refreshMemory();
@@ -1970,7 +2011,11 @@ export class TableScene extends Phaser.Scene {
       us: banked[us],
       them: e.gained[them],
       bonus: e.gained[us] - banked[us],
-      word: e.kaboot ? "كبوت!" : lost ? (e.result.declarerTeam === us ? "خسرانة" : "خسرانة عليهم") : sheet?.winner === us ? "لنا" : undefined,
+      word: sheet?.kaboot !== undefined
+        ? sheet.kaboot === us ? "كبوت لنا!" : "كبوت علينا"
+        : lost
+          ? e.result.declarerTeam === us ? "خسرانة علينا" : "خسرانة عليهم"
+          : sheet?.outcome === "tie" ? "متعادلة" : sheet?.winner === us || e.result.declarerTeam === us ? "اليد لنا" : "اليد لهم",
     });
     this.whenTableSettled(() => this.handMoment(e.result));
     this.handsPlayed++;
@@ -2012,6 +2057,8 @@ export class TableScene extends Phaser.Scene {
 
     const panel = this.add.container(0, 0).setDepth(20);
     this.handSummaryPanel = panel;
+    // The meter sits where the sheet's header goes: out of the way while it's open.
+    this.meter.setVisible(false);
     const g = this.add.graphics();
     panel.add(g);
     g.fillStyle(0x000000, 0.6);
@@ -2151,6 +2198,7 @@ export class TableScene extends Phaser.Scene {
         panel.destroy();
         this.handSummaryPanel = undefined;
         this.showingHandSummary = false;
+        this.meter.setVisible(true);
         if (this.pendingMatchEnd) {
           const end = this.pendingMatchEnd;
           this.pendingMatchEnd = undefined;

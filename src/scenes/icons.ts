@@ -64,7 +64,7 @@ export function iconRow(
   x: number,
   y: number,
   items: { icon: string; mark?: string }[],
-  opts: { size?: number; gap?: number; color?: number; markColor?: string } = {},
+  opts: { size?: number; gap?: number; color?: number; markColor?: string; onTap?: (index: number) => void } = {},
 ): Phaser.GameObjects.Container {
   const size = opts.size ?? 40;
   const gap = opts.gap ?? 14;
@@ -72,7 +72,10 @@ export function iconRow(
   const step = size + gap;
   items.forEach((it, i) => {
     const ix = ((items.length - 1) / 2 - i) * step;
-    row.add(addIcon(scene, ix, 0, it.icon, size, opts.color ?? INK));
+    const img = addIcon(scene, ix, 0, it.icon, size, opts.color ?? INK);
+    row.add(img);
+    // Tap an icon to read what it is.
+    if (opts.onTap) img.setInteractive({ useHandCursor: true }).on("pointerdown", () => opts.onTap!(i));
     if (it.mark) {
       row.add(
         scene.add

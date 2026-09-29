@@ -6,6 +6,8 @@ import { CHARACTERS, getCharacter } from "../roguelike/characters";
 import type { MapNode, RunState } from "../roguelike/types";
 import { ACTS } from "../roguelike/mapgen";
 import { EVENT_KINDS } from "../roguelike/events";
+import { getCurse } from "../roguelike/curses";
+import { showAllStamps, showBlessingInfo, showCurseInfo, showJokerInfo } from "./infoPopup";
 import { HEIGHT, WIDTH } from "./layout";
 import { arabicText, makeButton, preloadUi, setBoxHitArea, type ButtonHandle } from "./ui";
 import { addAmbience } from "./fx";
@@ -18,7 +20,7 @@ const NODE_TYPE_LABEL_AR: Record<MapNode["type"], string> = {
   elite: "مجلس كبير",
   shop: "دكّان التحف",
   boss: "ديوانية الزعيم",
-  diwaniya: "طرقة",
+  diwaniya: "باب غريب",
 };
 
 /** Each kind of stop gets an engraved ink symbol drawn in its medallion (no emoji). */
@@ -91,7 +93,7 @@ const BOTTOM_MARGIN = 130;
 /** Renders the linear run map as a vertical, bottom-to-top climb (node 0 near the bottom). */
 export class MapScene extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
-  private hudGroups!: Phaser.GameObjects.Text;
+  private hudLine?: Phaser.GameObjects.Container;
   private hudRow?: Phaser.GameObjects.Container;
   private nodeLayer!: Phaser.GameObjects.Container;
   private overlay?: Phaser.GameObjects.Container;
@@ -113,7 +115,6 @@ export class MapScene extends Phaser.Scene {
     this.add.existing(goldRule(this, WIDTH / 2, 118, 320));
     // Three lines: where you stand, your تحف as a row of icons, and your complete sets.
     this.hudText = this.pt(WIDTH / 2, 164, "", { fontSize: "24px", wordWrap: { width: WIDTH - 90 } });
-    this.hudGroups = this.pt(WIDTH / 2, 262, "", { fontSize: "22px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 90 } });
     this.nodeLayer = this.add.container(0, 0);
     this.refresh();
   }
@@ -141,6 +142,7 @@ export class MapScene extends Phaser.Scene {
     const shields = state.shields > 0 ? `   ·   درع ${state.shields}` : "";
     const boost = state.nextMatchBoost ? `   ·   دفعة +${state.nextMatchBoost}` : "";
     const character = getCharacter(state.character);
+    const curses = (state.curses ?? []).map((c) => getCurse(c)?.name).filter(Boolean);
     this.hudText.setText(`${character ? `${character.name}   ·   ` : ""}ساعات الليل ${state.lives}   ·   ${state.gold} ريال${shields}${boost}`);
 
     // Your وصايا, then your تحف with their level in stars.
@@ -149,15 +151,42 @@ export class MapScene extends Phaser.Scene {
       ...state.blessings.map((id) => ({ icon: getBlessing(id)?.icon ?? "", mark: "" })),
       ...state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "", mark: "★".repeat(Math.max(0, (state.jokerLevels[id] ?? 1) - 1)) })),
     ];
+    // Tap any of them for what it does.
+    const tap = (i: number) =>
+      i < state.blessings.length ? showBlessingInfo(this, state.blessings[i]) : showJokerInfo(this, state.jokerIds[i - state.blessings.length], state.jokerLevels[state.jokerIds[i - state.blessings.length]] ?? 1);
     this.hudRow = items.length
-      ? iconRow(this, WIDTH / 2, 214, items, { size: Math.min(46, (WIDTH - 120) / items.length - 12), color: INK })
+      ? iconRow(this, WIDTH / 2, 214, items, { size: Math.min(46, (WIDTH - 120) / items.length - 12), color: INK, onTap: tap })
       : this.add.container(WIDTH / 2, 214, [this.pt(0, 0, "ما عندك تحف للحين", { fontSize: "22px", color: CSS.inkSoft })]);
 
     const synergies = activeSynergies(state.jokerIds)
       .filter((x) => x.tier)
       .map((x) => `${x.tag} ${x.count} ✓`)
       .join("   ");
-    this.hudGroups.setText(synergies ? `المجموعات: ${synergies}` : "");
+    // One line under your تحف, each part tappable: your stamps, your نحس (crimson), your
+    // complete groups. One line only — two ran into the boss.
+    this.hudLine?.destroy();
+    const stamped = Object.values(state.stamps ?? {}).filter((ids) => ids.length).length;
+    const parts: Array<{ text: string; color: string; tap?: () => void }> = [];
+    if (stamped) parts.push({ text: `وسومك: ${stamped} ورق`, color: "#1f4a4d", tap: () => showAllStamps(this, state.stamps ?? {}, state.stampStars ?? {}) });
+    if (curses.length) parts.push({ text: `نحس: ${curses.join("، ")}`, color: CSS.crimson, tap: () => showCurseInfo(this, state.curses!) });
+    if (synergies) parts.push({ text: synergies, color: CSS.inkSoft });
+    const line = this.add.container(WIDTH / 2, 258);
+    const texts = parts.map((p) => {
+      const t = this.pt(0, 0, p.text, { fontSize: "22px", color: p.color });
+      if (p.tap) t.setInteractive({ useHandCursor: true }).on("pointerdown", p.tap);
+      return t;
+    });
+    const gap = 36;
+    const total = texts.reduce((n, t) => n + t.width, 0) + gap * Math.max(0, texts.length - 1);
+    // Right to left, like the reading.
+    let x = total / 2;
+    for (const t of texts) {
+      t.setX(x - t.width / 2);
+      x -= t.width + gap;
+      line.add(t);
+    }
+    if (total > WIDTH - 80) line.setScale((WIDTH - 80) / total);
+    this.hudLine = line;
   }
 
   /** The branching map, bottom row first: links, then nodes (the ones you can walk into pulse). */
@@ -334,7 +363,11 @@ export class MapScene extends Phaser.Scene {
     const off = def.rules.disableJoker ? runController.strongestJoker() : undefined;
     const offDef = off ? getJokerDef(off) : undefined;
     if (offDef) panel.add(this.pt(0, 125, `يتعطّل: ${offDef.name}`, { fontSize: "24px", color: CSS.crimson, ...wrap }));
-    panel.add(makeButton(this, 0, 235, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
+    // What winning is worth: a stamp from a plain match, تحف from a مجلس كبير or a boss.
+    const last = node.type === "boss" && runController.getState().act >= ACTS.length - 1;
+    const prize = last ? "الباب الأخير" : node.type === "match" ? `وسم لورقة و${node.reward} ريال` : node.type === "elite" ? `ثلاث تحف تختار منها و${node.reward} ريال` : `ثلاث تحف أسطورية و${node.reward} ريال`;
+    panel.add(this.pt(0, 170, `الجائزة: ${prize}`, { fontSize: "25px", color: "#8c5a1c", ...wrap }));
+    panel.add(makeButton(this, 0, 250, "ابدأ", () => this.startMatch(node), { width: 300 }).container);
   }
 
   /** الديوانية: the scene, its choices, then what happened. */
@@ -353,7 +386,7 @@ export class MapScene extends Phaser.Scene {
     const kind = EVENT_KINDS[event.kind];
     panel.add(this.pt(0, top + 55, kind.label, { fontSize: "26px", color: kind.color }));
     panel.add(goldRule(this, 0, top + 95, 360));
-    panel.add(this.pt(0, top + 160, `طرقة — ${event.name}`, { fontSize: "34px", color: CSS.crimson }));
+    panel.add(this.pt(0, top + 160, event.name, { fontSize: "34px", color: CSS.crimson }));
     panel.add(this.pt(0, top + 240, event.text, { fontSize: "26px", ...wrap }));
     event.options.forEach((option, i) => {
       const reason = runController.whyNotEventOption(i);
@@ -497,17 +530,20 @@ export class MapScene extends Phaser.Scene {
     this.overlay = panel;
 
     this.dimMap(panel);
-    panel.add(paperPanel(this, panelW, 440, { accent: won ? PAL.gold : PAL.crimson }));
+    panel.add(paperPanel(this, panelW, 480, { accent: won ? PAL.gold : PAL.crimson }));
 
-    panel.add(this.pt(0, -120, won ? "طلع الفجر وأنتم غالبين" : "طلع الفجر عليكم", { fontSize: "42px", color: won ? CSS.crimson : CSS.ink }));
+    panel.add(this.pt(0, -120, won ? "انفتح الباب اللي ما له باب" : "طلع الفجر وأنت على الطاولة", { fontSize: "40px", color: won ? CSS.crimson : CSS.ink, wordWrap: { width: panelW - 80 } }));
     panel.add(
-      this.pt(0, -50, `جمعت ${state.gold} ريال وقطعت ${state.cleared.filter(Boolean).length} عقدة`, {
+      this.pt(0, -60, won ? "ثلاث مفاتيح، ورجع اسم جدّك لأهل الحي" : "تبقى ضيف عند المعزّب لين ليلة الأربعين الجاية", { fontSize: "25px", color: CSS.inkSoft, wordWrap: { width: panelW - 80 } }),
+    );
+    panel.add(
+      this.pt(0, 0, `وصلت ${ACTS[state.act].name} · ${state.act + 1} من ${ACTS.length}`, {
         fontSize: "27px",
       }),
     );
-    if (state.jokerIds.length) panel.add(iconRow(this, 0, 20, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "" })), { size: 44, color: INK }));
+    if (state.jokerIds.length) panel.add(iconRow(this, 0, 55, state.jokerIds.map((id) => ({ icon: getJokerDef(id)?.icon ?? "" })), { size: 44, color: INK }));
 
-    const btn: ButtonHandle = makeButton(this, 0, 120, "ابدأ ليلة جديدة", () => {
+    const btn: ButtonHandle = makeButton(this, 0, 150, "ابدأ ليلة جديدة", () => {
       runController.startNewRun();
       this.scene.restart();
     }, { width: 300, plate: "teal" });

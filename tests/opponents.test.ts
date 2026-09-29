@@ -11,7 +11,7 @@ import { GameController, HUMAN_SEAT, type MatchOptions } from "../src/game/GameC
 import { EVENTS, getEvent, OWN_EVENT } from "../src/roguelike/events";
 import { getJokerDef } from "../src/roguelike/jokers";
 import { ACTS, generateAct, generateMap, pathTo } from "../src/roguelike/mapgen";
-import { getOpponent } from "../src/roguelike/opponents";
+import { getOpponent, OPPONENTS } from "../src/roguelike/opponents";
 import { runController } from "../src/roguelike/RunController";
 import { CROWN_TARGET, getBlessing, TREASURE_GOLD } from "../src/roguelike/blessings";
 import { STARTING_GOLD, type RunState } from "../src/roguelike/types";
@@ -271,10 +271,61 @@ describe("the run: opponents, الديوانية and الحوت", () => {
 
     runController.startNewRun(77);
     atDiwaniya("cursed");
-    const lives = runController.getState().lives;
     runController.chooseEventOption(0);
     expect(getJokerDef(runController.getState().jokerIds.at(-1)!)!.rarity).toBe("legendary");
-    expect(runController.getState().lives).toBe(lives - 1);
+    expect(runController.getState().curses).toHaveLength(1);
+  });
+
+  it("النحس: الحسد puts them ahead, الدَّين costs riyals, الكساد shrinks the shelf — and they lift", () => {
+    const s = runController.getState() as RunState;
+    s.curses = ["envy", "debt", "slump"];
+    const o: MatchOptions = {};
+    runController.applyBlessings(o);
+    expect(o.headStart?.[1]).toBe(5);
+    expect(o.curseDebt).toBe(3);
+    s.gold = 100;
+    runController.buyUncurse("envy");
+    expect(s.gold).toBe(70);
+    expect(s.curses).toEqual(["debt", "slump"]);
+    expect(runController.removeCurse()).toBe("الدَّين");
+    s.gold = 5;
+    expect(() => runController.buyUncurse("slump")).toThrow();
+  });
+
+  it("a بلاء has no good choice: حرامي الزقاق takes half, an hour, or a تحفة", () => {
+    atDiwaniya("thief");
+    const s = runController.getState() as RunState;
+    s.gold = 41;
+    runController.chooseEventOption(0);
+    expect(s.gold).toBe(21);
+    expect(EVENTS.find((e) => e.id === "thief")!.kind).toBe("bad");
+  });
+
+  it("الراقي lifts a نحس for riyals, and can't when you have none", () => {
+    atDiwaniya("healer");
+    expect(runController.whyNotEventOption(0)).toBe("ما عليك نحس");
+    const s = runController.getState() as RunState;
+    s.curses = ["envy"];
+    s.gold = 50;
+    runController.chooseEventOption(0);
+    expect(s.curses).toEqual([]);
+    expect(s.gold).toBe(30);
+  });
+
+  it("the new rivals: ماسكين الحكم lock their hokum, أهل الدرع can't be doubled", () => {
+    const locked = new GameController(mulberry32(5), { rival: getOpponent("hokum-lockers")!.rules });
+    locked.startMatch();
+    expect(locked.getRound().bidding.lockedHokumTeams).toContain(1);
+    const shielded = new GameController(mulberry32(5), { rival: getOpponent("shielded")!.rules, noDoubleAgainst: true });
+    shielded.startMatch();
+    const opts = (shielded.getRound() as unknown as { options: { noDoubleAgainst?: number[] } }).options;
+    expect(opts.noDoubleAgainst).toEqual([0, 1]);
+  });
+
+  it("elites bend two rules at once", () => {
+    for (const o of OPPONENTS.filter((x) => x.tier === "elite" && !["hokum-folk", "doublers"].includes(x.id))) {
+      expect(Object.keys(o.rules).length).toBeGreaterThanOrEqual(2);
+    }
   });
 
   it("الديوانية: a price in hours never takes your last one", () => {
