@@ -42,6 +42,7 @@ import { openNotesPanel, type HandView } from "./notesPanel";
 import { HandMeter, type Side } from "./HandMeter";
 import { getStamp, GROW_STARS } from "../roguelike/stamps";
 import { installStampView } from "./stampView";
+import { DrillCoach } from "./drillCoach";
 import { fitWidth } from "./theme";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
@@ -98,6 +99,8 @@ export interface TableSceneData {
   nodeType: NodeType;
   matchTarget: number;
   modifiers: MatchOptions;
+  /** تمرين الذاكرة: plain Baloot, questions between tricks, no log — not part of the night. */
+  drill?: boolean;
 }
 
 interface OpponentWidget {
@@ -189,6 +192,8 @@ export class TableScene extends Phaser.Scene {
   private manualOrder: string[] = [];
   private memoryPanel?: Phaser.GameObjects.Container;
   private sawaButton?: ButtonHandle;
+  /** تمرين الذاكرة's questions (only in the drill). */
+  private drill?: DrillCoach;
   /** What a picked-up card's stamps do. */
   private stampTip?: Phaser.GameObjects.Container;
   /** آخر الكلام's button, on your turn mid-trick. */
@@ -244,6 +249,7 @@ export class TableScene extends Phaser.Scene {
     this.manualOrder = [];
     this.memoryPanel = undefined;
     this.sawaButton = undefined;
+    this.drill = undefined;
     // The sort you picked sticks from match to match.
     if (this.handSort === "manual") this.handSort = "suit";
   }
@@ -253,8 +259,9 @@ export class TableScene extends Phaser.Scene {
   }
 
   create(): void {
-    // الوسوم show on the cards that carry them.
-    installStampView();
+    // الوسوم show on the cards that carry them (not in the drill: it's plain Baloot).
+    if (this.nodeData.drill) CardView.stampsFor = undefined;
+    else installStampView();
     ensureFxTextures(this);
     paintBackdrop(this, { table: true });
     addAmbience(this);
@@ -266,7 +273,16 @@ export class TableScene extends Phaser.Scene {
       ...this.nodeData.modifiers,
     });
     this.wireControllerEvents();
-    this.buildJokerRow();
+    if (this.nodeData.drill) {
+      // The cards that fell are gone from sight: no log, no «ليش؟» — you hold the table in your head.
+      this.drill = new DrillCoach(this, () => {
+        const r = this.controller.getRound();
+        const res = r.bidding.result!;
+        return { tricks: r.tricks, hand: r.hands[HUMAN_SEAT], mode: res.mode, trumpSuit: res.trumpSuit };
+      });
+      this.logText.setVisible(false);
+      this.hudModeText.setText(`تمرين الذاكرة · المستوى ${this.drill.level}`);
+    } else this.buildJokerRow();
     this.buildHandTools();
     this.controller.startMatch();
   }
@@ -633,8 +649,11 @@ export class TableScene extends Phaser.Scene {
     const btn = makeButton(this, WIDTH - 110, y, "ترتيب", () => this.cycleSort(), { width: 170, height: 58, kind: "play", tone: "quiet" });
     btn.container.setDepth(6);
     // «ليش؟»: why the computer played what it did, and the player's notes for Claude.
-    const why = makeButton(this, 78, 46, "ليش؟", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
-    why.container.setDepth(6);
+    // Not in the drill: its replay of the hand would show the cards you're meant to remember.
+    if (!this.nodeData.drill) {
+      const why = makeButton(this, 78, 46, "ليش؟", () => this.openNotes(), { width: 132, height: 56, fontSize: "22px", kind: "play", tone: "quiet" });
+      why.container.setDepth(6);
+    }
     if (this.nodeData.modifiers.memory) {
       // In the strip between the table and your hand, clear of the names and the rival line.
       this.memoryPanel = this.add.container(CENTER_X, TABLE_RECT.bottom + 32).setDepth(5);
@@ -1991,7 +2010,9 @@ export class TableScene extends Phaser.Scene {
       const queued = this.afterSettle;
       this.afterSettle = [];
       for (const fn of queued) fn();
-      this.driveAI();
+      // تمرين الذاكرة: some tricks end in a question before play goes on.
+      if (this.drill && this.controller.getRound().phase === "playing") this.drill.afterTrick(this.controller.getRound().tricks.length, () => this.driveAI());
+      else this.driveAI();
     });
   }
 
@@ -2000,6 +2021,18 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onHandComplete(e: HandCompleteEvent): void {
+    // تمرين الذاكرة: one hand is one session — how it went, then another or home.
+    if (this.drill) {
+      this.showingHandSummary = true;
+      const drill = this.drill;
+      this.whenTableSettled(() =>
+        drill.summary(
+          () => this.scene.restart(this.nodeData),
+          () => this.scene.start("title"),
+        ),
+      );
+      return;
+    }
     this.chat(handLines(e.result, this.handsPlayed === 0), 200);
     // The meter settles on the score sheet: what each side banked, and what the jokers added.
     const us = teamOf(HUMAN_SEAT);

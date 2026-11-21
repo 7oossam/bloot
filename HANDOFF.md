@@ -5,6 +5,12 @@
 
 ## 1. What We Just Did
 
+### تمرين الذاكرة — the Baloot memory drill (Nov 21, the player's idea)
+- A button on the home screen. Plain Baloot (no تحف, no rivals), **you play**; the tricks that fell are out of sight (no log, no «ليش؟»), and after some tricks play stops for a question over the table. One hand is one session, then a summary (kind by kind) with «يد ثانية» / «رجوع». Not part of the night (`TableSceneData.drill`, `src/scenes/drillCoach.ts`).
+- **Questions** (`src/drill/questions.ts`, all certain from the table): العدّ (how many of a suit are still out, besides yours), نزلت ولا لا (a big card: gone or not), أكبر ورقة باقية, مين فضى (pick every void seat, or «محد»), التهريب لخويه (what a seat asked for — read only off a trick its partner was winning, via `readDiscards`), الورق الضعيف (a card thrown on the OPPONENTS' trick: not a request, a suit it has no use for — the player's two-way reading of التهريب). After each answer: right/wrong and where it was on the table («نزلت في الأكلة 2، لعبها خويّك»).
+- **The method** (`src/drill/progress.ts`, saved in `localStorage` `bloot.drill`): retrieval (you recall; nothing to look at), immediate feedback with the evidence, **Leitner boxes** per kind (a miss drops it to box 1 and it comes up more), **interleaving** (no kind twice in one stop), and a **staircase** of 5 levels like n-back training: two hands in a row at ≥80% → the questions come further apart (L1 after every trick … L5 only after tricks 4 and 7, three at a time); a hand under 50% → back down. Reading التهريب comes in from level 3.
+- Tests: `tests/drill.test.ts`. Ideas next: «وش باقي في يد يمين» at the end of a hand (the card grid), a timer for speed at high levels, a drill tie-in with the night (الذاكرة cheaper, or a rival that hides the log).
+
 ### «باب غريب», plain تحف text, and tap-to-read everywhere (Sept 29)
 - The map's events are now **«باب غريب»** (the player's pick after «طرقة» and «سالفة» didn't land).
 - **Every تحفة's text was rewritten** in plain Saudi, and **each level is a whole sentence** — the shop used to show an upgrade as «ترقية: ×2.5.» or «ورقتين.». الورقة الشبح: «مشاريعك تنحسب درجة أكبر: السرا تصير خمسين، والخمسين تصير مئة…». The family tags (مشروع، سبيت…) no longer sit beside the name in the shop and the spoils; they're in the explanation card.

@@ -44,6 +44,8 @@ export class TitleScene extends Phaser.Scene {
     // The first time in, the story and how the night works come before the map.
     makeButton(this, CENTER_X, HEIGHT - 290, "ادخل الديوانية", () => (storySeen() ? this.scene.start("map") : this.scene.start("story", { next: "map" })), { width: 500, height: 116, plate: "burgundy" });
     arabicText(this, CENTER_X, HEIGHT - 190, "الأبواب مفتوحة حتى الفجر", { fontFamily: HEAD_FONT, fontSize: "30px", color: "#f2e3c2" });
+    // تمرين الذاكرة: plain Baloot with questions between tricks — practice, not the night.
+    makeButton(this, CENTER_X, HEIGHT - 410, "تمرين الذاكرة", () => this.scene.start("table", { nodeType: "match", matchTarget: 999, modifiers: {}, drill: true }), { width: 400, height: 96, plate: "teal" });
     const story = arabicText(this, CENTER_X, HEIGHT - 120, "القصة وكيف تمشي الليلة", { fontSize: "28px", color: "#ffd98a" });
     story.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.scene.start("story", { next: "title" }));
     // game-icons.net asks for credit (CC BY 3.0).
