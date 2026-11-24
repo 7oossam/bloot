@@ -129,6 +129,9 @@ export class DrillCoach {
         btn(0, y + 180, "ولا ورقة", () => answer({ kind: "rank", suit: a.suit, value: "none" }), 220, "pass");
         return y + 230;
       }
+      case "choice":
+        a.options.forEach((o, i) => btn(0, y + i * 90, o, () => answer({ kind: "choice", options: a.options, value: i }), 520));
+        return y + a.options.length * 90 - 40;
       case "seats": {
         // Pick every seat that's void, then confirm (or «محد»).
         const picked = new Set<Seat>();

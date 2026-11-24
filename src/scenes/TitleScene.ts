@@ -5,6 +5,7 @@ import { HEAD_FONT } from "./theme";
 import { arabicText, makeButton, preloadUi } from "./ui";
 import { storySeen } from "./StoryScene";
 import { loadProgress, skillOf, STAGES } from "../drill/progress";
+import { SKILL_IDS, SKILL_INFO } from "../drill/skills";
 import { CSS, inkText, paperPanel } from "./theme";
 
 const LOGO = "ui-logo";
@@ -54,25 +55,31 @@ export class TitleScene extends Phaser.Scene {
     this.add.text(CENTER_X, HEIGHT - 44, "Icons: game-icons.net (CC BY 3.0)", { fontFamily: "Tajawal, Arial", fontSize: "22px", color: "#c9b48c" }).setOrigin(0.5).setAlpha(0.8);
   }
 
-  /** تمرين الذاكرة: one skill at a time (عدّ الحكم first), or the mixed quiz. */
+  /** تمرين الذاكرة: pick a skill (each with its stage), or the mixed quiz. */
   private drillMenu(): void {
     const p = loadProgress();
-    const sk = skillOf(p, "trump");
     const shade = this.add.rectangle(CENTER_X, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.6).setInteractive().setDepth(30);
     const panel = this.add.container(CENTER_X, HEIGHT / 2).setDepth(31);
-    panel.add(paperPanel(this, WIDTH - 100, 760));
-    panel.add(inkText(this, 0, -300, "تمرين الذاكرة", { fontSize: "44px", color: CSS.crimson }));
-    panel.add(inkText(this, 0, -235, "مهارة وحدة كل مرة، بطريقة واضحة، والمساعدة تختفي شوي شوي", { fontSize: "24px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 200 } }));
+    const h = 1180;
+    panel.add(paperPanel(this, WIDTH - 80, h));
+    panel.add(inkText(this, 0, -h / 2 + 80, "تمرين الذاكرة", { fontSize: "44px", color: CSS.crimson }));
+    panel.add(inkText(this, 0, -h / 2 + 140, "اختر مهارة: طريقة واضحة، ومساعد يختفي شوي شوي", { fontSize: "24px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 180 } }));
     const close = () => {
       shade.destroy();
       panel.destroy();
     };
     shade.on("pointerdown", close);
     const go = (data: Record<string, unknown>) => this.scene.start("table", { nodeType: "match", matchTarget: 999, modifiers: {}, drill: true, ...data });
-    panel.add(makeButton(this, 0, -120, sk.mastered ? "١. عدّ الحكم ✓" : `١. عدّ الحكم · المرحلة ${sk.stage} من ${STAGES}`, () => go({ drillSkill: "trump" }), { width: WIDTH - 200, height: 96, plate: "teal" }).container);
-    panel.add(inkText(this, 0, -45, "تتعلم تعدّ الحكم الباقي وتستخدمه في قرارك", { fontSize: "23px", color: CSS.inkSoft }));
-    panel.add(makeButton(this, 0, 50, "٢. الإكك والعشرات · قريباً", () => {}, { width: WIDTH - 200, height: 86, plate: "paper", disabled: true }).container);
-    panel.add(makeButton(this, 0, 160, "اختبار شامل (أسئلة مخلوطة)", () => go({}), { width: WIDTH - 200, height: 86, plate: "navy" }).container);
-    panel.add(makeButton(this, 0, 290, "رجوع", close, { width: 260, height: 76, plate: "paper" }).container);
+    const digits = ["١", "٢", "٣", "٤"];
+    SKILL_IDS.forEach((id, i) => {
+      const sk = skillOf(p, id);
+      const info = SKILL_INFO[id];
+      const y = -h / 2 + 260 + i * 175;
+      const label = `${digits[i]}. ${info.name} · ${sk.mastered ? "✓ أتقنتها" : `المرحلة ${sk.stage} من ${STAGES}`}`;
+      panel.add(makeButton(this, 0, y, label, () => go({ drillSkill: id }), { width: WIDTH - 180, height: 90, plate: sk.mastered ? "olive" : "teal" }).container);
+      panel.add(inkText(this, 0, y + 68, info.blurb, { fontSize: "22px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 180 } }));
+    });
+    panel.add(makeButton(this, 0, h / 2 - 220, "اختبار شامل (أسئلة مخلوطة)", () => go({}), { width: WIDTH - 180, height: 84, plate: "navy" }).container);
+    panel.add(makeButton(this, 0, h / 2 - 110, "رجوع", close, { width: 260, height: 76, plate: "paper" }).container);
   }
 }
