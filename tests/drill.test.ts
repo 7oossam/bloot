@@ -130,3 +130,38 @@ describe("تمرين الذاكرة: the method", () => {
     expect(stopsFor(5).after.length).toBeLessThan(stopsFor(1).after.length);
   });
 });
+
+import { decisionPoint, trumpCount } from "../src/drill/trumpCount";
+import { finishSkillHand, skillOf } from "../src/drill/progress";
+
+describe("عدّ الحكم", () => {
+  it("out there = 8 − yours − theirs played, and it's what's really unseen", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const t = tableAfter(seed, 4);
+      if (!t || t.mode !== "hokum") continue;
+      const c = trumpCount(t);
+      expect(c.out).toBe(8 - c.mine - c.theirsPlayed);
+      const seen = t.tricks.flatMap((tr) => tr.order.map((s) => tr.cards[s]!)).filter((x) => x.suit === t.trumpSuit).length + t.hand.filter((x) => x.suit === t.trumpSuit).length;
+      expect(c.out).toBe(8 - seen);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("asks when you lead, and when you could cut", () => {
+    const card = (id: string): Card => ({ suit: id[0] as Card["suit"], rank: id.slice(1) as Card["rank"] });
+    expect(decisionPoint({ leader: 0, order: [], cards: {} }, [card("H7")], "S")).toBe("lead");
+    const led: Trick = { leader: 1, order: [1], cards: { 1: card("DA") } };
+    expect(decisionPoint(led, [card("H7"), card("S9")], "S")).toBe("cut");
+    expect(decisionPoint(led, [card("D7"), card("S9")], "S")).toBeUndefined();
+    expect(decisionPoint(led, [card("H7")], "S")).toBeUndefined();
+  });
+
+  it("a stage moves on after two good hands, and the ladder ends mastered", () => {
+    const p: DrillProgress = { level: 1, boxes: {}, streak: 0, hands: 0, best: 0 };
+    for (let i = 0; i < 6; i++) finishSkillHand(p, "trump", 5, 5);
+    expect(skillOf(p, "trump")).toEqual({ stage: 3, streak: 0, mastered: true });
+    expect(finishSkillHand(p, "trump", 1, 5)).toBe(-1);
+  });
+});
