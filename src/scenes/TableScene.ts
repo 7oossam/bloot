@@ -43,6 +43,7 @@ import { HandMeter, type Side } from "./HandMeter";
 import { getStamp, GROW_STARS } from "../roguelike/stamps";
 import { installStampView } from "./stampView";
 import { DrillCoach } from "./drillCoach";
+import { TrumpCoach } from "./trumpCoach";
 import { fitWidth } from "./theme";
 import { addAmbience, addCameraGrade, arcTo, celebrate, ensureFxTextures, flare, paintBackdrop, rise, screenFlash } from "./fx";
 import { contractLines, handLines, matchLines, projectLines, trickLines, type ChatLine } from "../game/chatter";
@@ -101,6 +102,8 @@ export interface TableSceneData {
   modifiers: MatchOptions;
   /** تمرين الذاكرة: plain Baloot, questions between tricks, no log — not part of the night. */
   drill?: boolean;
+  /** One skill at a time instead of the mixed quiz: "trump" is عدّ الحكم. */
+  drillSkill?: "trump";
 }
 
 interface OpponentWidget {
@@ -194,6 +197,10 @@ export class TableScene extends Phaser.Scene {
   private sawaButton?: ButtonHandle;
   /** تمرين الذاكرة's questions (only in the drill). */
   private drill?: DrillCoach;
+  /** عدّ الحكم (the drill's first skill). */
+  private trumpCoach?: TrumpCoach;
+  /** Play waits while the coach's card is up. */
+  private coachHold = false;
   /** What a picked-up card's stamps do. */
   private stampTip?: Phaser.GameObjects.Container;
   /** آخر الكلام's button, on your turn mid-trick. */
@@ -250,6 +257,8 @@ export class TableScene extends Phaser.Scene {
     this.memoryPanel = undefined;
     this.sawaButton = undefined;
     this.drill = undefined;
+    this.trumpCoach = undefined;
+    this.coachHold = false;
     // The sort you picked sticks from match to match.
     if (this.handSort === "manual") this.handSort = "suit";
   }
@@ -273,7 +282,16 @@ export class TableScene extends Phaser.Scene {
       ...this.nodeData.modifiers,
     });
     this.wireControllerEvents();
-    if (this.nodeData.drill) {
+    if (this.nodeData.drillSkill === "trump") {
+      // عدّ الحكم: a hokum hand, the method, a counter that fades, questions when it matters.
+      this.trumpCoach = new TrumpCoach(this, () => {
+        const r = this.controller.getRound();
+        const res = r.bidding.result;
+        return res ? { tricks: r.tricks, hand: r.hands[HUMAN_SEAT], mode: res.mode, trumpSuit: res.trumpSuit } : undefined;
+      });
+      this.logText.setVisible(false);
+      this.hudModeText.setText(this.trumpCoach.title);
+    } else if (this.nodeData.drill) {
       // The cards that fell are gone from sight: no log, no «ليش؟» — you hold the table in your head.
       this.drill = new DrillCoach(this, () => {
         const r = this.controller.getRound();
@@ -842,7 +860,7 @@ export class TableScene extends Phaser.Scene {
       this.resumeAfterDeal = true;
       return;
     }
-    if (this.trickSettling || this.showingHandSummary || this.matchOver) return;
+    if (this.trickSettling || this.showingHandSummary || this.matchOver || this.coachHold) return;
     const status = await this.controller.step();
     if (this.showingHandSummary || this.matchOver) return;
     if (status === "advanced") {
@@ -1162,6 +1180,22 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onBiddingResolved(e: { mode: Mode; trumpSuit?: Suit; declarer: Seat; hands: Record<Seat, Card[]> }): void {
+    // عدّ الحكم needs a hokum: a sun hand is dealt again; a hokum one starts with the method.
+    if (this.trumpCoach) {
+      this.coachHold = true;
+      if (e.mode === "sun") {
+        this.flashNote("هاليد صن — ما فيه حكم نعدّه. نوزع من جديد");
+        this.time.delayedCall(1600, () => this.scene.restart(this.nodeData));
+        return;
+      }
+      const coach = this.trumpCoach;
+      this.time.delayedCall(900, () =>
+        coach.start(() => {
+          this.coachHold = false;
+          this.driveAI();
+        }),
+      );
+    }
     this.chat(contractLines(e.declarer, e.mode));
     this.clearBidButtons();
     const modeLabel =
@@ -1351,6 +1385,11 @@ export class TableScene extends Phaser.Scene {
 
   private onPlayTurn(e: { seat: Seat; legal: Card[] }): void {
     if (e.seat !== HUMAN_SEAT) return;
+    // عدّ الحكم: when the count decides this card, the question comes first (its shade covers the hand).
+    if (this.trumpCoach) {
+      const r = this.controller.getRound();
+      this.trumpCoach.onYourTurn(r.currentTrick!, r.hands[HUMAN_SEAT], r.tricks.length, () => {});
+    }
     this.showSawaButton();
     this.showDeferButton();
     const legalIds = new Set(e.legal.map(cardId));
@@ -1781,6 +1820,8 @@ export class TableScene extends Phaser.Scene {
   }
 
   private onPlayCard(e: { seat: Seat; card: Card; akka?: boolean; baloot?: boolean }): void {
+    // عدّ الحكم: the counter follows every card.
+    this.time.delayedCall(0, () => this.trumpCoach?.refresh());
     const dest = TRICK_ANCHOR[e.seat];
     if (e.seat === HUMAN_SEAT) {
       this.sawaButton?.destroy();
@@ -2012,7 +2053,10 @@ export class TableScene extends Phaser.Scene {
       for (const fn of queued) fn();
       // تمرين الذاكرة: some tricks end in a question before play goes on.
       if (this.drill && this.controller.getRound().phase === "playing") this.drill.afterTrick(this.controller.getRound().tricks.length, () => this.driveAI());
-      else this.driveAI();
+      else {
+        if (this.trumpCoach && this.controller.getRound().phase === "playing") this.trumpCoach.afterTrick(this.controller.getRound().tricks.length);
+        this.driveAI();
+      }
     });
   }
 
@@ -2022,6 +2066,12 @@ export class TableScene extends Phaser.Scene {
 
   private onHandComplete(e: HandCompleteEvent): void {
     // تمرين الذاكرة: one hand is one session — how it went, then another or home.
+    if (this.trumpCoach) {
+      this.showingHandSummary = true;
+      const coach = this.trumpCoach;
+      this.whenTableSettled(() => coach.summary(() => this.scene.restart(this.nodeData), () => this.scene.start("title")));
+      return;
+    }
     if (this.drill) {
       this.showingHandSummary = true;
       const drill = this.drill;

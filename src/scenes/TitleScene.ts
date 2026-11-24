@@ -4,6 +4,8 @@ import { CENTER_X, HEIGHT, WIDTH } from "./layout";
 import { HEAD_FONT } from "./theme";
 import { arabicText, makeButton, preloadUi } from "./ui";
 import { storySeen } from "./StoryScene";
+import { loadProgress, skillOf, STAGES } from "../drill/progress";
+import { CSS, inkText, paperPanel } from "./theme";
 
 const LOGO = "ui-logo";
 
@@ -45,10 +47,32 @@ export class TitleScene extends Phaser.Scene {
     makeButton(this, CENTER_X, HEIGHT - 290, "ادخل الديوانية", () => (storySeen() ? this.scene.start("map") : this.scene.start("story", { next: "map" })), { width: 500, height: 116, plate: "burgundy" });
     arabicText(this, CENTER_X, HEIGHT - 190, "الأبواب مفتوحة حتى الفجر", { fontFamily: HEAD_FONT, fontSize: "30px", color: "#f2e3c2" });
     // تمرين الذاكرة: plain Baloot with questions between tricks — practice, not the night.
-    makeButton(this, CENTER_X, HEIGHT - 410, "تمرين الذاكرة", () => this.scene.start("table", { nodeType: "match", matchTarget: 999, modifiers: {}, drill: true }), { width: 400, height: 96, plate: "teal" });
+    makeButton(this, CENTER_X, HEIGHT - 410, "تمرين الذاكرة", () => this.drillMenu(), { width: 400, height: 96, plate: "teal" });
     const story = arabicText(this, CENTER_X, HEIGHT - 120, "القصة وكيف تمشي الليلة", { fontSize: "28px", color: "#ffd98a" });
     story.setInteractive({ useHandCursor: true }).on("pointerdown", () => this.scene.start("story", { next: "title" }));
     // game-icons.net asks for credit (CC BY 3.0).
     this.add.text(CENTER_X, HEIGHT - 44, "Icons: game-icons.net (CC BY 3.0)", { fontFamily: "Tajawal, Arial", fontSize: "22px", color: "#c9b48c" }).setOrigin(0.5).setAlpha(0.8);
+  }
+
+  /** تمرين الذاكرة: one skill at a time (عدّ الحكم first), or the mixed quiz. */
+  private drillMenu(): void {
+    const p = loadProgress();
+    const sk = skillOf(p, "trump");
+    const shade = this.add.rectangle(CENTER_X, HEIGHT / 2, WIDTH, HEIGHT, 0x000000, 0.6).setInteractive().setDepth(30);
+    const panel = this.add.container(CENTER_X, HEIGHT / 2).setDepth(31);
+    panel.add(paperPanel(this, WIDTH - 100, 760));
+    panel.add(inkText(this, 0, -300, "تمرين الذاكرة", { fontSize: "44px", color: CSS.crimson }));
+    panel.add(inkText(this, 0, -235, "مهارة وحدة كل مرة، بطريقة واضحة، والمساعدة تختفي شوي شوي", { fontSize: "24px", color: CSS.inkSoft, wordWrap: { width: WIDTH - 200 } }));
+    const close = () => {
+      shade.destroy();
+      panel.destroy();
+    };
+    shade.on("pointerdown", close);
+    const go = (data: Record<string, unknown>) => this.scene.start("table", { nodeType: "match", matchTarget: 999, modifiers: {}, drill: true, ...data });
+    panel.add(makeButton(this, 0, -120, sk.mastered ? "١. عدّ الحكم ✓" : `١. عدّ الحكم · المرحلة ${sk.stage} من ${STAGES}`, () => go({ drillSkill: "trump" }), { width: WIDTH - 200, height: 96, plate: "teal" }).container);
+    panel.add(inkText(this, 0, -45, "تتعلم تعدّ الحكم الباقي وتستخدمه في قرارك", { fontSize: "23px", color: CSS.inkSoft }));
+    panel.add(makeButton(this, 0, 50, "٢. الإكك والعشرات · قريباً", () => {}, { width: WIDTH - 200, height: 86, plate: "paper", disabled: true }).container);
+    panel.add(makeButton(this, 0, 160, "اختبار شامل (أسئلة مخلوطة)", () => go({}), { width: WIDTH - 200, height: 86, plate: "navy" }).container);
+    panel.add(makeButton(this, 0, 290, "رجوع", close, { width: 260, height: 76, plate: "paper" }).container);
   }
 }

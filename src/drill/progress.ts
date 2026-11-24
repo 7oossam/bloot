@@ -9,7 +9,17 @@
  */
 import type { DrillType } from "./questions";
 
+/** A skill's place on its ladder: stage 1 (the counter in view) → 3 (in your head), then mastered. */
+export interface SkillProgress {
+  stage: number;
+  /** Good hands in a row at this stage. */
+  streak: number;
+  mastered: boolean;
+}
+
 export interface DrillProgress {
+  /** The skills, one at a time (deliberate practice): عدّ الحكم first. */
+  skills?: Partial<Record<string, SkillProgress>>;
   level: number;
   boxes: Partial<Record<DrillType, number>>;
   /** Good hands in a row at this level. */
@@ -90,6 +100,47 @@ export function finishHand(p: DrillProgress, right: number, asked: number): numb
   p.streak = 0;
   if (rate < 0.5 && p.level > 1) {
     p.level--;
+    return -1;
+  }
+  return 0;
+}
+
+// ------------------------------------------------------------------ skills, one at a time
+
+/**
+ * The research that fits card tracking is about skill, not facts: experts don't hold more in
+ * their heads, they track in chunks (Chase & Simon on chess; bridge players count a suit at a
+ * time), learned one sub-skill at a time with feedback (Ericsson's deliberate practice), with
+ * a support that fades as the skill takes over (scaffolding). So each skill has three stages:
+ * 1 the counter is in view, 2 it shows for a glance every other trick, 3 it's gone.
+ */
+export const STAGES = 3;
+
+export function skillOf(p: DrillProgress, id: string): SkillProgress {
+  p.skills ??= {};
+  return (p.skills[id] ??= { stage: 1, streak: 0, mastered: false });
+}
+
+/** A finished hand of a skill: two good ones in a row (≥ 80%) move a stage on; a bad one (< 50%) back. */
+export function finishSkillHand(p: DrillProgress, id: string, right: number, asked: number): -1 | 0 | 1 {
+  const sk = skillOf(p, id);
+  p.hands++;
+  if (asked < 2) return 0;
+  const rate = right / asked;
+  p.best = Math.max(p.best, Math.round(rate * 100));
+  if (rate >= 0.8) {
+    sk.streak++;
+    if (sk.streak >= 2) {
+      sk.streak = 0;
+      if (sk.stage < STAGES) sk.stage++;
+      else sk.mastered = true;
+      return 1;
+    }
+    return 0;
+  }
+  sk.streak = 0;
+  if (rate < 0.5 && sk.stage > 1) {
+    sk.stage--;
     return -1;
   }
   return 0;
