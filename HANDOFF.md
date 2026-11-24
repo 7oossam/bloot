@@ -5,6 +5,15 @@
 
 ## 1. What We Just Did
 
+### All four drill skills, pick any from the list (Nov 24)
+- `src/drill/skills.ts`: every skill has the same shape — a **method** card, a **helper** under the table that fades by stage, and **questions at your turn** with the working and why it matters. The coach is one class for all (`src/scenes/skillCoach.ts`, replacing `trumpCoach.ts`); TableScene's `drillSkill` takes any `SkillId`.
+  - **١. عدّ الحكم** — as below (hokum hands only).
+  - **٢. الإكك والعشرات** — helper: the Aces and 10s still out, suit by suit («♠ إكة عشرة ♥ عشرة …»; the trump suit left to عدّ الحكم). Asks «معك عشرة هاص. إكة هاص نزلت؟» when your 10 is about to go, else «كم إكة باقية؟» after one falls.
+  - **٣. مين فضى** — helper: each seat's voids. Asks «قبل ما تبدأ: مين فاضي من …؟» for a suit you hold (why: in hokum they cut it, in sun they throw on it), and «في الأكلة N مين ما لعب …؟» right after someone shows out.
+  - **٤. التهريب** — the player's two readings: after a discard, «تهريب لخويه، ولا ورقة ضعيفة؟» (decided by who was winning the trick); when you lead and your partner signalled, «خويّك وش طلب؟».
+- The home screen's list shows all four with their stage (✓ when mastered) and the mixed quiz; all open, play any.
+- The cards in the open trick count as fallen (an Ace lying on the table is gone, not «out there»).
+
 ### تمرين الذاكرة, rebuilt as a skill: عدّ الحكم first (Nov 24)
 - The player: "I don't feel I'm learning anything — is it really built on research?" Honest answer given: retrieval/spacing/interleaving are proven for *facts*; card tracking is a *skill*, and "train your memory" drills (n-back) don't transfer (Melby-Lervåg & Hulme). What works for game memory: **chunking** (experts track a suit at a time — Chase & Simon; bridge counting), **deliberate practice** of one sub-skill with feedback (Ericsson), **scaffolding that fades**, and practice **at the decision** where the memory is used.
 - So the drill now opens a chooser: **١. عدّ الحكم** (with its stage), ٢. الإكك والعشرات (coming), and the old mixed quiz («اختبار شامل»).

@@ -29,7 +29,8 @@ export type DrillAnswer =
   | { kind: "seats"; value: Seat[] }
   | { kind: "suit"; value: Suit | "none" }
   | { kind: "yesno"; value: boolean }
-  | { kind: "rank"; suit: Suit; value: Rank | "none" };
+  | { kind: "rank"; suit: Suit; value: Rank | "none" }
+  | { kind: "choice"; options: string[]; value: number };
 
 export interface DrillQuestion {
   type: DrillType;
@@ -63,7 +64,7 @@ function fallen(t: DrillTable): Array<{ card: Card; trick: number; seat: Seat }>
 }
 
 /** A seat that didn't follow: a ruff, a message to its partner, or a weak card thrown away. */
-interface OffSuit {
+export interface OffSuit {
   seat: Seat;
   card: Card;
   led: Suit;
@@ -72,7 +73,7 @@ interface OffSuit {
   read: "ruff" | "signal" | "support" | "weak";
 }
 
-function offSuits(t: DrillTable): OffSuit[] {
+export function offSuits(t: DrillTable): OffSuit[] {
   const out: OffSuit[] = [];
   t.tricks.forEach((tr, i) => {
     const led = tr.cards[tr.order[0]]!.suit;
@@ -221,6 +222,8 @@ export function answerText(a: DrillAnswer): string {
       return a.value ? "نزلت" : "ما نزلت";
     case "rank":
       return a.value === "none" ? "ولا ورقة" : `${RANK_AR[a.value]} ${SUIT_AR[a.suit]}`;
+    case "choice":
+      return a.options[a.value];
   }
 }
 

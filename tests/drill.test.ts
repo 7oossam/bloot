@@ -165,3 +165,86 @@ describe("عدّ الحكم", () => {
     expect(finishSkillHand(p, "trump", 1, 5)).toBe(-1);
   });
 });
+
+import { makeSkill } from "../src/drill/skills";
+import { legalMoves } from "../src/engine/trick";
+import { offSuits, outThere } from "../src/drill/questions";
+
+/** A table stopped mid-hand at your turn, with your legal cards. */
+function atYourTurn(seed: number, minTricks: number) {
+  const r = new Round(0, mulberry32(seed));
+  for (let i = 0; i < 12 && r.phase === "bidding"; i++) {
+    const seat = r.bidding.turnSeat;
+    r.bid(decideBid(seat, r.hands[seat], r.bidding));
+  }
+  while (r.phase === "doubling") r.double({ seat: r.doubling!.turnSeat, call: "pass" });
+  if (r.phase !== "playing") return undefined;
+  const res = r.bidding.result!;
+  while (r.phase === "playing" && (r.tricks.length < minTricks || r.turnSeat !== 0)) {
+    const seat = r.turnSeat!;
+    r.playCard(seat, decideCard(r.hands[seat], r.currentTrick!, res.mode, res.trumpSuit, seat, { tricks: r.tricks, declarer: res.declarer }));
+  }
+  if (r.phase !== "playing") return undefined;
+  const t: DrillTable = { tricks: r.tricks, hand: r.hands[0], mode: res.mode, trumpSuit: res.trumpSuit };
+  return { t, trick: r.currentTrick!, hand: r.hands[0], legal: legalMoves(r.hands[0], r.currentTrick!, res.mode, res.trumpSuit, 0, false) };
+}
+
+describe("the skills ask only what the table can answer", () => {
+  it("الإكك: «نزلت؟» is yes exactly when the Ace is gone; the count matches", () => {
+    let asked = 0;
+    for (let seed = 1; seed <= 80; seed++) {
+      for (const k of [2, 4, 6]) {
+        const s = atYourTurn(seed, k);
+        if (!s) continue;
+        const q = makeSkill("aces").onTurn({ ...s, quiet: 3 });
+        if (!q) continue;
+        asked++;
+        if (q.answer.kind === "yesno") {
+          const suit = (["S", "H", "D", "C"] as const).find((x) => q.prompt.includes(`إكة ${SUIT_AR[x]}`))!;
+          expect(q.answer.value).toBe(!outThere(s.t, suit).some((c) => c.rank === "A"));
+        } else {
+          expect(q.answer.kind).toBe("number");
+        }
+      }
+    }
+    expect(asked).toBeGreaterThan(10);
+  });
+
+  it("مين فضى: the seats named really didn't follow", () => {
+    let asked = 0;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s = atYourTurn(seed, 4);
+      if (!s) continue;
+      const q = makeSkill("voids").onTurn({ ...s, quiet: 3 });
+      if (!q || q.answer.kind !== "seats") continue;
+      asked++;
+      const offs = offSuits(s.t);
+      for (const seat of q.answer.value) expect(offs.some((o) => o.seat === seat)).toBe(true);
+    }
+    expect(asked).toBeGreaterThan(5);
+  });
+
+  it("التهريب: «تهريب ولا ضعيفة» follows who was winning the trick", () => {
+    let asked = 0;
+    for (let seed = 1; seed <= 80; seed++) {
+      const s = atYourTurn(seed, 5);
+      if (!s) continue;
+      const q = makeSkill("signals").onTurn({ ...s, quiet: 0 });
+      if (!q || q.answer.kind !== "choice") continue;
+      asked++;
+      const last = offSuits(s.t).filter((o) => o.seat !== 0 && (o.read === "signal" || o.read === "weak")).at(-1)!;
+      expect(q.answer.value).toBe(last.read === "signal" ? 0 : 1);
+    }
+    expect(asked).toBeGreaterThan(5);
+  });
+});
+
+describe("the cards on the table right now count", () => {
+  it("an Ace lying in the open trick is gone, not out there", () => {
+    const card = (id: string): Card => ({ suit: id[0] as Card["suit"], rank: id.slice(1) as Card["rank"] });
+    const open: Trick = { leader: 3, order: [3], cards: { 3: card("HA") } };
+    const t: DrillTable = { tricks: [open], hand: [card("H10"), card("S7")], mode: "sun" };
+    const q = makeSkill("aces").onTurn({ t, trick: open, hand: t.hand, legal: [card("H10")], quiet: 0 })!;
+    expect(q.answer).toEqual({ kind: "yesno", value: true });
+  });
+});
